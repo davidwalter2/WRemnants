@@ -25,7 +25,7 @@ def select_good_muons(df, nMuons=1, use_trackerMuons=False, use_isolation=False)
         else:
             df = df.Define("Muon_category", "Muon_isTracker && Muon_innerTrackOriginalAlgo != 13 && Muon_innerTrackOriginalAlgo != 14 && Muon_highPurity")
     else:
-        df = df.Define("Muon_category", "Muon_isGlobal")
+        df = df.Define("Muon_category", "Muon_isGlobal && Muon_highPurity")
 
     goodMuonsSelection = "vetoMuons && Muon_mediumId && Muon_category"
     if use_isolation:
@@ -54,12 +54,35 @@ def define_trigger_muons(df):
 
     return df
 
+def define_os_muons(df, ptLow, ptHigh):
+
+    # mu- for even event numbers, mu+ for odd event numbers
+
+    df = df.Define("posMuons", "goodMuons && Muon_correctedCharge == 1")
+    df = df.Define("negMuons", "goodMuons && Muon_correctedCharge == -1")
+
+    df = df.Filter("Sum(posMuons) == 1 && Sum(negMuons) == 1")
+
+    df = muon_calibration.define_corrected_reco_muon_kinematics(df, "posMuons", ["pt", "eta", "phi", "charge"])
+    df = muon_calibration.define_corrected_reco_muon_kinematics(df, "negMuons", ["pt", "eta", "phi", "charge"])
+
+    df = df.Filter(f"posMuons_pt0 > {ptLow} && posMuons_pt0 < {ptHigh}") 
+    df = df.Filter(f"negMuons_pt0 > {ptLow} && negMuons_pt0 < {ptHigh}") 
+
+    return df
+
 def select_triggermatched_muon(df, dataset, muon_eta, muon_phi):
     if dataset.group in ["Top", "Diboson"]:
         df = df.Define("goodTrigObjs", "wrem::goodMuonTriggerCandidate(TrigObj_id,TrigObj_pt,TrigObj_l1pt,TrigObj_l2pt,TrigObj_filterBits)")
     else:
         df = df.Define("goodTrigObjs", "wrem::goodMuonTriggerCandidate(TrigObj_id,TrigObj_filterBits)")
-    df = df.Filter(f"wrem::hasTriggerMatch({muon_eta},{muon_phi},TrigObj_eta[goodTrigObjs],TrigObj_phi[goodTrigObjs])")
+
+    if type(muon_eta) == list:
+        # in case multiple leptons are given, check if any of them passes the trigger
+        selection = [f"wrem::hasTriggerMatch({eta},{phi},TrigObj_eta[goodTrigObjs],TrigObj_phi[goodTrigObjs])" for eta, phi in zip(muon_eta, muon_phi)]
+        df.Filter(" || ".join(selection))
+    else:
+        df = df.Filter(f"wrem::hasTriggerMatch({muon_eta},{muon_phi},TrigObj_eta[goodTrigObjs],TrigObj_phi[goodTrigObjs])")
     
     return df
 

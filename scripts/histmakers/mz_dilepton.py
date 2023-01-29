@@ -27,7 +27,7 @@ parser.add_argument("--smearing", action='store_true', help="Smear pT such that 
 
 f = next((x for x in parser._actions if x.dest == "pt"), None)
 if f:
-    f.default = [34,26.,60.]
+    f.default = [34,26.,70.]
 
 args = parser.parse_args()
 
@@ -137,18 +137,16 @@ def build_graph(df, dataset):
     df = muon_selections.select_veto_muons(df, nMuons=2)
     df = muon_selections.select_good_muons(df, nMuons=2, use_trackerMuons=args.trackerMuons, use_isolation=True)
 
-    df = muon_selections.define_trigger_muons(df)
+    df = muon_selections.define_os_muons(df, args.pt[1], args.pt[2])
 
-    df = muon_selections.select_standalone_muons(df, dataset, args.trackerMuons, "trigMuons")
-    df = muon_selections.select_standalone_muons(df, dataset, args.trackerMuons, "nonTrigMuons")
+    df = muon_selections.select_standalone_muons(df, dataset, args.trackerMuons, "posMuons")
+    df = muon_selections.select_standalone_muons(df, dataset, args.trackerMuons, "negMuons")
 
-    df = muon_selections.select_triggermatched_muon(df, dataset, "trigMuons_eta0", "trigMuons_phi0")
+    df = muon_selections.select_triggermatched_muon(df, dataset, ["posMuons_eta0", "negMuons_eta0"], ["posMuons_phi0", "negMuons_phi0"])
 
-    df = df.Filter("trigMuons_pt0 > 26.") # should there also be an upper cut?
-
-    df = df.Define("TrigMuon_mom4", "ROOT::Math::PtEtaPhiMVector(trigMuons_pt0, trigMuons_eta0, trigMuons_phi0, wrem::muon_mass)")
-    df = df.Define("NonTrigMuon_mom4", "ROOT::Math::PtEtaPhiMVector(nonTrigMuons_pt0, nonTrigMuons_eta0, nonTrigMuons_phi0, wrem::muon_mass)")
-    df = df.Define("ll_mom4", "ROOT::Math::PxPyPzEVector(TrigMuon_mom4)+ROOT::Math::PxPyPzEVector(NonTrigMuon_mom4)")
+    df = df.Define("posMuons_mom4", "ROOT::Math::PtEtaPhiMVector(posMuons_pt0, posMuons_eta0, posMuons_phi0, wrem::muon_mass)")
+    df = df.Define("negMuons_mom4", "ROOT::Math::PtEtaPhiMVector(negMuons_pt0, negMuons_eta0, negMuons_phi0, wrem::muon_mass)")
+    df = df.Define("ll_mom4", "ROOT::Math::PxPyPzEVector(posMuons_mom4)+ROOT::Math::PxPyPzEVector(negMuons_mom4)")
     df = df.Define("mll", "ll_mom4.mass()")
 
     df = df.Filter("mll >= 60. && mll < 120.")
@@ -156,22 +154,22 @@ def build_graph(df, dataset):
     df = df.Define("ptll", "ll_mom4.pt()")
     df = df.Define("yll", "ll_mom4.Rapidity()")
     df = df.Define("absYll", "std::fabs(yll)")
-    df = df.Define("csSineCosThetaPhill", "trigMuons_charge0 == -1 ? wrem::csSineCosThetaPhi(TrigMuon_mom4, NonTrigMuon_mom4) : wrem::csSineCosThetaPhi(NonTrigMuon_mom4, TrigMuon_mom4)")
+    df = df.Define("csSineCosThetaPhill", "wrem::csSineCosThetaPhi(negMuons_mom4, posMuons_mom4)")
     
     # "renaming" to write out corresponding axis
-    df = df.Alias("charge", "trigMuons_charge0")
-    df = df.Alias("etaPlus", "nonTrigMuons_eta0") # FIXME
-    df = df.Alias("etaMinus", "trigMuons_eta0") # FIXME
-    df = df.Alias("ptPlus", "nonTrigMuons_pt0") # FIXME
-    df = df.Alias("ptMinus", "trigMuons_pt0") # FIXME
+    df = df.Alias("charge", "posMuons_charge0")
+    df = df.Alias("etaPlus", "posMuons_eta0") # FIXME
+    df = df.Alias("etaMinus", "negMuons_eta0") # FIXME
+    df = df.Alias("ptPlus", "negMuons_pt0") # FIXME
+    df = df.Alias("ptMinus", "posMuons_pt0") # FIXME
 
     df = df.Define("cosThetaStarll", "csSineCosThetaPhill.costheta")
     df = df.Define("phiStarll", "std::atan2(csSineCosThetaPhill.sinphi, csSineCosThetaPhill.cosphi)")
 
     if not dataset.is_data:
         df = df.Define("weight_pu", pileup_helper, ["Pileup_nTrueInt"])
-        df = df.Define("weight_fullMuonSF_withTrackingReco", muon_efficiency_helper, ["trigMuons_pt0", "trigMuons_eta0", "trigMuons_SApt0", "trigMuons_SAeta0", "trigMuons_charge0",
-                                                                                      "nonTrigMuons_pt0", "nonTrigMuons_eta0", "nonTrigMuons_SApt0", "nonTrigMuons_SAeta0", "nonTrigMuons_charge0"])
+        df = df.Define("weight_fullMuonSF_withTrackingReco", muon_efficiency_helper, ["posMuons_pt0", "posMuons_eta0", "posMuons_SApt0", "posMuons_SAeta0", "posMuons_charge0",
+                                                                                      "negMuons_pt0", "negMuons_eta0", "negMuons_SApt0", "negMuons_SAeta0", "negMuons_charge0"])
         df = df.Define("weight_newMuonPrefiringSF", muon_prefiring_helper, ["Muon_correctedEta", "Muon_correctedPt", "Muon_correctedPhi", "Muon_correctedCharge", "Muon_looseId"])
 
         weight_expr = "weight*weight_pu*weight_fullMuonSF_withTrackingReco*weight_newMuonPrefiringSF*L1PreFiringWeight_ECAL_Nom"
@@ -189,7 +187,7 @@ def build_graph(df, dataset):
     if not dataset.is_data and not args.onlyMainHistograms:
 
 
-        df = syst_tools.add_muon_efficiency_unc_hists(results, df, muon_efficiency_helper_stat, muon_efficiency_helper_syst, nominal_axes, nominal_cols, is_w_like=True)
+        df = syst_tools.add_muon_efficiency_unc_hists(results, df, muon_efficiency_helper_stat, muon_efficiency_helper_syst, nominal_axes, nominal_cols, muons=["posMuons", "negMuons"])
         df = syst_tools.add_L1Prefire_unc_hists(results, df, muon_prefiring_helper_stat, muon_prefiring_helper_syst, nominal_axes, nominal_cols)
 
         # n.b. this is the W analysis so mass weights shouldn't be propagated
@@ -219,7 +217,7 @@ def build_graph(df, dataset):
             if not "tau" in dataset.name:
                 syst_tools.add_muonscale_hist(
                     results, df, args.muonCorrEtaBins, args.muonCorrMag, isW, nominal_axes, nominal_cols,
-                    muon_eta="trigMuons_eta0")
+                    muon_eta="posMuons_eta0")
 
 
     return results, weightsum

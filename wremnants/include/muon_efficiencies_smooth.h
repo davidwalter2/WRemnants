@@ -454,6 +454,32 @@ namespace wrem {
 
     };
 
+    // specialization for two-lepton dilepton case - only one lepton is required to trigger
+    template<int NEtaBins, int NPtEigenBins, typename HIST_SF>
+    class muon_efficiency_smooth_helper_stat_iso<true, NEtaBins, NPtEigenBins, HIST_SF> :
+        public muon_efficiency_smooth_helper_stat_base<NEtaBins, NPtEigenBins, HIST_SF> {
+
+    public:
+
+        using stat_base_t = muon_efficiency_smooth_helper_stat_base<NEtaBins, NPtEigenBins, HIST_SF>;
+        using tensor_t = typename stat_base_t::stat_tensor_t;
+
+        using stat_base_t::stat_base_t;
+
+        tensor_t operator() (float pos_pt, float pos_eta, int pos_charge, bool pos_pass_trigger
+                             float neg_pt, float neg_eta, int neg_charge, bool neg_pass_trigger, double nominal_weight = 1.0) {
+            constexpr bool with_trigger = true;
+            constexpr bool without_trigger = false;
+            constexpr bool pass_iso = true;
+
+            const tensor_t variation_trig    = stat_base_t::sf_stat_var_iso(pos_pt, pos_eta, pos_charge, pass_iso, pos_pass_trigger);
+            const tensor_t variation_nontrig = stat_base_t::sf_stat_var_iso(neg_pt, neg_eta, neg_charge, pass_iso, neg_pass_trigger);
+            return nominal_weight * variation_trig * variation_nontrig;
+            
+        }
+
+    };
+
 
 }
 
