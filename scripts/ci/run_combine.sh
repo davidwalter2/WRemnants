@@ -19,14 +19,15 @@ pushd $combinetf_dir
 eval `scram runtime -sh`
 popd
 
+
+set -x
+
 pushd $working_dir
 
 card_name=${working_dir}.txt
 combineCards.py ${cards[@]} > $card_name
 
 outfile=${card_name/txt/hdf5}
-
-set -x
 
 if [ "$mode" == "mass" ]; then
 	text2hdf5.py --X-allow-no-signal "$card_name"

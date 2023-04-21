@@ -1,10 +1,10 @@
-from utilities import boostHistHelpers as hh, common, output_tools, logging
+from utilities import boostHistHelpers as hh, common, output_tools, logging, differential
 
 parser,initargs = common.common_parser(True)
 
 import narf
 import wremnants
-from wremnants import theory_tools,syst_tools,theory_corrections, muon_validation, muon_calibration, muon_selections
+from wremnants import theory_tools,syst_tools,theory_corrections, muon_validation, muon_calibration, muon_selections, unfolding_tools
 import hist
 import lz4.frame
 import math
@@ -15,9 +15,11 @@ import os
 parser.add_argument("--csVarsHist", action='store_true', help="Add CS variables to dilepton hist")
 parser.add_argument("--axes", type=str, nargs="*", default=["mll", "ptll"], help="")
 parser.add_argument("--finePtBinning", action='store_true', help="Use fine binning for ptll")
+parser.add_argument("--genVars", type=str, default=["ptVGen"], choices=["ptVGen", "absYVGen", "mVGen"], help="Gen level variables used for unfolding")
 
 parser = common.set_parser_default(parser, "pt", [44,26.,70.])
 parser = common.set_parser_default(parser, "eta", [6,-2.4,2.4])
+parser = common.set_parser_default(parser, "genBins", [22])
 
 args = parser.parse_args()
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
@@ -30,7 +32,7 @@ datasets = wremnants.datasets2016.getDatasets(maxFiles=args.maxFiles,
 era = args.era
 
 # available axes for dilepton validation plots
-all_axes = {
+reco_axes = {
     "mll": hist.axis.Regular(60, 60., 120., name = "mll"),
     "yll": hist.axis.Regular(25, -2.5, 2.5, name = "yll"),
     "absYll": hist.axis.Regular(25, 0., 2.5, name = "absYll"),
@@ -47,17 +49,20 @@ all_axes = {
 }
 
 for a in args.axes:
-    if a not in all_axes.keys():
+    if a not in reco_axes.keys():
         logger.error(f" {a} is not a known axes! Supported axes choices are {list(axes.keys())}")
 
-cols = args.axes
+nominal_cols = args.axes
 
 if args.csVarsHist:
-    cols += ["cosThetaStarll", "phiStarll"]
+    nominal_cols += ["cosThetaStarll", "phiStarll"]
 
-cols.append("charge")
+nominal_cols.append("charge")
 
-axes = [all_axes[a] for a in cols] 
+nominal_axes = [reco_axes[a] for a in nominal_cols] 
+
+unfolding_axes, unfolding_cols = differential.get_gen_axes(args.genBins, args.genVars)
+
 
 # define helpers
 muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = wremnants.make_muon_prefiring_helpers(era = era)
@@ -98,6 +103,11 @@ def build_graph(df, dataset):
     isW = dataset.name in common.wprocs
     isZ = dataset.name in common.zprocs
 
+    unfold = args.unfolding and dataset.name in ["WplusmunuPostVFP", "WminusmunuPostVFP"]
+
+    cvh_helper = data_calibration_helper if dataset.is_data else mc_calibration_helper
+    jpsi_helper = data_jpsi_crctn_helper if dataset.is_data else mc_jpsi_crctn_helper
+
     if dataset.is_data:
         df = df.DefinePerSample("weight", "1.0")
     else:
@@ -105,13 +115,20 @@ def build_graph(df, dataset):
 
     weightsum = df.SumAndCount("weight")
 
+    if unfold:
+        df = unfolding_tools.define_gen_level(df, args.genLevel, dataset.name, mode="dilepton")
+        unfolding_tools.add_xnorm_histograms(results, df, args, dataset.name, corr_helpers, qcdScaleByHelicity_helper, unfolding_axes, unfolding_cols)
+
+        axes = [*nominal_axes, *unfolding_axes] 
+        cols = [*nominal_cols, *unfolding_cols]
+    else:
+        axes = nominal_axes
+        cols = nominal_cols
+
     df = df.Filter("HLT_IsoTkMu24 || HLT_IsoMu24")
 
     df = muon_selections.veto_electrons(df)
     df = muon_selections.apply_met_filters(df)
-
-    cvh_helper = data_calibration_helper if dataset.is_data else mc_calibration_helper
-    jpsi_helper = data_jpsi_crctn_helper if dataset.is_data else mc_jpsi_crctn_helper
 
     df = muon_calibration.define_corrected_muons(df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper)
 
@@ -157,10 +174,13 @@ def build_graph(df, dataset):
         df = theory_tools.define_theory_weights_and_corrs(df, dataset.name, corr_helpers, args)
 
     results.append(df.HistoBoost("weight", [hist.axis.Regular(100, -2, 2)], ["nominal_weight"]))
+
     results.append(df.HistoBoost("nominal", axes, [*cols, "nominal_weight"]))
 
     for obs in ["ptll", "mll", "yll"]:
-        results.append(df.HistoBoost(f"nominal_{obs}", [all_axes[obs]], [obs, "nominal_weight"]))
+        results.append(df.HistoBoost(f"nominal_{obs}", [reco_axes[obs]], [obs, "nominal_weight"]))
+
+
 
     if not dataset.is_data and not args.onlyMainHistograms:
 

@@ -72,12 +72,19 @@ cms_decor = "Preliminary" if not args.noData else "Simulation Preliminary"
 
 binwnorm = 1.0
 
-def getProcessPtEtaCharge(name):
-    charge, eta, pt = name.split("_")[1:4]
-    charge = int(charge.replace("qGen",""))
-    eta = int(eta.replace("etaGen",""))
-    pt = int(pt.replace("ptGen",""))
-    return pt, eta, charge
+def get_bin(name, var):
+    name_split = name.split(var)
+    if len(name_split) == 1:
+        return {}
+    else:
+        return int(name_split[-1].split("_")[0])
+
+def getProcessBins(name):
+    res = {
+        x: get_bin(name, x) for x in ["qGen", "ptGen", "etaGen"] if get_bin(name, x) is not None
+    }
+
+    return res
 
 # labels
 labelmap = {
@@ -97,23 +104,24 @@ def get_label(name):
     logger.debug(f"Get label for {name}")
     if name in labelmap.keys():
         return labelmap[name]
-    elif name.startswith("Wmunu"):
-        pt, eta, charge = getProcessPtEtaCharge(name)
 
+    res = getProcessBins(name)
+    eta = res["etaGen"]
+    pt = res["ptGen"]
+    charge = res["qGen"]    
+
+    if name.startswith("Wmunu"):
         label = r"W$^{+}\to\mu\nu$" if charge else r"W$^{-}\to\mu\nu$"
         label += f"({eta};{pt})"
-
         return label
-    elif name.startswith("Zmumu"):
-        pt, eta, charge = getProcessPtEtaCharge(name)
 
+    if name.startswith("Zmumu"):
         label = r"Z$\to\mu^{+}$" if charge else r"Z$\to\mu^{-}$"
         label += f"({eta};{pt})"
-
         return label
-    else:
-        logger.warning(f"No label found for {name}")
-        return name
+    
+    logger.warning(f"No label found for {name}")
+    return name
 
 # colors
 colormap= {
@@ -137,16 +145,20 @@ def get_color(name):
     logger.debug(f"Get color for {name}")
     if name in colormap.keys():
         return colormap[name]
-    elif name.startswith(base_process):
-        pt, eta, charge = getProcessPtEtaCharge(name)
+
+    if name.startswith(base_process):
+
+        res = getProcessBins(name)
+        eta = res["etaGen"]
+        pt = res["ptGen"]
+        charge = res["qGen"]    
 
         icol = (1+eta + nbins_eta*pt + nbins_eta*nbins_pt*charge) / (nbins_eta*nbins_pt*nbins_charge)
 
         return cm(icol) 
 
-    else:
-        logger.warning(f"No color found for {name}")
-        return "white"
+    logger.warning(f"No color found for {name}")
+    return "white"
 
 def make_yields_df(hists, procs, signal=None, per_bin=False):
     logger.debug(f"Make yield df for {procs}")
@@ -331,50 +343,61 @@ def get_results(rootfile, pois, scale=1.0):
         impacts, labels, norm = input_tools.readImpacts(rootfile, True, add_total=True, POI=poi, normalize=False)
         res = {l: i/scale for i,l in zip(impacts, labels) if l in ["Total", "stat"]}
 
+        res["poi"] = poi
         res["norm"] = norm/scale
 
-        charge, eta, pt = getProcessPtEtaCharge(poi)
-        res.update({"pt":pt, "eta":eta, "charge": charge})
-
-        res["bin"] = get_bin_number(pt, eta, charge)
+        res.update(getProcessBins(poi))
 
         results.append(res)
 
     df = pd.DataFrame(results)
-    df = df.sort_values("bin")
+    df = df.sort_values(["qGen", "ptGen", "etaGen"], ignore_index=True)
     return df
 
-def plot_xsec_unfolded(bins=(None, None), channel=None, poi_type="mu"):
+def plot_xsec_unfolded(channel=None, poi_type="mu"):
     normalize = poi_type=="pmaskedexpnorm"
     logger.info(f"Make "+("normalized " if normalize else "")+"unfoled xsec plot"+(f" in channel {channel}" if channel else ""))
 
-    if normalize:
-        yLabel="1/$\sigma$ d$\sigma$"
-        scale = 1
-    else:
-        yLabel="d$\sigma$ [pb]"
-        scale= args.lumi * 1000
+    scale = 1 if normalize else args.lumi * 1000
 
     # read nominal values and uncertainties from fit result and fill histograms
     pois = input_tools.getPOInames(rfile, poi_type=poi_type)
 
     df = get_results(rfile, pois, scale=scale)
 
+    if asimov:
+        df_asimov = get_results(asimov, pois, scale=scale)
+
+    if channel == "minus":
+        df = df.loc[df["qGen"]==0]
+        df_asimov = df_asimov.loc[df_asimov["qGen"]==0]
+        process_label = r"W$^{+}\to\mu\nu$" if pois[0].startswith("Wmunu") else r"Z$\to\mu^{+}$"
+    elif channel == "plus":
+        df = df.loc[df["qGen"]==1]
+        df_asimov = df_asimov.loc[df_asimov["qGen"]==1]
+        process_label = r"W$^{-}\to\mu\nu$" if pois[0].startswith("Wmunu") else r"Z$\to\mu^{-}$"
+    else:
+        process_label = r"W$\to\mu\nu$" if pois[0].startswith("Wmunu") else r"Z$\to\mu\mu$"
+
+    if normalize:
+        yLabel="1/$\sigma$ d$\sigma$("+process_label+")"
+    else:
+        yLabel="d$\sigma$("+process_label+") [pb]"
+
     hist_xsec = hist.Hist(
-        hist.axis.Regular(bins=len(df), start=0, stop=max(df["bin"].values)+1, underflow=False, overflow=False), storage=hist.storage.Weight())
+        hist.axis.Regular(bins=len(df), start=0.5, stop=len(df)+0.5, underflow=False, overflow=False), storage=hist.storage.Weight())
     hist_xsec_stat = hist.Hist(
-        hist.axis.Regular(bins=len(df), start=0, stop=max(df["bin"].values)+1, underflow=False, overflow=False), storage=hist.storage.Weight())
+        hist.axis.Regular(bins=len(df), start=0.5, stop=len(df)+0.5, underflow=False, overflow=False), storage=hist.storage.Weight())
 
     hist_xsec.view(flow=False)[...] = np.stack([df["norm"].values, (df["Total"].values)**2], axis=-1)
     hist_xsec_stat.view(flow=False)[...] = np.stack([df["norm"].values, (df["stat"].values)**2], axis=-1)
 
     if asimov:
-        df_asimov = get_results(asimov, pois, scale=scale)
-
         ha_xsec = hist.Hist(
-            hist.axis.Regular(bins=len(df), start=0, stop=max(df["bin"].values)+1, underflow=False, overflow=False))
+            hist.axis.Regular(bins=len(df), start=0.5, stop=len(df)+0.5, underflow=False, overflow=False))
 
         ha_xsec.view(flow=False)[...] = df_asimov["norm"].values
+
 
     # make plots
     if args.ylim is None:
@@ -458,6 +481,7 @@ def plot_xsec_unfolded(bins=(None, None), channel=None, poi_type="mu"):
         outfile = "unfolded_xsec" 
 
     outfile += (f"_{args.postfix}" if args.postfix else "")
+    outfile += (f"_{channel}" if channel else "")
     plot_tools.save_pdf_and_png(outdir, outfile)
 
     if asimov:
@@ -470,28 +494,29 @@ def plot_xsec_unfolded(bins=(None, None), channel=None, poi_type="mu"):
         args=args,
     )
 
+channels = ["plus", "minus", None]
+for channel in channels:
 
+    if "xsec" in args.plots:
+        plot_xsec_unfolded(channel=channel, poi_type="pmaskedexp")
+        plot_xsec_unfolded(channel=channel, poi_type="pmaskedexpnorm")
 
-if "xsec" in args.plots:
-    plot_xsec_unfolded(poi_type="pmaskedexp")
-    plot_xsec_unfolded(poi_type="pmaskedexpnorm")
+# if "prefit" in args.plots:
+#     plot("prefit", bins=(None, nbins_reco))
+#     plot("prefit", bins=(None,int(nbins_reco/2)), channel="minus")
+#     plot("prefit", bins=(int(nbins_reco/2), nbins_reco), channel="plus")
 
-if "prefit" in args.plots:
-    plot("prefit", bins=(None, nbins_reco))
-    plot("prefit", bins=(None,int(nbins_reco/2)), channel="minus")
-    plot("prefit", bins=(int(nbins_reco/2), nbins_reco), channel="plus")
+# if "postfit" in args.plots:
+#     plot("postfit", bins=(None, nbins_reco))
+#     plot("postfit", bins=(None,int(nbins_reco/2)), channel="minus")
+#     plot("postfit", bins=(int(nbins_reco/2), nbins_reco), channel="plus")
 
-if "postfit" in args.plots:
-    plot("postfit", bins=(None, nbins_reco))
-    plot("postfit", bins=(None,int(nbins_reco/2)), channel="minus")
-    plot("postfit", bins=(int(nbins_reco/2), nbins_reco), channel="plus")
+# if "correlation" in args.plots:
+#     plot_matrix_poi("correlation_matrix_channelmu")
+#     plot_matrix_poi("correlation_matrix_channelpmaskedexp")
+#     plot_matrix_poi("correlation_matrix_channelpmaskedexpnorm")
 
-if "correlation" in args.plots:
-    plot_matrix_poi("correlation_matrix_channelmu")
-    plot_matrix_poi("correlation_matrix_channelpmaskedexp")
-    plot_matrix_poi("correlation_matrix_channelpmaskedexpnorm")
-
-if "covariance" in args.plots:
-    plot_matrix_poi("covariance_matrix_channelmu")
-    plot_matrix_poi("covariance_matrix_channelpmaskedexp")
-    plot_matrix_poi("covariance_matrix_channelpmaskedexpnorm")
+# if "covariance" in args.plots:
+#     plot_matrix_poi("covariance_matrix_channelmu")
+#     plot_matrix_poi("covariance_matrix_channelpmaskedexp")
+#     plot_matrix_poi("covariance_matrix_channelpmaskedexpnorm")

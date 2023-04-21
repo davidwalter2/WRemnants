@@ -7,7 +7,7 @@ def define_gen_level(df, gen_level, dataset_name, mode="wmass"):
     if gen_level not in gen_levels:
         raise ValueError(f"Unknown gen level '{gen_level}'! Supported gen level definitions are '{gen_levels}'.")
 
-    modes = ["wmass", "wlike"]
+    modes = ["wmass", "wlike", "dilepton"]
     if mode not in modes:
         raise ValueError(f"Unknown mode '{mode}'! Supported modes are '{modes}'.")
 
@@ -20,29 +20,45 @@ def define_gen_level(df, gen_level, dataset_name, mode="wmass"):
         elif mode == "wlike":
             df = df.Define("ptGen", "event % 2 == 0 ? genl.pt() : genlanti.pt()")
             df = df.Define("etaGen", "event % 2 == 0 ? abs(genl.eta()) : abs(genlanti.eta())")
+        elif mode == "dilepton":
+            df = df.Alias("ptVGen", "ptVgen")
+            df = df.Alias("yVGen", "yVgen")
 
     elif gen_level == "postFSR":
 
+        df = df.Define("postFSRmuons", "GenPart_status == 1 && (GenPart_statusFlags & 1) && GenPart_pdgId == 13")
+        df = df.Define("postFSRantimuons", "GenPart_status == 1 && (GenPart_statusFlags & 1) && GenPart_pdgId == -13")
+        df = df.Define("postFSRmuonIdx", "ROOT::VecOps::ArgMax(GenPart_pt[postFSRmuons])")
+        df = df.Define("postFSRantimuonIdx", "ROOT::VecOps::ArgMax(GenPart_pt[postFSRantimuons])")
+
         if mode == "wmass":
-            pdgId = -13 if "Wplusmunu" in dataset_name else 13
-            df = df.Define("postFSR_mu", f"GenPart_status == 1 && (GenPart_statusFlags & 1) && GenPart_pdgId == {pdgId}")
-            df = df.Define("postFSR_mu_idx", "ROOT::VecOps::ArgMax(GenPart_pt[postFSR_mu])")
-            df = df.Define("ptGen", "GenPart_pt[postFSR_mu][postFSR_mu_idx]")
-            df = df.Define("etaGen", "abs(GenPart_eta[postFSR_mu][postFSR_mu_idx])")
-        elif mode == "wlike":
-            df = df.Define("postFSRmuons", "GenPart_status == 1 && (GenPart_statusFlags & 1) && GenPart_pdgId == 13")
-            df = df.Define("postFSRantimuons", "GenPart_status == 1 && (GenPart_statusFlags & 1) && GenPart_pdgId == -13")
-            df = df.Define("postFSRmuonIdx", "ROOT::VecOps::ArgMax(GenPart_pt[postFSRmuons])")
-            df = df.Define("postFSRantimuonIdx", "ROOT::VecOps::ArgMax(GenPart_pt[postFSRantimuons])")
-            df = df.Define("ptGen", "event % 2 == 0 ? GenPart_pt[postFSRmuons][postFSRmuonIdx] : GenPart_pt[postFSRantimuons][postFSRantimuonIdx]")
-            df = df.Define("etaGen", "event % 2 == 0 ? abs(GenPart_eta[postFSRmuons][postFSRmuonIdx]) : abs(GenPart_eta[postFSRantimuons][postFSRantimuonIdx])")    
-    
+            if "Wplusmunu" in dataset_name:
+                idx = "postFSRantimuonIdx" 
+                muons = "postFSRantimuons"
+            else:
+                idx = "postFSRmuonIdx" 
+                muons = "postFSRmuons"
+            
+            df = df.Define("ptGen", f"GenPart_pt[{muons}][{idx}]")
+            df = df.Define("etaGen", f"abs(GenPart_eta[{muons}][{idx}])")                
+
+        else:
+            if mode == "wlike":
+                df = df.Define("ptGen", "event % 2 == 0 ? GenPart_pt[postFSRmuons][postFSRmuonIdx] : GenPart_pt[postFSRantimuons][postFSRantimuonIdx]")
+                df = df.Define("etaGen", "event % 2 == 0 ? abs(GenPart_eta[postFSRmuons][postFSRmuonIdx]) : abs(GenPart_eta[postFSRantimuons][postFSRantimuonIdx])")    
+                
+            if mode == "dilepton":
+                df = df.Define("postFSRmuon", "ROOT::Math::PtEtaPhiMVector(GenPart_pt[postFSRmuons][postFSRmuonIdx], GenPart_eta[postFSRmuons][postFSRmuonIdx], GenPart_phi[postFSRmuons][postFSRmuonIdx], GenPart_mass[postFSRmuons][postFSRmuonIdx])")
+                df = df.Define("postFSRantimuon", "ROOT::Math::PtEtaPhiMVector(GenPart_pt[postFSRantimuons][postFSRantimuonIdx], GenPart_eta[postFSRantimuons][postFSRantimuonIdx], GenPart_phi[postFSRantimuons][postFSRantimuonIdx], GenPart_mass[postFSRantimuons][postFSRantimuonIdx])")
+                df = df.Define("postFSRV", "ROOT::Math::PxPyPzEVector(postFSRmuon)+ROOT::Math::PxPyPzEVector(postFSRantimuon)")
+                df = df.Define("ptVGen", "postFSRV.pt()")
+                df = df.Define("yVGen", "postFSRV.pt()")
+
     if mode == "wlike":
         df = df.Define("qGen", "event % 2 == 0 ? -1 : 1")
 
     return df
 
-        
 
 def add_xnorm_histograms(results, df, args, dataset_name, corr_helpers, qcdScaleByHelicity_helper, unfolding_axes, unfolding_cols):
     # add histograms before any selection

@@ -50,7 +50,7 @@ class Datagroups(object):
         self.groups = {}
         self.nominalName = "nominal"
         self.globalAction = None
-        self.gen_axes = None
+        self.gen_axes = self.setGenAxes()
         self.unconstrainedProcesses = []
 
     def __del__(self):
@@ -378,11 +378,21 @@ class Datagroups(object):
                 raise ValueError(f"In setSelectOp(): process {proc} not found")
             self.groups[proc].selectOp = op
 
-    def setGenAxes(self, gen_axes):
-        if isinstance(gen_axes, str):
-            self.gen_axes = [gen_axes,]
+    def setGenAxes(self):
+        # infere gen axes from metadata
+        args = self.getMetaInfo()["args"]
+        if args["unfolding"] is False:
+            self.gen_axes = None
+            return
+
+        if self.wmass:
+            self.gen_axes = ["etaGen","ptGen"]
+        elif self.wlike:
+            self.gen_axes = ["qGen","etaGen","ptGen"]
+        elif "genVars" in metadata.keys():
+            self.gen_axes = metadata["genVars"]
         else:
-            self.gen_axes = gen_axes
+            self.gen_axes = None
 
     def defineSignalBinsUnfolding(self, group_name):
         if group_name not in self.groups.keys():
