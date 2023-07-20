@@ -33,6 +33,9 @@ xlabels = {
     "mll-ptll":r"m$_{\ell\ell}$, p$_{\mathrm{T}}^{\ell\ell}$ bin",
     "mll-etaPlus":r"m$_{\ell\ell}$, $\eta^{\ell(+)}$ bin",
     "mll-etaMinus":r"m$_{\ell\ell}$, $\eta^{\ell(-)}$ bin",
+    "mll-absEtaPlus":r"m$_{\ell\ell}$, $|\eta^{\ell(+)}|$ bin",
+    "mll-absEtaMinus":r"m$_{\ell\ell}$, $|\eta^{\ell(-)}|$ bin",
+    "absEtaPlus-absEtaMinus":r"$|\eta^{\ell(+)}|$, $|\eta^{\ell(-)}|$ bin",
     "etaPlus-etaMinus":r"$\eta^{\ell(+)}$, $\eta^{\ell(-)}$ bin",
     "etaSum-etaDiff":r"$\eta^{\ell(+)} + \eta^{\ell(-)}$, $\eta^{\ell(+)} - \eta^{\ell(-)}$ bin",
     # add 3d unrolled plots 

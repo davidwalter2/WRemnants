@@ -45,8 +45,8 @@ all_axes = {
     "yll": hist.axis.Regular(20, -2.5, 2.5, name = "yll", overflow=not args.excludeFlow, underflow=not args.excludeFlow),
     "absYll": hist.axis.Regular(10, 0., 2.5, name = "absYll", underflow=False, overflow=not args.excludeFlow),
     "ptll": hist.axis.Variable(common.ptV_binning if not args.finePtBinning else range(60), name = "ptll", underflow=False, overflow=not args.excludeFlow),
-    "etaPlus": hist.axis.Regular(int(args.eta[0]), args.eta[1], args.eta[2], name = "etaPlus"),
-    "etaMinus": hist.axis.Regular(int(args.eta[0]), args.eta[1], args.eta[2], name = "etaMinus"),
+    "absEtaPlus": hist.axis.Variable([0, 0.9, 2.4], underflow=False, overflow=not args.excludeFlow, name = "absEtaPlus"),
+    "absEtaMinus": hist.axis.Variable([0, 0.9, 2.4], underflow=False, overflow=not args.excludeFlow, name = "absEtaMinus"),
     "etaSum": hist.axis.Regular(12, -4.8, 4.8, name = "etaSum"),
     "etaDiff": hist.axis.Variable([-4.8, -1.0, -0.6, -0.2, 0.2, 0.6, 1.0, 4.8], name = "etaDiff"),
     "ptPlus": hist.axis.Regular(int(args.pt[0]), args.pt[1], args.pt[2], name = "ptPlus"),
@@ -171,10 +171,12 @@ def build_graph(df, dataset):
     df = df.Define("yll", "ll_mom4.Rapidity()")
     df = df.Define("absYll", "std::fabs(yll)")
     # "renaming" to write out corresponding axis
-    df = df.Define("etaPlus", "trigMuons_eta0")
-    df = df.Define("etaMinus", "nonTrigMuons_eta0")
-    df = df.Define("ptPlus", "trigMuons_pt0")
-    df = df.Define("ptMinus", "nonTrigMuons_pt0")
+    df = df.Alias("etaPlus", "trigMuons_eta0")
+    df = df.Alias("etaMinus", "nonTrigMuons_eta0")
+    df = df.Define("absEtaPlus", "abs(etaPlus)") 
+    df = df.Define("absEtaMinus", "abs(etaMinus)") 
+    df = df.Alias("ptPlus", "trigMuons_pt0")
+    df = df.Alias("ptMinus", "nonTrigMuons_pt0")
 
     df = df.Define("etaSum", "nonTrigMuons_eta0 + trigMuons_eta0") 
     df = df.Define("etaDiff", "trigMuons_eta0-nonTrigMuons_eta0") # plus - minus 

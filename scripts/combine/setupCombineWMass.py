@@ -121,10 +121,15 @@ def setup(args,xnorm=False):
     if args.absolutePathInCard:
         cardTool.setAbsolutePathShapeInCard()
     cardTool.setProjectionAxes(args.fitvar)
-    if args.sumChannels or xnorm or dilepton:
+    if dilepton:
+        cardTool.setChannels(["BB","BE","EB","EE"])
+    if args.sumChannels or xnorm:
         cardTool.setChannels(["inclusive"])
-        cardTool.setWriteByCharge(False)
+        cardTool.setWriteByChannel(False)
     if xnorm:
+        histName = "xnorm"
+        cardTool.setHistName(histName)
+        cardTool.setNominalName(histName)
         datagroups.select_xnorm_groups() # only keep processes where xnorm is defined
         datagroups.deleteGroup("Fake")
         if args.unfolding:
@@ -206,14 +211,7 @@ def setup(args,xnorm=False):
     )
     
     if args.doStatOnly:
-<<<<<<< HEAD
-        # print a card with only mass weights and a dummy syst
-        cardTool.addLnNSystematic("dummy", processes=["Top", "Diboson"] if wmass else ["Other"], size=1.001, group="dummy")
-        logger.info("Using option --doStatOnly: the card was created with only mass weights and a dummy LnN syst on all processes")
-        return cardTool
-=======
-        # print a card with only mass weights, no longer need a dummy syst since combinetf is fixed now
-        #cardTool.addLnNSystematic("dummy", processes=["Top", "Diboson"] if wmass else ["Other"], size=1.001, group="dummy")
+        # print a card with only mass weights
         cardTool.writeOutput(args=args, xnorm=xnorm)
         logger.info("Using option --doStatOnly: the card was created with only mass nuisance parameter")
         return
@@ -233,7 +231,6 @@ def setup(args,xnorm=False):
             cardTool.addLnNSystematic("luminosity", processes=allMCprocesses_noQCDMC, size=1.012, group="luminosity")
     else:
         pass
->>>>>>> 559d085eee529ed33fdcd7bd6966387e3b135b0a
 
     if args.ewUnc:
         cardTool.addSystematic(f"horacenloewCorr", 
