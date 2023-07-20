@@ -39,8 +39,7 @@ def make_parser(parser=None):
     parser.add_argument("--correlatedNonClosureNuisances", action='store_true', help="get systematics from histograms for the Z non-closure nuisances without decorrelation in eta and pt")
     parser.add_argument("--sepImpactForNC", action="store_true", help="use a dedicated impact gropu for non closure nuisances, instead of putting them in muonScale")
     parser.add_argument("--genModel", action="store_true", help="Produce datacard with the xnorm as model (binned according to axes defined in --fitvar)")
-    # TODO: move next option in common.py? 
-    parser.add_argument("--absolutePathInCard", action="store_true", help="In the datacard, set Absolute path for the root file where shapes are stored")
+    parser.add_argument("--simultaneousABCD", action="store_true", help="Produce datacard for simultaneous fit of ABCD regions")
     return parser
 
 
@@ -57,10 +56,12 @@ def setup(args,xnorm=False):
             args.excludeProcGroups.append("QCD")
     filterGroup = args.filterProcGroups if args.filterProcGroups else None
     excludeGroup = args.excludeProcGroups if args.excludeProcGroups else None
+    if args.simultaneousABCD and (excludeGroup is None or "Fake" not in excludeGroup):
+        excludeGroup.append("Fake")
     logger.debug(f"Filtering these groups of processes: {args.filterProcGroups}")
     logger.debug(f"Excluding these groups of processes: {args.excludeProcGroups}")
 
-    datagroups = Datagroups(args.inputFile, excludeGroups=excludeGroup, filterGroups=filterGroup, applySelection= not xnorm)
+    datagroups = Datagroups(args.inputFile, excludeGroups=excludeGroup, filterGroups=filterGroup, applySelection=not xnorm and not args.simultaneousABCD)
 
     if args.axlim or args.rebin:
         if len(args.axlim) % 2 or len(args.axlim)/2 > len(args.fitvar) or len(args.rebin) > len(args.fitvar):
@@ -122,7 +123,49 @@ def setup(args,xnorm=False):
         cardTool.setAbsolutePathShapeInCard()
     cardTool.setProjectionAxes(args.fitvar)
     if dilepton:
-        cardTool.setChannels(["BB","BE","EB","EE"])
+        cardTool.setChannels({f"{p}{m}": {**pv, **mv} for p, pv in (("B", {"absEtaPlus":0}), ("E", {"absEtaPlus":1}))
+            for m, mv in (("B", {"absEtaMinus":0}), ("E", {"absEtaMinus":1}))})
+    elif wmass and args.simultaneousABCD:
+        # simultaneous ABCD method does not work with charge as channel in the way it is implemented
+        if "charge" not in args.fitvar:
+            fitvars = ["charge", *args.fitvar]
+            cardTool.setProjectionAxes(fitvars)
+            
+        cardTool.setChannels({f"{m}{i}": {**mv, **iv} for m, mv in (("passMT", {"passMT":1}), ("failMT", {"passMT":0}))
+            for i, iv in (("passIso", {"passIso":1}), ("failIso", {"passIso":0}))})
+
+        nominal_hist = datagroups.results[datagroups.groups["Data"].members[0].name]["output"][args.baseName].get()
+
+        nbins = nominal_hist.project(*fitvars).axes.size
+
+        # add a rate param for each reco bin in each channel
+        for chan in cardTool.channels:
+            logger.debug(f"Add ABCD rate params in channel {chan}")
+            # channel selection
+            chan_hist = nominal_hist[cardTool.channelDict[chan]]
+
+            import numpy as np
+
+            if len(chan_hist.axes.name) != len(fitvars):
+                raise RuntimeError(f"hist axes {chan_hist.axes.name} must be the same as fitvars {fitvars} at this point")
+
+            for i in range(np.product(chan_hist.axes.size)):
+                current_i = i
+                ax_idx = []
+                for num in reversed(chan_hist.axes.size):
+                    ax_idx.insert(0, current_i % num)
+                    current_i //= num
+
+                name = "_".join([f"{ax}{ax_idx[j]}" for j, ax in enumerate(chan_hist.axes.name)])
+                val = chan_hist[{ax: ax_idx[j] for j, ax in enumerate(chan_hist.axes.name)}].value
+                logger.debug(f"Add ABCD rate param {name}")
+
+                if chan == "passMTpassIso":
+                    cardTool.addRateParam(f"{chan}_{name}", chan, f"Fake_{name}", formula="(@0*@1/@2)", args=f"failMTpassIso_{name},passMTfailIso_{name},failMTfailIso_{name}")
+                else:
+                    cardTool.addRateParam(f"{chan}_{name}", chan, f"Fake_{name}", initial_value=val, min_value=0, max_value=1.5*val)
+
+
     if args.sumChannels or xnorm:
         cardTool.setChannels(["inclusive"])
         cardTool.setWriteByChannel(False)
@@ -212,9 +255,8 @@ def setup(args,xnorm=False):
     
     if args.doStatOnly:
         # print a card with only mass weights
-        cardTool.writeOutput(args=args, xnorm=xnorm)
         logger.info("Using option --doStatOnly: the card was created with only mass nuisance parameter")
-        return
+        return cardTool
 
     if not xnorm:
         if wmass:

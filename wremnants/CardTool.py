@@ -57,14 +57,11 @@ class CardTool(object):
         self.project = None
         self.xnorm = xnorm
         self.absolutePathShapeFileInCard = False
+        self.rateParams = {}
+        self.channelAxes = ["charge"]
         self.channelDict = {
             "minus" : {"charge" : -1},
             "plus"  : {"charge" : 1},
-            # Barrel (B) and endcap (E) regions of muons for the dilepton analysis
-            "BB": {"absEtaPlus": 0, "absEtaMinus": 0},
-            "BE": {"absEtaPlus": 1, "absEtaMinus": 0},
-            "EB": {"absEtaPlus": 0, "absEtaMinus": 1},
-            "EE": {"absEtaPlus": 1, "absEtaMinus": 1},
             }
 
         self.setNominalTemplate()
@@ -160,8 +157,12 @@ class CardTool(object):
     def setChannels(self, channels):
         if isinstance(channels, str):
             self.channels = [channels]
+        elif isinstance(channels, dict):
+            self.channels = [c for c in channels.keys()]
+            self.channelDict.update(channels)
         else:
             self.channels = channels.copy()
+        self.channelAxes = list(set([axis for chan in self.channels for axis in self.channelDict[chan].keys()]))
         
     def setWriteByChannel(self, writeByChannel):
         self.writeByChannel = writeByChannel
@@ -175,6 +176,15 @@ class CardTool(object):
         if self.predictedProcs:
             return self.predictedProcs
         return list(filter(lambda x: x != self.dataName, self.datagroups.groups.keys()))
+
+    def addRateParam(self, name, channel, process, initial_value=1, min_value=0, max_value=999999, formula=None, args=None):
+        # following: https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/part2/settinguptheanalysis/#rate-parameters
+        if formula is None:
+            # name rateParam bin process initial_value [min,max]
+            self.rateParams[name] = {"bin": channel, "process": process, "initial_value":initial_value, "min":min_value, "max":max_value}
+        else:
+            # or formula: name rateParam bin process formula args
+            self.rateParams[name] = {"bin": channel, "process":process, "formula":formula, "args":args}
 
     def setHistName(self, histName):
         self.histName = histName
@@ -805,6 +815,13 @@ class CardTool(object):
                 shape = "shape" if not systInfo["noConstraint"] else "shapeNoConstraint"
                 # do not write systs which should only apply to other charge, to simplify card
                 self.cardContent[chan] += f"{systname.ljust(self.spacing)} {shape.ljust(self.systTypeSpacing)} {''.join(include)}\n"
+            for name, info in self.rateParams.items():
+                if info["bin"] != chan:
+                    continue
+                if info.get("formula", False):
+                    self.cardContent[chan] += f'{name} rateParam {info["bin"]} {info["process"]} {info["formula"]} {info["args"]}\n'
+                else:
+                    self.cardContent[chan] += f'{name} rateParam {info["bin"]} {info["process"]} {info["initial_value"]} {info["min"]},{info["max"]}\n'
             # unlike for LnN systs, here it is simpler to act on the list of these systs to form groups, rather than doing it syst by syst 
             if group:
                 systNamesForGroupPruned = systNames[:]
@@ -849,7 +866,7 @@ class CardTool(object):
 
             self.cardContent[chan] = output_tools.readTemplate(self.nominalTemplate, args)
             self.cardGroups[chan] = ""
-            
+
     def writeHistByChannel(self, h, name):
         for chan in self.channels:
             hout = narf.hist_to_root(self.getBoostHistByChannel(h, chan))
@@ -867,7 +884,7 @@ class CardTool(object):
         if self.project:
             axes = self.project[:]
             if self.channels[0] != "inclusive" and not self.xnorm:
-                axes += list(set([axis for chan in self.channels for axis in self.channelDict[chan].keys()]))
+                axes += self.channelAxes
             # don't project h into itself when axes to project are all axes
             if any (ax not in h.axes.name for ax in axes):
                 logger.error("Request to project some axes not present in the histogram")
@@ -882,7 +899,7 @@ class CardTool(object):
 
         if not self.nominalDim:
             self.nominalDim = h.ndim
-            if self.nominalDim-self.writeByChannel > 3:
+            if self.nominalDim-(self.writeByChannel * len(self.channelAxes)) > 3:
                 raise ValueError("Cannot write hists with > 3 dimensions as combinetf does not accept THn")
 
         if h.ndim != self.nominalDim:
