@@ -98,7 +98,7 @@ def plotImpacts(df, pulls=False, POI='Wmass', normalize=False, oneSidedImpacts=F
                 ),
                 row=1,col=1,
         )
-        impact_range = np.ceil(df['impact'].max())
+        impact_range = np.ceil(abs(df['impact']).max())
         impact_spacing = min(impact_range, 2 if pulls else 3)
         if impact_range % impact_spacing:
             impact_range += impact_spacing - (impact_range % impact_spacing)

@@ -129,16 +129,21 @@ def main(args,xnorm=False):
 
     # Start to create the CardTool object, customizing everything
     cardTool = CardTool.CardTool(f"{outfolder}/{name}_{{chan}}{suffix}.txt")
+
+    
+
     cardTool.setDatagroups(datagroups)
     logger.debug(f"Making datacards with these processes: {cardTool.getProcesses()}")
     cardTool.setNominalTemplate(f"{templateDir}/main.txt")
     cardTool.setProjectionAxes(args.fitvar)
-    if args.sumChannels or xnorm or name in ["ZMassDilepton"]:
+    if name in ["ZMassDilepton"]:
+        cardTool.setChannels(["BB","BE","EB","EE"])
+    if args.sumChannels or xnorm:
         cardTool.setChannels(["inclusive"])
-        cardTool.setWriteByCharge(False)
+        cardTool.setWriteByChannel(False)
     if xnorm:
         histName = "xnorm"
-        cardTool.setWriteByCharge(False)
+        cardTool.setWriteByChannel(False)
         cardTool.setHistName(histName)
         cardTool.setNominalName(histName)
         datagroups.select_xnorm_groups() # only keep processes where xnorm is defined

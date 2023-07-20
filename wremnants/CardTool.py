@@ -48,17 +48,22 @@ class CardTool(object):
         self.pseudoDataIdx = None
         self.pseudoDataProcsRegexp = None
         self.excludeSyst = None
-        self.writeByCharge = True
+        self.writeByChannel = True
         self.unroll = False # unroll final histogram before writing to root
         self.keepSyst = None # to override previous one with exceptions for special cases
         #self.loadArgs = {"operation" : "self.loadProcesses (reading hists from file)"}
         self.lumiScale = 1.
         self.project = None
         self.xnorm = False
-        self.chargeIdDict = {"minus" : {"val" : -1, "id" : "q0", "badId" : "q1"},
-                             "plus"  : {"val" : 1., "id" : "q1", "badId" : "q0"},
-                             "inclusive" : {"val" : "sum", "id" : "none", "badId" : None},
-                             }
+        self.channelDict = {
+            "minus" : {"charge" : -1},
+            "plus"  : {"charge" : 1},
+            # Barrel (B) and endcap (E) regions of muons for the dilepton analysis
+            "BB": {"absEtaPlus": 0, "absEtaMinus": 0},
+            "BE": {"absEtaPlus": 1, "absEtaMinus": 0},
+            "EB": {"absEtaPlus": 0, "absEtaMinus": 1},
+            "EE": {"absEtaPlus": 1, "absEtaMinus": 1},
+            }
 
     def skipHistograms(self):
         self.skipHist = True
@@ -142,10 +147,13 @@ class CardTool(object):
             self.pseudodata_datagroups.setNominalName(self.nominalName)
         
     def setChannels(self, channels):
-        self.channels = channels
+        if isinstance(channels, str):
+            self.channels = [channels]
+        else:
+            self.channels = channels.copy()
         
-    def setWriteByCharge(self, writeByCharge):
-        self.writeByCharge = writeByCharge
+    def setWriteByChannel(self, writeByChannel):
+        self.writeByChannel = writeByChannel
 
     def setNominalTemplate(self, template):
         if not os.path.isfile(template):
@@ -401,8 +409,12 @@ class CardTool(object):
         else:
             return f"{self.histName}_{proc}_{name}"
 
-    def getBoostHistByCharge(self, h, q):
-        return h[{"charge" : h.axes["charge"].index(q) if q != "sum" else hist.sum}]
+    def getBoostHistByChannel(self, h, channel):
+        if channel == "inclusive":
+            return h
+        channel_info = self.channelDict[channel]
+        
+        return h[{axis : h.axes[axis].index(idx) for axis, idx in channel_info.items()}]
 
     def checkSysts(self, var_map, proc, thresh=0.25, skipSameSide=False, skipOneAsNomi=False):
         #if self.check_variations:
@@ -794,14 +806,13 @@ class CardTool(object):
             self.cardContent[chan] = output_tools.readTemplate(self.nominalTemplate, args)
             self.cardGroups[chan] = ""
             
-    def writeHistByCharge(self, h, name, decorrCharge=False):
-        for charge in self.channels:
-            q = self.chargeIdDict[charge]["val"]
-            hout = narf.hist_to_root(self.getBoostHistByCharge(h, q))
-            hout.SetName(name+f"_{charge}")
+    def writeHistByChannel(self, h, name):
+        for chan in self.channels:
+            hout = narf.hist_to_root(self.getBoostHistByChannel(h, chan))
+            hout.SetName(name+f"_{chan}")
             hout.Write()
         
-    def writeHistWithCharges(self, h, name):
+    def writeHistWithChannel(self, h, name):
         hout = narf.hist_to_root(h)
         hout.SetName(f"{name}_{self.channels[0]}")
         hout.Write()
@@ -811,8 +822,8 @@ class CardTool(object):
             return
         if self.project:
             axes = self.project[:]
-            if "charge" in h.axes.name and not self.xnorm:
-                axes.append("charge")
+            if self.channels[0] != "inclusive" and not self.xnorm:
+                axes += list(set([axis for chan in self.channels for axis in self.channelDict[chan].keys()]))
             # don't project h into itself when axes to project are all axes
             if any (ax not in h.axes.name for ax in axes):
                 logger.error("Request to project some axes not present in the histogram")
@@ -827,7 +838,7 @@ class CardTool(object):
 
         if not self.nominalDim:
             self.nominalDim = h.ndim
-            if self.nominalDim-self.writeByCharge > 3:
+            if self.nominalDim-self.writeByChannel > 3:
                 raise ValueError("Cannot write hists with > 3 dimensions as combinetf does not accept THn")
 
         if h.ndim != self.nominalDim:
@@ -847,8 +858,8 @@ class CardTool(object):
             hists.update(self.makeDecorrelatedSystHistograms(h, hnomi, syst, decorrByBin))
             
         for hname, histo in hists.items():
-            if self.writeByCharge:
-                self.writeHistByCharge(histo, hname)
+            if self.writeByChannel:
+                self.writeHistByChannel(histo, hname)
             else:
-                self.writeHistWithCharges(histo, hname)
+                self.writeHistWithChannel(histo, hname)
         self.outfile.cd()

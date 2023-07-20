@@ -33,6 +33,9 @@ xlabels = {
     "mll-ptll":r"m$_{\ell\ell}$, p$_{\mathrm{T}}^{\ell\ell}$ bin",
     "mll-etaPlus":r"m$_{\ell\ell}$, $\eta^{\ell(+)}$ bin",
     "mll-etaMinus":r"m$_{\ell\ell}$, $\eta^{\ell(-)}$ bin",
+    "mll-absEtaPlus":r"m$_{\ell\ell}$, $|\eta^{\ell(+)}|$ bin",
+    "mll-absEtaMinus":r"m$_{\ell\ell}$, $|\eta^{\ell(-)}|$ bin",
+    "absEtaPlus-absEtaMinus":r"$|\eta^{\ell(+)}|$, $|\eta^{\ell(-)}|$ bin",
     "etaPlus-etaMinus":r"$\eta^{\ell(+)}$, $\eta^{\ell(-)}$ bin",
     "etaSum-etaDiff":r"$\eta^{\ell(+)} + \eta^{\ell(-)}$, $\eta^{\ell(+)} - \eta^{\ell(-)}$ bin",
     # add 3d unrolled plots 
@@ -63,6 +66,7 @@ parser.add_argument("--scaleleg", type=float, default=1.0, help="Scale legend te
 parser.add_argument("--fitresult", type=str, help="Specify a fitresult root file to draw the postfit distributions with uncertainty bands")
 parser.add_argument("--prefit", action='store_true', help="Use the prefit uncertainty from the fitresult root file, instead of the postfit. (--fitresult has to be given)")
 parser.add_argument("--eoscp", action='store_true', help="Use of xrdcp for eos output rather than the mount")
+parser.add_argument("--selection", type=str, help="Specify custom selections as comma seperated list (e.g. '--selection passIso=0,passMT=1' )")
 
 
 subparsers = parser.add_subparsers(dest="variation")
@@ -108,14 +112,24 @@ groups = make_datagroups_2016(args.infile, filterGroups=args.procFilters, exclud
 datasets = groups.getNames()
 logger.info(f"Will plot datasets {datasets}")
 
+select = {} if args.channel == "all" else {"charge" : -1.j if args.channel == "minus" else 1.j}
+
+if args.selection:
+    for selection in args.selection.split(","):
+        axis, value = selection.split("=")
+        select[axis] = int(value)
+    applySelection=False
+else:
+    applySelection=True
+
 if not args.nominalRef:
     nominalName = args.baseName.rsplit("_", 1)[0]
     groups.setNominalName(nominalName)
-    groups.loadHistsForDatagroups(args.baseName, syst="", procsToRead=datasets)
+    groups.loadHistsForDatagroups(args.baseName, syst="", procsToRead=datasets, applySelection=applySelection)
 else:
     nominalName = args.nominalRef
     groups.setNominalName(nominalName)
-    groups.loadHistsForDatagroups(nominalName, syst=args.baseName, procsToRead=datasets)
+    groups.loadHistsForDatagroups(nominalName, syst=args.baseName, procsToRead=datasets, applySelection=applySelection)
 
 exclude = ["Data"] 
 unstack = exclude[:]
@@ -175,8 +189,6 @@ histInfo = groups.getDatagroups()
 logger.info(f"Unstacked processes are {exclude}")
 prednames = list(reversed(groups.getNames([d for d in datasets if d not in exclude], exclude=False)))
 logger.info(f"Stacked processes are {prednames}")
-
-select = {} if args.channel == "all" else {"charge" : -1.j if args.channel == "minus" else 1.j}
 
 def collapseSyst(h):
     if type(h.axes[-1]) == hist.axis.StrCategory:
