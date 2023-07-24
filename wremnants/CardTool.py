@@ -12,6 +12,7 @@ import itertools
 import re
 import hist
 import copy
+import uncertainties as unc
 
 logger = logging.child_logger(__name__)
 
@@ -40,7 +41,7 @@ class CardTool(object):
         self.nominalName = "nominal"
         self.datagroups = None
         self.pseudodata_datagroups = None
-        self.unconstrainedProcesses = None
+        self.unconstrainedProcesses = []
         self.noStatUncProcesses = []
         self.buildHistNameFunc = None
         self.histName = "x"
@@ -49,7 +50,7 @@ class CardTool(object):
         self.pseudoDataIdx = None
         self.pseudoDataProcsRegexp = None
         self.excludeSyst = None
-        self.writeByChannel = True
+        self.writeByCharge = True
         self.unroll = False # unroll final histogram before writing to root
         self.keepSyst = None # to override previous one with exceptions for special cases
         #self.loadArgs = {"operation" : "self.loadProcesses (reading hists from file)"}
@@ -57,12 +58,10 @@ class CardTool(object):
         self.project = None
         self.xnorm = xnorm
         self.absolutePathShapeFileInCard = False
-        self.rateParams = {}
-        self.channelAxes = ["charge"]
-        self.channelDict = {
-            "minus" : {"charge" : -1},
-            "plus"  : {"charge" : 1},
-            }
+        self.chargeIdDict = {"minus" : {"val" : -1, "id" : "q0", "badId" : "q1"},
+                             "plus"  : {"val" : 1., "id" : "q1", "badId" : "q0"},
+                             "inclusive" : {"val" : "sum", "id" : "none", "badId" : None},
+                             }
 
         self.setNominalTemplate()
 
@@ -155,17 +154,10 @@ class CardTool(object):
             self.pseudodata_datagroups.setNominalName(self.nominalName)
         
     def setChannels(self, channels):
-        if isinstance(channels, str):
-            self.channels = [channels]
-        elif isinstance(channels, dict):
-            self.channels = [c for c in channels.keys()]
-            self.channelDict.update(channels)
-        else:
-            self.channels = channels.copy()
-        self.channelAxes = list(set([axis for chan in self.channels for axis in self.channelDict[chan].keys()]))
+        self.channels = channels
         
-    def setWriteByChannel(self, writeByChannel):
-        self.writeByChannel = writeByChannel
+    def setWriteByCharge(self, writeByCharge):
+        self.writeByCharge = writeByCharge
 
     def setNominalTemplate(self, template=f"{pathlib.Path(__file__).parent}/../scripts/combine/Templates/datacard.txt"):
         if not os.path.abspath(template):
@@ -176,15 +168,6 @@ class CardTool(object):
         if self.predictedProcs:
             return self.predictedProcs
         return list(filter(lambda x: x != self.dataName, self.datagroups.groups.keys()))
-
-    def addRateParam(self, name, channel, process, initial_value=1, min_value=0, max_value=999999, formula=None, args=None):
-        # following: https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/part2/settinguptheanalysis/#rate-parameters
-        if formula is None:
-            # name rateParam bin process initial_value [min,max]
-            self.rateParams[name] = {"bin": channel, "process": process, "initial_value":initial_value, "min":min_value, "max":max_value}
-        else:
-            # or formula: name rateParam bin process formula args
-            self.rateParams[name] = {"bin": channel, "process":process, "formula":formula, "args":args}
 
     def setHistName(self, histName):
         self.histName = histName
@@ -430,12 +413,8 @@ class CardTool(object):
         else:
             return f"{self.histName}_{proc}_{name}"
 
-    def getBoostHistByChannel(self, h, channel):
-        if channel == "inclusive":
-            return h
-        channel_info = self.channelDict[channel]
-        
-        return h[{axis : h.axes[axis].index(idx) for axis, idx in channel_info.items()}]
+    def getBoostHistByCharge(self, h, q):
+        return h[{"charge" : h.axes["charge"].index(q) if q != "sum" else hist.sum}]
 
     def checkSysts(self, var_map, proc, thresh=0.25, skipSameSide=False, skipOneAsNomi=False):
         #if self.check_variations:
@@ -626,6 +605,90 @@ class CardTool(object):
         if syst != self.nominalName:
             self.fillCardWithSyst(syst)
 
+    def setSimultaneousABCD(self):
+        logger.info(f"Set processes for simultaneous ABCD fit")
+        hist_data = self.datagroups.groups["Data"].hists[self.nominalName].copy()
+        # expected fake contribution
+        hist_fake = sum([group.hists[self.nominalName] if name == "Data" else -1*group.hists[self.nominalName] for name, group in self.datagroups.groups.items() ])
+
+        axes = ["charge", *self.project] if "charge" not in self.project else self.project
+
+        bin_sizes = [ax.size for ax in hist_fake.axes if ax.name in axes and ax.name not in ["passIso","passMT"]]
+        axes = [ax.name for ax in hist_fake.axes if ax.name in axes and ax.name not in ["passIso","passMT"]]
+
+        for i in range(np.product(bin_sizes)):
+            current_i = i
+            ax_idx = []
+            for num in reversed(bin_sizes):
+                ax_idx.insert(0, current_i % num)
+                current_i //= num
+
+            bin_name = "_".join([f"{ax}{ax_idx[j]}" for j, ax in enumerate(axes)])
+
+            logger.debug(f"Now at {i}/{np.product(bin_sizes)}: {bin_name}")
+
+            other_indices = {ax: ax_idx[j] for j, ax in enumerate(axes)}
+
+            # n_failMT_failIso = unc.ufloat(hist_fake[{**{"passIso":0, "passMT":0}, **other_indices}].value, hist_fake[{**{"passIso":0, "passMT":0}, **other_indices}].variance**0.5)
+            # n_failMT_passIso = unc.ufloat(hist_fake[{**{"passIso":1, "passMT":0}, **other_indices}].value, hist_fake[{**{"passIso":1, "passMT":0}, **other_indices}].variance**0.5)
+            # n_passMT_failIso = unc.ufloat(hist_fake[{**{"passIso":0, "passMT":1}, **other_indices}].value, hist_fake[{**{"passIso":0, "passMT":1}, **other_indices}].variance**0.5)
+
+            n_failMT_failIso = hist_fake[{**{"passIso":0, "passMT":0}, **other_indices}].value
+            n_failMT_passIso = hist_fake[{**{"passIso":1, "passMT":0}, **other_indices}].value
+            n_passMT_failIso = hist_fake[{**{"passIso":0, "passMT":1}, **other_indices}].value
+
+            n_failMT = n_failMT_failIso + n_failMT_passIso
+            fr = n_failMT_passIso / n_failMT
+            n_passMT = n_passMT_failIso / fr
+
+            self.datagroups.addGroup(f"Fake_lowMT_{bin_name}", label = "Nonprompt", color = "grey", members=[],)
+            self.datagroups.addGroup(f"Fake_highMT_{bin_name}", label = "Nonprompt", color = "grey", members=[],)
+
+            hist_failMT = hist.Hist(*hist_fake.axes, storage=hist.storage.Weight())
+            hist_passMT = hist.Hist(*hist_fake.axes, storage=hist.storage.Weight())
+
+            # fill histograms
+            hist_failMT[{**{"passIso":0, "passMT":0}, **other_indices}] = n_failMT * fr, 0
+            hist_failMT[{**{"passIso":1, "passMT":0}, **other_indices}] = n_failMT * (1-fr), 0
+            hist_passMT[{**{"passIso":0, "passMT":1}, **other_indices}] = n_passMT * fr, 0
+            hist_passMT[{**{"passIso":1, "passMT":1}, **other_indices}] = n_passMT * (1-fr), 0
+
+            # store histograms
+            self.datagroups.groups[f"Fake_lowMT_{bin_name}"].hists[f"{self.nominalName}"] = hist_failMT
+            self.datagroups.groups[f"Fake_highMT_{bin_name}"].hists[f"{self.nominalName}"] = hist_passMT
+
+            self.unconstrainedProcesses.append(f"Fake_lowMT_{bin_name}")
+            self.unconstrainedProcesses.append(f"Fake_highMT_{bin_name}")
+
+            # systematic variation for fakes
+            frUp = 1
+            frDn = 0
+
+            hist_failMT_var = hist.Hist(*[*hist_fake.axes, common.down_up_axis], storage=hist.storage.Double())
+            hist_passMT_var = hist.Hist(*[*hist_fake.axes, common.down_up_axis], storage=hist.storage.Double())
+
+            hist_failMT_var[{**{"passIso":0, "passMT":0, "downUpVar":0}, **other_indices}] = n_failMT * frDn
+            hist_failMT_var[{**{"passIso":1, "passMT":0, "downUpVar":0}, **other_indices}] = n_failMT * (1-frDn)
+            hist_passMT_var[{**{"passIso":0, "passMT":1, "downUpVar":0}, **other_indices}] = n_passMT * frDn
+            hist_passMT_var[{**{"passIso":1, "passMT":1, "downUpVar":0}, **other_indices}] = n_passMT * (1-frDn)
+
+            hist_failMT_var[{**{"passIso":0, "passMT":0, "downUpVar":1}, **other_indices}] = n_failMT * frUp
+            hist_failMT_var[{**{"passIso":1, "passMT":0, "downUpVar":1}, **other_indices}] = n_failMT * (1-frUp)
+            hist_passMT_var[{**{"passIso":0, "passMT":1, "downUpVar":1}, **other_indices}] = n_passMT * frUp
+            hist_passMT_var[{**{"passIso":1, "passMT":1, "downUpVar":1}, **other_indices}] = n_passMT * (1-frUp)
+
+            self.datagroups.groups[f"Fake_lowMT_{bin_name}"].hists[f"{self.nominalName}_fakerate_{bin_name}"] = hist_failMT_var
+            self.datagroups.groups[f"Fake_highMT_{bin_name}"].hists[f"{self.nominalName}_fakerate_{bin_name}"] = hist_passMT_var
+
+            self.addSystematic(f"fakerate_{bin_name}",
+                processes=[f"Fake_lowMT_{bin_name}", f"Fake_highMT_{bin_name}"],
+                group=f"fakerate",
+                noConstraint=True,
+                outNames=[f"fakerate_{bin_name}Down", f"fakerate_{bin_name}Up"],
+                systAxes=["downUpVar"],
+                labelsByAxis=["downUpVar"],
+            )
+
     def setOutfile(self, outfile):
         if type(outfile) == str:
             if self.skipHist:
@@ -666,13 +729,15 @@ class CardTool(object):
         self.cardName = (f"{self.outfolder}/{prefix}_{{chan}}{suffix}.txt")
         self.setOutfile(os.path.abspath(f"{self.outfolder}/{prefix}CombineInput{suffix}.root"))
 
-    def writeOutput(self, args=None, forceNonzero=True, check_systs=True):
+    def writeOutput(self, args=None, forceNonzero=True, check_systs=True, simultaneousABCD=False):
         self.datagroups.loadHistsForDatagroups(
             baseName=self.nominalName, syst=self.nominalName,
             procsToRead=self.datagroups.groups.keys(),
             label=self.nominalName, 
             scaleToNewLumi=self.lumiScale, 
             forceNonzero=forceNonzero)
+        if simultaneousABCD and not self.xnorm:
+            self.setSimultaneousABCD()
         self.writeForProcesses(self.nominalName, processes=self.datagroups.groups.keys(), label=self.nominalName, check_systs=check_systs)
         self.loadNominalCard()
         if self.pseudoData and not self.xnorm:
@@ -696,7 +761,7 @@ class CardTool(object):
                 scaleToNewLumi=self.lumiScale,
             )
             self.writeForProcesses(syst, label="syst", processes=processes, check_systs=check_systs)
-            
+
         output_tools.writeMetaInfoToRootFile(self.outfile, exclude_diff='notebooks', args=args)
         if self.skipHist:
             logger.info("Histograms will not be written because 'skipHist' flag is set to True")
@@ -706,7 +771,7 @@ class CardTool(object):
     def writeCard(self):
         for chan in self.channels:
             with open(self.cardName.format(chan=chan), "w") as card:
-                card.write(self.cardContent[chan])
+                card.write("".join(self.cardContent[chan]))
                 card.write("\n")
                 card.write(self.cardGroups[chan])
                 card.write(self.cardSumGroups)
@@ -814,14 +879,7 @@ class CardTool(object):
             for systname in systNames:
                 shape = "shape" if not systInfo["noConstraint"] else "shapeNoConstraint"
                 # do not write systs which should only apply to other charge, to simplify card
-                self.cardContent[chan] += f"{systname.ljust(self.spacing)} {shape.ljust(self.systTypeSpacing)} {''.join(include)}\n"
-            for name, info in self.rateParams.items():
-                if info["bin"] != chan:
-                    continue
-                if info.get("formula", False):
-                    self.cardContent[chan] += f'{name} rateParam {info["bin"]} {info["process"]} {info["formula"]} {info["args"]}\n'
-                else:
-                    self.cardContent[chan] += f'{name} rateParam {info["bin"]} {info["process"]} {info["initial_value"]} {info["min"]},{info["max"]}\n'
+                self.cardContent[chan].append(f"{systname.ljust(self.spacing)} {shape.ljust(self.systTypeSpacing)} {''.join(include)}\n")
             # unlike for LnN systs, here it is simpler to act on the list of these systs to form groups, rather than doing it syst by syst 
             if group:
                 systNamesForGroupPruned = systNames[:]
@@ -864,27 +922,29 @@ class CardTool(object):
                 # use the relative path because absolute paths are slow in text2hdf5.py conversion
                 args["inputfile"] = os.path.basename(args["inputfile"])
 
-            self.cardContent[chan] = output_tools.readTemplate(self.nominalTemplate, args)
+            self.cardContent[chan] = [output_tools.readTemplate(self.nominalTemplate, args)]
             self.cardGroups[chan] = ""
 
-    def writeHistByChannel(self, h, name):
-        for chan in self.channels:
-            hout = narf.hist_to_root(self.getBoostHistByChannel(h, chan))
-            hout.SetName(name+f"_{chan}")
-            hout.Write()
-        
-    def writeHistWithChannel(self, h, name):
+    def writeHistToRoot(self, h, name):
+        if self.unroll:
+            h = sel.unrolledHist(h, h.axes.name)
         hout = narf.hist_to_root(h)
-        hout.SetName(f"{name}_{self.channels[0]}")
+        hout.SetName(f"{name}")
         hout.Write()
+
+    def writeHistByCharge(self, h, name, decorrCharge=False):
+        for charge in self.channels:
+            q = self.chargeIdDict[charge]["val"]
+            h_q = self.getBoostHistByCharge(h, q)
+            self.writeHistToRoot(h_q, name+f"_{charge}")
     
     def writeHist(self, h, proc, syst, setZeroStatUnc=False, decorrByBin={}, hnomi=None):
         if self.skipHist:
             return
         if self.project:
             axes = self.project[:]
-            if self.channels[0] != "inclusive" and not self.xnorm:
-                axes += self.channelAxes
+            if "charge" in h.axes.name and not self.xnorm:
+                axes.append("charge")
             # don't project h into itself when axes to project are all axes
             if any (ax not in h.axes.name for ax in axes):
                 logger.error("Request to project some axes not present in the histogram")
@@ -893,13 +953,9 @@ class CardTool(object):
                 logger.debug(f"Projecting {h.axes.name} into {axes}")
                 h = h.project(*axes)
 
-        if self.unroll:
-            logger.debug(f"Unrolling histogram")
-            h = sel.unrolledHist(h, axes)
-
         if not self.nominalDim:
             self.nominalDim = h.ndim
-            if self.nominalDim-(self.writeByChannel * len(self.channelAxes)) > 3:
+            if not self.unroll and self.nominalDim-self.writeByCharge > 3:
                 raise ValueError("Cannot write hists with > 3 dimensions as combinetf does not accept THn")
 
         if h.ndim != self.nominalDim:
@@ -917,10 +973,10 @@ class CardTool(object):
         hists = {name: h} # always keep original variation in output file for checks
         if decorrByBin:
             hists.update(self.makeDecorrelatedSystHistograms(h, hnomi, syst, decorrByBin))
-            
+        
         for hname, histo in hists.items():
-            if self.writeByChannel:
-                self.writeHistByChannel(histo, hname)
+            if self.writeByCharge:
+                self.writeHistByCharge(histo, hname)
             else:
-                self.writeHistWithChannel(histo, hname)
+                self.writeHistToRoot(histo, f"{hname}_{self.channels[0]}")
         self.outfile.cd()

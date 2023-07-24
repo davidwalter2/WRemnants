@@ -122,53 +122,16 @@ def setup(args,xnorm=False):
     if args.absolutePathInCard:
         cardTool.setAbsolutePathShapeInCard()
     cardTool.setProjectionAxes(args.fitvar)
-    if dilepton:
-        cardTool.setChannels({f"{p}{m}": {**pv, **mv} for p, pv in (("B", {"absEtaPlus":0}), ("E", {"absEtaPlus":1}))
-            for m, mv in (("B", {"absEtaMinus":0}), ("E", {"absEtaMinus":1}))})
-    elif wmass and args.simultaneousABCD:
-        # simultaneous ABCD method does not work with charge as channel in the way it is implemented
-        if "charge" not in args.fitvar:
-            fitvars = ["charge", *args.fitvar]
-            cardTool.setProjectionAxes(fitvars)
-            
-        cardTool.setChannels({f"{m}{i}": {**mv, **iv} for m, mv in (("passMT", {"passMT":1}), ("failMT", {"passMT":0}))
-            for i, iv in (("passIso", {"passIso":1}), ("failIso", {"passIso":0}))})
 
-        nominal_hist = datagroups.results[datagroups.groups["Data"].members[0].name]["output"][args.baseName].get()
-
-        nbins = nominal_hist.project(*fitvars).axes.size
-
-        # add a rate param for each reco bin in each channel
-        for chan in cardTool.channels:
-            logger.debug(f"Add ABCD rate params in channel {chan}")
-            # channel selection
-            chan_hist = nominal_hist[cardTool.channelDict[chan]]
-
-            import numpy as np
-
-            if len(chan_hist.axes.name) != len(fitvars):
-                raise RuntimeError(f"hist axes {chan_hist.axes.name} must be the same as fitvars {fitvars} at this point")
-
-            for i in range(np.product(chan_hist.axes.size)):
-                current_i = i
-                ax_idx = []
-                for num in reversed(chan_hist.axes.size):
-                    ax_idx.insert(0, current_i % num)
-                    current_i //= num
-
-                name = "_".join([f"{ax}{ax_idx[j]}" for j, ax in enumerate(chan_hist.axes.name)])
-                val = chan_hist[{ax: ax_idx[j] for j, ax in enumerate(chan_hist.axes.name)}].value
-                logger.debug(f"Add ABCD rate param {name}")
-
-                if chan == "passMTpassIso":
-                    cardTool.addRateParam(f"{chan}_{name}", chan, f"Fake_{name}", formula="(@0*@1/@2)", args=f"failMTpassIso_{name},passMTfailIso_{name},failMTfailIso_{name}")
-                else:
-                    cardTool.addRateParam(f"{chan}_{name}", chan, f"Fake_{name}", initial_value=val, min_value=0, max_value=1.5*val)
-
-
+    if wmass and args.simultaneousABCD:
+        # simultaneous ABCD method
+        cardTool.setChannels(["inclusive"])
+        cardTool.setWriteByCharge(False)
+        fitvars = ["passIso", "passMT", *args.fitvar]
+        cardTool.setProjectionAxes(fitvars)
+        cardTool.unroll=True
     if args.sumChannels or xnorm:
         cardTool.setChannels(["inclusive"])
-        cardTool.setWriteByChannel(False)
     if xnorm:
         histName = "xnorm"
         cardTool.setHistName(histName)
@@ -460,8 +423,8 @@ def setup(args,xnorm=False):
             passToFakes=passSystToFakes,
         )
 
-    if (wmass or wlike) and not input_tools.args_from_metadata(cardTool, "noRecoil"):
-        combine_helpers.add_recoil_uncertainty(cardTool, signal_samples, passSystToFakes=passSystToFakes, flavor=datagroups.flavor if datagroups.flavor else "mu")
+    # if (wmass or wlike) and not input_tools.args_from_metadata(cardTool, "noRecoil"):
+    #     combine_helpers.add_recoil_uncertainty(cardTool, signal_samples, passSystToFakes=passSystToFakes, flavor=datagroups.flavor if datagroups.flavor else "mu")
 
     if wmass:
         if not lowPU:
@@ -551,7 +514,7 @@ def setup(args,xnorm=False):
 def main(args,xnorm=False):
     cardTool = setup(args, xnorm)
     cardTool.setOutput(args.outfolder, fitvars=args.fitvar, doStatOnly=args.doStatOnly, postfix=args.postfix)
-    cardTool.writeOutput(args=args, forceNonzero=not args.unfolding, check_systs=not args.unfolding)
+    cardTool.writeOutput(args=args, forceNonzero=not args.unfolding, check_systs=not args.unfolding, simultaneousABCD=args.simultaneousABCD)
     return
 
 if __name__ == "__main__":
