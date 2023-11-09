@@ -34,7 +34,7 @@ else
     echo "The file does not exists, produce it."
     ./scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/combine/setupCombine.py \
         -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --sparse --unfolding \
-        --pseudoData massWeight$LABEL --pseudoDataAxes massShift --pseudoDataIdxs -1 --ewUnc
+        --pseudoData massWeight$LABEL --pseudoDataAxes massShift --pseudoDataIdxs -1 --ewUnc # --doStatOnly
 fi
 
 # 1) Unfold pseudodata with mW set to values of {0, 10, 20, ...}
@@ -56,12 +56,9 @@ do
 
     echo "Perform unfolding with index = $counter : $PSEUDO"
 
-    FITRESULT=${COMBINE_ANALYSIS_OUTDIR}/fitresults_123456789_${BIN}.hdf5
-    THEOMODEL_DIR=${COMBINE_OUTDIR}/${ANALYSIS}_qGen_ptGen_absEtaGen_${BIN}/
-    THEOMODEL=${ANALYSIS}.hdf5
-    THEOMODEL_PATH=${THEOMODEL_DIR}/${THEOMODEL}
-
     # 1) Unfold pseudodata
+    FITRESULT=${COMBINE_ANALYSIS_OUTDIR}/fitresults_123456789_${BIN}.hdf5
+
     if [ -e $FITRESULT ]; then
         echo "The file $FITRESULT exists, continue using it."
     else
@@ -70,6 +67,10 @@ do
     fi
 
     # 2)  Generate card with nominal theory model
+    THEOMODEL_DIR=${COMBINE_OUTDIR}/${ANALYSIS}_qGen_ptGen_absEtaGen_${BIN}/
+    THEOMODEL=${ANALYSIS}.hdf5
+    THEOMODEL_PATH=${THEOMODEL_DIR}/${THEOMODEL}
+
     if [ -e $THEOMODEL_PATH ]; then
         echo "The file $THEOMODEL_PATH exists, continue using it."
     else
@@ -79,9 +80,14 @@ do
     fi
 
     # 3) Fit theory model to unfolded pseudo data 
+    FITRESULT_FINAL=${THEOMODEL_DIR}/fitresults_123456789.hdf5
 
-    cmssw-cc7 --command-to-run scripts/ci/setup_and_run_combine.sh $CMSSW_BASE $THEOMODEL_DIR \
-        $THEOMODEL --chisqFit --externalCovariance # --doImpacts 
+    if [ -e $FITRESULT_FINAL ]; then
+        echo "The file $FITRESULT_FINAL exists, continue using it."
+    else
+        cmssw-cc7 --command-to-run scripts/ci/setup_and_run_combine.sh $CMSSW_BASE $THEOMODEL_DIR \
+            $THEOMODEL --chisqFit --externalCovariance # --doImpacts 
+    fi
 
     # 4) Compare observed mass pulls with pseudodata value
 

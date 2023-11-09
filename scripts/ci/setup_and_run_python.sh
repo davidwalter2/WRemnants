@@ -1,6 +1,6 @@
 . ./setup.sh
-if [ -e "~/.keytab ${USER}@CERN.CH" ]; then
+if [ -e "/home/${USER:0:1}/${USER}/.keytab" ]; then
     echo "Initialize kerberos"
-    kinit -kt ~/.keytab ${USER}@CERN.CH
+    kinit -kt /home/${USER:0:1}/${USER}/.keytab ${USER}@CERN.CH
 fi
 python3 $@
