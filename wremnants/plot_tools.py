@@ -22,12 +22,17 @@ hep.style.use(hep.style.ROOT)
 logger = logging.child_logger(__name__)
 
 def cfgFigure(href, xlim=None, bin_density = 300,  width_scale=1, automatic_scale=True):
-    hax = href.axes[0]
+    # href can be a hist type object or array with the edges for the plot
+    if hasattr(href, "axes"):
+        hax = href.axes[0]
+        edges = hax.edges
+    else:
+        edges = href
     if not xlim:
-        xlim = [hax.edges[0], hax.edges[-1]]
+        xlim = [edges[0], edges[-1]]
     xlim_range = float(xlim[1] - xlim[0])
-    original_xrange = float(hax.edges[-1] - hax.edges[0])
-    raw_width = (hax.size/float(bin_density)) * (xlim_range / original_xrange)
+    original_xrange = float(edges[-1] - edges[0])
+    raw_width = ((len(edges)-1) / float(bin_density)) * (xlim_range / original_xrange)
     width = math.ceil(raw_width)
 
     return plt.figure(figsize=(width_scale*8*width,8)), xlim
@@ -79,6 +84,7 @@ def figureWithRatio(href, xlabel, ylabel, ylim, rlabel, rrange, xlim=None,
     if x_ticks_ndp: ax2.xaxis.set_major_formatter(StrMethodFormatter('{x:.' + str(x_ticks_ndp) + 'f}'))
     ax2.set_ylabel(rlabel, fontsize=22)
     ax2.set_ylim(rrange)
+    ax1.set(xticklabels=[])
 
     if ylim:
         ax1.set_ylim(ylim)
@@ -96,7 +102,7 @@ def figureWithRatio(href, xlabel, ylabel, ylim, rlabel, rrange, xlim=None,
     if plot_title: ax1.set_title(plot_title, pad = title_padding)
     return fig,ax1,ax2
 
-def addLegend(ax, ncols=2, extra_text=None, extra_text_loc=(0.8, 0.7), text_size=20):
+def addLegend(ax, ncols=2, extra_text=None, extra_text_loc=(0.8, 0.7), text_size=20, loc='upper right'):
     handles, labels = ax.get_legend_handles_labels()
     
     shape = np.divide(*ax.get_figure().get_size_inches())
@@ -107,7 +113,7 @@ def addLegend(ax, ncols=2, extra_text=None, extra_text_loc=(0.8, 0.7), text_size
         handles.insert(math.floor(len(handles)/2), patches.Patch(color='none', label = ' '))
         labels.insert(math.floor(len(labels)/2), ' ')
     text_size = text_size*(0.7 if shape == 1 else 1.3)
-    leg = ax.legend(handles=handles, labels=labels, prop={'size' : text_size}, ncol=ncols, loc='upper right')
+    leg = ax.legend(handles=handles, labels=labels, prop={'size' : text_size}, ncol=ncols, loc=loc)
 
     if extra_text:
         p = leg.get_frame()
