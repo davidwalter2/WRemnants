@@ -63,7 +63,7 @@ do
         echo "The file $FITRESULT exists, continue using it."
     else
         cmssw-cc7 --command-to-run scripts/ci/setup_and_run_combine.sh $CMSSW_BASE $COMBINE_ANALYSIS_OUTDIR \
-            ${ANALYSIS}.hdf5 -p $counter --postfix $BIN # --binByBinStat --correlateXsecStat --doImpacts 
+            ${ANALYSIS}.hdf5 -p $counter --postfix $BIN --binByBinStat --correlateXsecStat #--doImpacts 
     fi
 
     # 2)  Generate card with nominal theory model
@@ -75,7 +75,7 @@ do
         echo "The file $THEOMODEL_PATH exists, continue using it."
     else
         ./scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/combine/setupCombine.py \
-            -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --fitvar qGen-ptGen-absEtaGen --postfix $BIN \
+            -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --fitvar qGen-ptGen-absEtaGen --postfix $BIN --ewUnc \
             --fitresult $FITRESULT
     fi
 
