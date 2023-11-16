@@ -7,7 +7,7 @@ from matplotlib.colors import LogNorm
 import hist
 from itertools import combinations
 
-from utilities import logging, boostHistHelpers as hh
+from utilities import logging, common, boostHistHelpers as hh
 from utilities.io_tools import output_tools
 from utilities.styles import styles
 from wremnants import theory_corrections, plot_tools
@@ -15,6 +15,7 @@ from wremnants import theory_corrections, plot_tools
 parser = argparse.ArgumentParser()
 parser.add_argument("--theoryCorr", nargs="*", default=["scetlib_dyturbo", "horacenloew"], choices=theory_corrections.valid_theory_corrections(),
     help="Apply corrections from indicated generator. First will be nominal correction.")
+parser.add_argument("--basePath", type=str, default=f"{common.data_dir}/TheoryCorrections", help="Base path for output")
 parser.add_argument("--idxs", nargs="*", default=None, help="Indexes from systematic axis to be used for plotting.")
 parser.add_argument("--datasets", nargs="*", default=["ZmumuPostVFP"], 
     help="Apply corrections from indicated generator. First will be nominal correction.")
@@ -40,7 +41,7 @@ outdir = output_tools.make_plot_dir(args.outpath, args.outfolder)
 
 colors = mpl.colormaps["tab10"]
 
-corr_dict = theory_corrections.load_corr_helpers(args.datasets, args.theoryCorr, make_tensor=False)
+corr_dict = theory_corrections.load_corr_helpers(args.datasets, args.theoryCorr, make_tensor=False, base_path=args.basePath)
 
 def project(flow=False):
     # average over bins

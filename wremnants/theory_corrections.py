@@ -16,17 +16,17 @@ from wremnants import theory_tools
 
 logger = logging.child_logger(__name__)
 
-def valid_theory_corrections():
-    corr_files = glob.glob(common.data_dir+"TheoryCorrections/*Corr*.pkl.lz4")
+def valid_theory_corrections(base_path=f"{common.data_dir}/TheoryCorrections"):
+    corr_files = glob.glob(f"{base_path}/*Corr*.pkl.lz4")
     matches = [re.match("(^.*)Corr[W|Z]\.pkl\.lz4", os.path.basename(c)) for c in corr_files]
     return [m[1] for m in matches if m]
 
-def load_corr_helpers(procs, generators, make_tensor=True):
+def load_corr_helpers(procs, generators, make_tensor=True, base_path=f"{common.data_dir}/TheoryCorrections"):
     corr_helpers = {}
     for proc in procs:
         corr_helpers[proc] = {}
         for generator in generators:
-            fname = f"{common.data_dir}/TheoryCorrections/{generator}Corr{proc[0]}.pkl.lz4"
+            fname = f"{base_path}/{generator}Corr{proc[0]}.pkl.lz4"
             if not os.path.isfile(fname):
                 logger.warning(f"Did not find correction file for process {proc}, generator {generator}. No correction will be applied for this process!")
                 continue

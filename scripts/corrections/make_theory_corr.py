@@ -9,6 +9,8 @@ import argparse
 import os
 import matplotlib.pyplot as plt
 
+import pdb
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--minnlo_file", type=str, default="w_z_gen_dists.pkl.lz4", help="MiNNLO gen file, denominator in ratio") 
 parser.add_argument("-c", "--corr_files", type=str, nargs='+', required=True, help="Reference files for the corrections (both W+ and W- for the W)") 
@@ -74,9 +76,11 @@ def read_corr(procName, generator, corr_files):
             axnames = args.axes
             if not axnames:
                 axnames = ("Y", "qT") if "2d" in corr_file else ("qT")
+    
             h = input_tools.read_dyturbo_hist(corr_files, axes=axnames, charge=charge)
             if "Y" in h.axes.name:
                 h = hh.makeAbsHist(h, "Y")
+
 
         vars_ax = h.axes["vars"] if "vars" in h.axes.name else hist.axis.StrCategory(["central"], name="vars") 
         hnD = hist.Hist(*h.axes, vars_ax)
@@ -134,6 +138,8 @@ nom_sum = lambda x: x.sum() if "vars" not in x.axes.name else x[{"vars" : 0}].su
 logger.info(f"Minnlo norm in corr region is {nom_sum(minnloh)}, corrh norm is {nom_sum(numh)}")
 
 corrh = hist.Hist(*corrh_unc.axes, name=corrh_unc.name, storage=hist.storage.Double(), data=corrh_unc.values(flow=True))
+
+corrh = hh.set_flow(corrh, val="nearest")
 
 if args.postfix:
     args.generator += args.postfix

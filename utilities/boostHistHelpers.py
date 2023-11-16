@@ -518,7 +518,8 @@ def set_flow(h, val="nearest"):
     # sets the values of the underflow and overflow bins to given value; if val='nearest' the values of the nearest bins are taken
     for axis in [a.name for a in h.axes if a.traits.overflow]:
         slices = [slice(None) if a!=axis else -1 for a in h.axes.name]
-        h.view(flow=True)[*slices] = h[{axis: -1}].view(flow=True) if val=="nearest" else val
+        idx = 0 if h.axes[axis].size == 1 else -1
+        h.view(flow=True)[*slices] = h[{axis: idx}].view(flow=True) if val=="nearest" else val
     for axis in [a.name for a in h.axes if a.traits.underflow]:
         slices = [slice(None) if a!=axis else 0 for a in h.axes.name]
         h.view(flow=True)[*slices] = h[{axis: 0}].view(flow=True) if val=="nearest" else val
