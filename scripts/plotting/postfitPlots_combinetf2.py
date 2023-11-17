@@ -7,7 +7,7 @@ import hist
 import numpy as np
 import argparse
 
-from utilities import logging, boostHistHelpers as hh
+from utilities import common, logging, boostHistHelpers as hh
 from utilities.styles import styles
 from wremnants import plot_tools, histselections as sel
 from utilities.io_tools import output_tools, combinetf2_input
@@ -16,28 +16,20 @@ import pdb
 
 hep.style.use(hep.style.ROOT)
 
-parser = argparse.ArgumentParser()
+parser = common.plot_parser()
 parser.add_argument("infile", type=str, help="hdf5 file from combinetf2")
-parser.add_argument("-o", "--outpath", type=str, default=os.path.expanduser("~/www/WMassAnalysis"), help="Base path for output")
-parser.add_argument("-f", "--outfolder", type=str, default="./test", help="Subfolder for output")
-parser.add_argument("-p", "--postfix", type=str, help="Postfix for output file name")
-parser.add_argument("--cmsDecor", default="Preliminary", type=str, choices=[None,"Preliminary", "Work in progress", "Internal"], help="CMS label")
-parser.add_argument("--lumi", type=float, default=16.8, help="Luminosity used in the fit, needed to get the absolute cross section")
 parser.add_argument("-r", "--rrange", type=float, nargs=2, default=[0.9,1.1], help="y range for ratio plot")
 parser.add_argument("--ylim", type=float, nargs=2, help="Min and max values for y axis (if not specified, range set automatically)")
 parser.add_argument("--logy", action='store_true', help="Make the yscale logarithmic")
 parser.add_argument("--yscale", type=float, help="Scale the upper y axis by this factor (useful when auto scaling cuts off legend)")
-parser.add_argument("--scaleleg", type=float, default=1.0, help="Scale legend text")
 parser.add_argument("--noRatio", action='store_true', help="Don't make the ratio in the plot")
 parser.add_argument("--noData", action='store_true', help="Don't plot the data")
 parser.add_argument("--prefit", action='store_true', help="Make prefit plot, else postfit")
 parser.add_argument("--selectionAxes", type=str, default=["charge"], help="List of axes where for each bin a seperate plot is created")
-parser.add_argument("--debug", action='store_true', help="Print debug output")
-parser.add_argument("--eoscp", action='store_true', help="Override use of xrdcp and use the mount instead")
 
 args = parser.parse_args()
 
-logger = logging.setup_logger(__file__, 4 if args.debug else 3)
+logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 
 outdir = output_tools.make_plot_dir(args.outpath, args.outfolder, eoscp=args.eoscp)
 
