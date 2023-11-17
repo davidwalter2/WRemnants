@@ -19,7 +19,7 @@ parser.add_argument("-g", "--generator", type=str, choices=["dyturbo", "scetlib"
 parser.add_argument("--outpath", type=str, default=f"{common.data_dir}/TheoryCorrections", help="Output path")
 parser.add_argument("-p", "--postfix", type=str, help="Postfix for output file name", default=None)
 parser.add_argument("--proc", type=str, required=True, choices=["z", "w", ], help="Process")
-parser.add_argument("--minnloh", default="nominal_gen_qcdScale", type=str, help="Reference hist in MiNNLO sample")
+parser.add_argument("--minnloh", default="nominal_gen", type=str, help="Reference hist in MiNNLO sample")
 parser.add_argument("--axes", nargs="*", type=str, default=None, help="Use only specified axes in hist")
 parser.add_argument("--debug", action='store_true', help="Print debug output")
 parser.add_argument("--selectVars", type=str, nargs="*", help="Select variations from corr hist")
@@ -78,9 +78,9 @@ def read_corr(procName, generator, corr_files):
                 axnames = ("Y", "qT") if "2d" in corr_file else ("qT")
     
             h = input_tools.read_dyturbo_hist(corr_files, axes=axnames, charge=charge)
+
             if "Y" in h.axes.name:
                 h = hh.makeAbsHist(h, "Y")
-
 
         vars_ax = h.axes["vars"] if "vars" in h.axes.name else hist.axis.StrCategory(["central"], name="vars") 
         hnD = hist.Hist(*h.axes, vars_ax)
@@ -115,22 +115,37 @@ if args.selectVars:
 
 if numh.ndim-1 < minnloh.ndim:
     axes = []
+    axes_broadcast = []
     # NOTE: This leaves out the flow, but there shouldn't be any for the theory pred anyway
     data = numh.view()
     for i, ax in enumerate(minnloh.axes):
         if ax.name in numh.axes.name:
             axes.append(numh.axes[ax.name])
         elif not (ax.name in ax_map and ax_map[ax.name] in numh.axes.name):
-            # TODO: Should be a little careful because this won't include overflow, as long as the
-            # axis range is large enough, it shouldn't matter much
-            axes.append(hist.axis.Regular(1, ax.edges[0], ax.edges[-1], 
-                underflow=ax.traits.underflow, overflow=ax.traits.overflow, name=ax.name))
-            data = np.expand_dims(data, i)
+
+            if ax.name in ["muRfact", "muFfact"]:
+                # in case it is a systematic axis, the values need to be broadcasted (later)
+                logger.info(f"Systematic axis {ax.name} not found in correction histogram, broadcast axis.")
+                axes_broadcast.append(ax)
+                axes.append(ax)
+            elif ax.name in ["Q", "absY", "absy", "qT", "charge", "chargeVgen"]:
+                # in case of a phase space axis, just add the axis with a single bin
+                # TODO: Should be a little careful because this won't include overflow, as long as the
+                # axis range is large enough, it shouldn't matter much
+                axes.append(hist.axis.Regular(1, ax.edges[0], ax.edges[-1], 
+                    underflow=ax.traits.underflow, overflow=ax.traits.overflow, name=ax.name))
+                data = np.expand_dims(data, i)            
+            else:
+                raise RuntimeError(f"Axis {ax.name} found in minnlo but not in correction histogram and it is unknown what type this axis belongs to (systematic or phase space).")
 
     if axes[-1].name != "vars" and numh.axes.name[-1] == "vars":
         axes.append(numh.axes["vars"])
     
-    numh = hist.Hist(*axes, storage=numh.storage_type(), data=data)
+    numh = hist.Hist(*[a for a in axes if a not in axes_broadcast], storage=numh.storage_type(), data=data)
+
+    if len(axes_broadcast) > 0:
+        h2 = hist.Hist(*axes, storage=numh.storage_type())
+        numh = hh.broadcastSystHist(numh, h2)
 
 corrh_unc, minnloh, numh  = theory_corrections.make_corr_from_ratio(minnloh, numh)
 

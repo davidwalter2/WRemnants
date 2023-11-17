@@ -21,7 +21,7 @@ def valid_theory_corrections(base_path=f"{common.data_dir}/TheoryCorrections"):
     matches = [re.match("(^.*)Corr[W|Z]\.pkl\.lz4", os.path.basename(c)) for c in corr_files]
     return [m[1] for m in matches if m]
 
-def load_corr_helpers(procs, generators, make_tensor=True, base_path=f"{common.data_dir}/TheoryCorrections"):
+def load_corr_helpers(procs, generators, make_tensor=True, base_path=f"{common.data_dir}/TheoryCorrections", histname="minnlo_ratio"):
     corr_helpers = {}
     for proc in procs:
         corr_helpers[proc] = {}
@@ -31,7 +31,7 @@ def load_corr_helpers(procs, generators, make_tensor=True, base_path=f"{common.d
                 logger.warning(f"Did not find correction file for process {proc}, generator {generator}. No correction will be applied for this process!")
                 continue
             logger.debug(f"Make theory correction helper for file: {fname}")
-            corrh = load_corr_hist(fname, proc[0], get_corr_name(generator))
+            corrh = load_corr_hist(fname, proc[0], get_corr_name(generator, histname=histname))
             if not make_tensor:
                 corr_helpers[proc][generator] = corrh
             elif "Helicity" in generator:
@@ -80,10 +80,13 @@ def load_corr_hist(filename, proc, histname):
         corrh = corr[proc][histname]
     return corrh
 
-def get_corr_name(generator):
+def get_corr_name(generator, histname="minnlo_ratio"):
     # Hack for now
     label = generator.replace("1D", "")
-    return f"{label}_minnlo_ratio" if "Helicity" not in generator else f"{label.replace('Helicity', '')}_minnlo_coeffs"
+    if histname in ["minnlo_ref_hist"]:
+        return histname
+
+    return f"{label}_{histname}" if "Helicity" not in generator else f"{label.replace('Helicity', '')}_minnlo_coeffs"
 
 def rebin_corr_hists(hists, ndim=-1, binning=None):
     # Allow trailing dimensions to be different (e.g., variations)
@@ -123,10 +126,7 @@ def set_corr_ratio_flow(corrh):
     return corrh
 
 def make_corr_from_ratio(denom_hist, num_hist, rebin=False):
-
     denom_hist, num_hist = rebin_corr_hists([denom_hist, num_hist], binning=rebin)
-
-
     corrh = hh.divideHists(num_hist, denom_hist, flow=False, by_ax_name=False)
     return set_corr_ratio_flow(corrh), denom_hist, num_hist
 

@@ -10,6 +10,7 @@ import h5py
 from narf import ioutils
 import ROOT
 import uproot
+import pandas as pd
 
 logger = logging.child_logger(__name__)
 
@@ -153,9 +154,12 @@ def read_dyturbo_pdf_hist(base_name, pdf_members, axes, charge=None):
 def read_dyturbo_hist(filenames, path="", axes=("y", "pt"), charge=None, coeff=None):
     filenames = [os.path.expanduser(os.path.join(path, f)) for f in filenames]
     isfile = list(filter(lambda x: os.path.isfile(x), filenames))
+    isfileNot = list(filter(lambda x: not os.path.isfile(x), filenames))
 
     if not isfile:
         raise ValueError(f"Did not find any valid files in {filenames}")
+    elif isfileNot:
+        logger.warning(f"Some of the files could not be found, procceed without those: {isfileNot}")
 
     hists = [read_dyturbo_file(f, axes, charge, coeff) for f in isfile]
     if len(hists) > 1:
@@ -210,15 +214,14 @@ def read_matrixRadish_hist(filename, axname="pt"):
     h[...] = data[:-1, np.array([1,3,5])]
     return h*1/1000
     
-def read_text_data(filename):
-    data = []
-    for line in open(filename).readlines():
-        entry = line.split("#")[0]
-        entry_data = [float(i.strip()) for i in entry.split()]
-        if not entry_data:
-            continue
-        data.append(entry_data)
-    return np.array(data, dtype=float)
+def read_text_data(filename, delimiter="\s+"):
+    df = pd.read_csv(filename, delimiter=delimiter)
+    df.rename(columns={df.keys()[0]: df.keys()[0].replace("#","")}, inplace=True)
+    if (df.loc[df.index[0], df.columns[0]] == df.loc[df.index[-1], df.columns[0]]) and (df.loc[df.index[0], df.columns[2]] == df.loc[df.index[-1], df.columns[2]]):
+        logger.info("Total cross section detected in last line, it will be removed.")
+        df = df.drop(df.index[-1])
+    df.sort_values(by=[k for k in df.keys()], inplace=True, ignore_index=True)
+    return df.values.astype(float)
 
 def read_dyturbo_file(filename, axnames=("Y", "qT"), charge=None, coeff=None):
     if filename.endswith(".root"):
@@ -234,15 +237,12 @@ def read_dyturbo_file(filename, axnames=("Y", "qT"), charge=None, coeff=None):
             raise ValueError(f"Mismatch between number of axes advertised ({len(axnames)} ==> {axnames}) and found ({(data.shape[1]-2)/2})")
 
         axes = []
-        offset = True
         for i,name in enumerate(axnames):
-            # Normally last line is the total cross section, also possible it isn't, so check the bin ranges
-            offset = offset and data[-1,2*i] == data[0,2*i] and data[-1,2*i+1] == data[-2,2*i+1]
-            bins = sorted(list(set(data[:len(data)-offset,2*i:2*i+2].flatten())))
+            bins = sorted(list(set(data[:,2*i:2*i+2].flatten())))
             axes.append(hist.axis.Variable(bins, name=name, underflow=not (bins[0] == 0 and "qT" in name)))
 
         h = hist.Hist(*axes, storage=hist.storage.Weight())
-        h[...] = np.reshape(data[:len(data)-offset,len(axes)*2:], (*h.axes.size, 2))
+        h[...] = np.reshape(data[:,len(axes)*2:], (*h.axes.size, 2))
 
     if charge is not None:
         h = add_charge_axis(h, charge)

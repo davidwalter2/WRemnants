@@ -124,7 +124,9 @@ axis_labels = {
     "qT" : r"$\mathrm{Pre\ FSR}\ p_\mathrm{T}^{\ell\ell}$",
     "Q" : r"$\mathrm{Pre\ FSR}\ m^{\ell\ell}$", 
     "absY" : r"$\mathrm{Pre\ FSR}\ Y^{\ell\ell}$",
+    "absy" : r"$\mathrm{Pre\ FSR}\ Y^{\ell\ell}$",
     "charge" : r"$\mathrm{Pre\ FSR\ charge}$", 
+    "chargeVgen" : r"$\mathrm{Pre\ FSR\ charge}$", 
 }
 
 syst_labels = {

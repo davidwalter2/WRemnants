@@ -16,7 +16,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--theoryCorr", nargs="*", default=["scetlib_dyturbo", "horacenloew"], choices=theory_corrections.valid_theory_corrections(),
     help="Apply corrections from indicated generator. First will be nominal correction.")
 parser.add_argument("--basePath", type=str, default=f"{common.data_dir}/TheoryCorrections", help="Base path for output")
+parser.add_argument("--histName", type=str, default=f"minnlo_ratio", choices=["minnlo_ratio", "hist", "minnlo_ref_hist"], help="Histogram from correction file")
 parser.add_argument("--idxs", nargs="*", default=None, help="Indexes from systematic axis to be used for plotting.")
+parser.add_argument("--muR", default=1, type=float, choices=[0.5, 1, 2], help="Value for muR to be used for plotting.")
+parser.add_argument("--muF", default=1, type=float, choices=[0.5, 1, 2], help="Value for muF to be used for plotting.")
 parser.add_argument("--datasets", nargs="*", default=["ZmumuPostVFP"], 
     help="Apply corrections from indicated generator. First will be nominal correction.")
 parser.add_argument("-v", "--verbose", type=int, default=3, choices=[0,1,2,3,4],
@@ -41,19 +44,30 @@ outdir = output_tools.make_plot_dir(args.outpath, args.outfolder)
 
 colors = mpl.colormaps["tab10"]
 
-corr_dict = theory_corrections.load_corr_helpers(args.datasets, args.theoryCorr, make_tensor=False, base_path=args.basePath)
+if "ratio" in args.histName:
+    average = True
+else:
+    average = False
 
-def project(flow=False):
+corr_dict = theory_corrections.load_corr_helpers(args.datasets, args.theoryCorr, make_tensor=False, base_path=args.basePath, histname=args.histName)
+
+def project(flow=False, average=True):
     # average over bins
-    if flow:
-        return lambda h, axes: h.project(*axes)/np.prod([a.extent for a in h.axes if a.name not in axes])
+    if average:
+        if flow:
+            return lambda h, axes: h.project(*axes)/np.prod([a.extent for a in h.axes if a.name not in axes])
+        else:
+            return lambda h, axes: hh.projectNoFlow(h, axes)/np.prod([a.size for a in h.axes if a.name not in axes])
     else:
-        return lambda h, axes: hh.projectNoFlow(h, axes)/np.prod([a.size for a in h.axes if a.name not in axes])
+        if flow:
+            return lambda h, axes: h.project(*axes)
+        else:
+            return lambda h, axes: hh.projectNoFlow(h, axes)
 
-def make_plot_2d(h, name, proc, axes, corr=None, plot_error=False, clim=None, flow=True, density=False, log=False):
+def make_plot_2d(h, name, proc, axes, corr=None, plot_error=False, clim=None, flow=True, density=False, log=False, average=True):
     logger.info(f"Make 2d plot {name} with axes {axes[0]}, {axes[1]}")
     
-    h2d = project(flow)(h, axes)
+    h2d = project(flow, average)(h, axes)
 
     xlabel = styles.axis_labels.get(axes[0],axes[0])
     ylabel = styles.axis_labels.get(axes[1],axes[1])
@@ -75,35 +89,43 @@ def make_plot_2d(h, name, proc, axes, corr=None, plot_error=False, clim=None, fl
         # plot relative errors instead
         h2d.values(flow=flow)[...] = np.sqrt(hh.relVariance(h2d.values(flow=flow), h2d.variances(flow=flow), fillOnes=True))
 
+    values = h2d.values(flow=flow)
+
     xlim = (xedges[0],xedges[-1])
     ylim = (yedges[0],yedges[-1])
+
+    if not average:
+        xbinwidths = np.diff(xedges.flatten())
+        ybinwidths = np.diff(yedges.flatten())
+        binwidths = np.outer(xbinwidths, ybinwidths)
+        values = values/binwidths
 
     fig, ax = plot_tools.figure(h2d, xlabel=xlabel, ylabel=ylabel, cms_label=args.cmsDecor, automatic_scale=False, width_scale=1.2, xlim=xlim, ylim=ylim)
 
     if clim is None:
         if log:
-            cmin = min(h2d.values(flow=flow)[h2d.values(flow=flow)>0]) # smallest value that is not 0
-            cmax = h2d.values(flow=flow).max()
+            cmin = min(values[values>0]) # smallest value that is not 0
+            cmax = values.max()
         else:
-            cmin = max(0.95,h2d.values(flow=flow).min())
-            cmax = min(1.05,h2d.values(flow=flow).max())
+            cmin = max(0.95, values.min())
+            cmax = min(1.05, values.max())
         # make symmetric range
         crange = max((cmax-1), (1-cmin))
         clim = [max(0.95,1-crange), min(1.05,1+crange)]
     else:
-        colormesh = ax.pcolormesh(xedges, yedges, h2d.values(flow=flow).T, norm=LogNorm(vmin=clim[0], vmax=clim[1]), cmap=cm.RdBu)
+        colormesh = ax.pcolormesh(xedges, yedges, values.T, norm=LogNorm(vmin=clim[0], vmax=clim[1]), cmap=cm.RdBu)
 
     if log:
-        colormesh = ax.pcolormesh(xedges, yedges, h2d.values(flow=flow).T, cmap=cm.RdBu, norm=LogNorm(vmin=clim[0], vmax=clim[1]))
+        colormesh = ax.pcolormesh(xedges, yedges, values.T, cmap=cm.RdBu, norm=LogNorm(vmin=clim[0], vmax=clim[1]))
     else:
-        colormesh = ax.pcolormesh(xedges, yedges, h2d.values(flow=flow).T, cmap=cm.RdBu, vmin=clim[0], vmax=clim[1])
+        colormesh = ax.pcolormesh(xedges, yedges, values.T, cmap=cm.RdBu, vmin=clim[0], vmax=clim[1])
 
     cbar = fig.colorbar(colormesh, ax=ax)
 
     ax.text(1.0, 1.003, styles.text_dict[proc], transform=ax.transAxes, fontsize=30,
             verticalalignment='bottom', horizontalalignment="right")
 
-    outfile = f"hist2d_{'_'.join(axes)}_{proc}_{name}"
+    outfile = f"{args.histName}_2d_{'_'.join(axes)}_{proc}_{name}"
     if corr:
         outfile += f'_{corr.replace("(","").replace(")","")}'
     if args.postfix:
@@ -112,7 +134,7 @@ def make_plot_2d(h, name, proc, axes, corr=None, plot_error=False, clim=None, fl
     plot_tools.write_index_and_log(outdir, outfile, args=args)
 
 def make_plot_1d(hists, names, proc, axis, labels=None, corr=None, 
-    ratio=False, normalize=False, xmin=None, xmax=None, ymin=None, ymax=None, flow=True, density=False, uncertainty_bands=False
+    ratio=False, normalize=False, xmin=None, xmax=None, ymin=None, ymax=None, flow=True, density=False, uncertainty_bands=False, average=True
 ):
     logger.info(f"Make 1D plot for corr {corr} with {len(names)} entries for axis {axis}")
 
@@ -120,12 +142,17 @@ def make_plot_1d(hists, names, proc, axis, labels=None, corr=None,
         hists = [hists]
         names = [names]
 
-    h1ds = [project(flow)(h, [axis]) for h in hists]
+    h1ds = [project(flow,average)(h, [axis]) for h in hists]
 
     if flow:
         xedges = plot_tools.extendEdgesByFlow(h1ds[0])
     else:
         xedges = h1ds[0].axes.edges[0]
+
+    if not average:
+        binwidths = np.diff(xedges)
+    else:
+        binwidths = np.ones(len(xedges)-1)
 
     if normalize:
         h1ds = [h/np.sum(h.values(flow=flow)) for h in h1ds]
@@ -139,14 +166,16 @@ def make_plot_1d(hists, names, proc, axis, labels=None, corr=None,
 
     if ymin is None or ymax is None:
         xmap = (xedges[1:] > xmin) & (xedges[:-1] < xmax)
-        ymax = ymax if ymax is not None else max([max(h.values(flow=flow)[xmap]) for h in h1ds])
-        ymin = ymin if ymin is not None else min([min(h.values(flow=flow)[xmap]) for h in h1ds])
+        ymax = ymax if ymax is not None else max([max(h.values(flow=flow)[xmap]/binwidths[xmap]) for h in h1ds])
+        ymin = ymin if ymin is not None else min([min(h.values(flow=flow)[xmap]/binwidths[xmap]) for h in h1ds])
         yrange = ymax - ymin
         ymin = ymin if ymin == 0 else ymin - yrange*0.3
         ymax = ymax + yrange*0.3
 
     if ratio:
         ylabel = "1/{0}".format(names[0].split("_div_")[-1])
+    elif not average:
+        ylabel = r"$\sigma\ [\mathrm{pb}]$"
     else:
         ylabel = "a.u."
 
@@ -157,7 +186,11 @@ def make_plot_1d(hists, names, proc, axis, labels=None, corr=None,
         ax.plot([min(xedges), max(xedges)], [1,1], color="black", linestyle="--")
 
     for i, h1d in enumerate(h1ds):
+
         y = h1d.values(flow=flow)
+
+        if not average:
+            y = y/binwidths
 
         ax.stairs(y, xedges, color=colors(i), label=labels[i])
         if uncertainty_bands:
@@ -168,7 +201,7 @@ def make_plot_1d(hists, names, proc, axis, labels=None, corr=None,
             verticalalignment='bottom', horizontalalignment="right")
     plot_tools.addLegend(ax, ncols=1+int(len(names)/7), text_size=12)
 
-    outfile = f"hist_{axis}_{proc}"
+    outfile = f"{args.histName}_{axis}_{proc}"
     if corr:
         outfile += f"_{corr}"
     if args.postfix:
@@ -179,22 +212,43 @@ def make_plot_1d(hists, names, proc, axis, labels=None, corr=None,
 
 for dataset, corr_hists in corr_dict.items():
     for corr, corrh in corr_hists.items():
+        if args.histName == "minnlo_ref_hist":
+            corr = "MiNNLO"
+        logger.info(f"Produce plot for {corr}.")
         for systAxName in ["systIdx", "tensor_axis_0", "vars"]:
             if systAxName in corrh.axes.name:
                 syst_axis = systAxName
                 break
         else:
-            raise RuntimeError(f"Systematics axis not found, available axes are {corrh.axes.name}")
+            syst_axis = None
+    
+        if "muRfact" in corrh.axes.name:
+            corrh = corrh[{"muRfact": complex(args.muR)}]
+        if "muFfact" in corrh.axes.name:
+            corrh = corrh[{"muFfact": complex(args.muR)}]
+
+        # hard coded integrate and rebin, TODO refine
+        s = hist.tag.Slicer()
+        if "Q" in corrh.axes.name:
+            corrh = corrh[{"Q":s[60j:120j:hist.sum]}]
+        if "massVgen" in corrh.axes.name:
+            corrh = corrh[{"massVgen":s[60j:120j:hist.sum]}]
+        if "ptVgen" in corrh.axes.name:
+            corrh = corrh[{"ptVgen":s[0j:100j:]}]
 
         # loop over charge, if exist
-        if "charge" in corrh.axes.name:
-            corrh_charges = [corrh[{"charge":idx}] for idx in range(corrh.axes["charge"].size)]
+        for charge in ["charge", "chargeVgen"]:
+            if charge in corrh.axes.name:
+                corrh_charges = [corrh[{charge:idx}] for idx in range(corrh.axes[charge].size)]
+                break
         else: 
             corrh_charges = [corrh]
 
         for corrh_charge in corrh_charges:
             # retreive 
-            if type(corrh_charge.axes[syst_axis]) == hist.axes.StrCategory:
+            if syst_axis is None:
+                labels = [corr]
+            elif type(corrh_charge.axes[syst_axis]) == hist.axis.StrCategory:
                 idxs = [i for i, idx in enumerate(corrh_charge.axes[syst_axis]) if args.idxs is None or str(idx) in args.idxs or str(i) in args.idxs]
                 labels = idxs
             else:
@@ -208,13 +262,15 @@ for dataset, corr_hists in corr_dict.items():
                 else:
                     labels = [f"{label}({i})" for i in idxs] 
             
-            if len(idxs) == 0:
+            if syst_axis is None:
+                corrh_systs = {0: corrh_charge}
+            elif len(idxs) == 0:
                 raise RuntimeError(f"No index found in systematic axis!")
             elif args.idxs is not None and len(idxs) != len(args.idxs):
                 logger.warning(f"Some of the indices ({set(args.idxs) - set(idxs)}) have not been found in the systematic axis!")
-
-            # split hists into systematics
-            corrh_systs = {idx: corrh_charge[{syst_axis:idx}] for idx in idxs}
+            else:
+                # split hists into systematics
+                corrh_systs = {idx: corrh_charge[{syst_axis:idx}] for idx in idxs}
 
             hists = [h for h in corrh_systs.values()]
             names = [f"{n}" for n in corrh_systs.keys()]
@@ -223,12 +279,12 @@ for dataset, corr_hists in corr_dict.items():
             if "1d" in args.plots:
                 for axis in axes:
                     make_plot_1d(hists, names, dataset.replace("PostVFP",""), axis, labels=labels, flow=not args.noFlow,
-                        xmin=args.xlim[0], xmax=args.xlim[1], ymin=args.ylim[0], ymax=args.ylim[1])
+                        xmin=args.xlim[0], xmax=args.xlim[1], ymin=args.ylim[0], ymax=args.ylim[1], average=average)
 
             if "2d" in args.plots and len(axes) >= 2:
                 for label, (n, h) in zip(labels, corrh_systs.items()):
                     for ax1, ax2 in list(combinations(axes, 2)): 
-                        make_plot_2d(h, n, dataset.replace("PostVFP",""), [ax1, ax2], corr=label, flow=not args.noFlow, clim=args.clim)                
+                        make_plot_2d(h, n, dataset.replace("PostVFP",""), [ax1, ax2], corr=label, flow=not args.noFlow, clim=args.clim, average=average)                
 
 
         
