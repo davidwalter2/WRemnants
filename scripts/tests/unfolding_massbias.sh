@@ -16,18 +16,25 @@
 # c1) with cuts
 # c2) without cut 
 
+# input arguments: 
+
+HISTMAKER_FILE=$1
+COMBINE_OUTDIR=$2
+
 # settings
+STATONLYOPT=$3  # empty or "--doStatOnly"
+
+if [ -z "$STATONLYOPT" ]; then
+    STATONLY=""
+else
+    STATONLY="_statOnly"
+fi
+
 LABEL=Z
 ANALYSIS=ZMassWLike
 STATONLY=_statOnly
-OPT="--ewUnc "
-if [ -n "$STATONLY" ]; then
-    OPT="--doStatOnly"
-fi
 
 CMSSW_BASE=/home/${USER:0:1}/${USER}/CMSSW_10_6_30/src/
-HISTMAKER_FILE=/scratch/${USER}/results_histmaker/231106_unfolding_wlike/mz_wlike_with_mu_eta_pt_scetlib_dyturboCorr_unfolding_mtCut0.hdf5
-COMBINE_OUTDIR=/scratch/${USER}/CombineStudies/unfolding_massbias/231109_wlike_mtCut0_mZUnc100MeV${STATONLY}
 
 COMBINE_ANALYSIS_OUTDIR=${COMBINE_OUTDIR}/${ANALYSIS}_eta_pt_charge${STATONLY}/
 COMBINE_ANALYSIS_PATH=${COMBINE_ANALYSIS_OUTDIR}/${ANALYSIS}.hdf5
@@ -36,16 +43,19 @@ COMBINE_ANALYSIS_PATH=${COMBINE_ANALYSIS_OUTDIR}/${ANALYSIS}.hdf5
 if [ -e $COMBINE_ANALYSIS_PATH ]; then
     echo "The file $COMBINE_ANALYSIS_PATH exists, continue using it."
 else
-    echo "The file does not exists, produce it."
+    echo "The file $COMBINE_ANALYSIS_PATH does not exists, produce it."
     ./scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/combine/setupCombine.py \
         -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --sparse --unfolding \
-        --pseudoData massWeight$LABEL --pseudoDataAxes massShift --pseudoDataIdxs -1 --ewUnc $OPT
+        --pseudoData massWeight$LABEL --pseudoDataAxes massShift --pseudoDataIdxs -1 $STATONLYOPT
 fi
 
+
 # 1) Unfold pseudodata with mW set to values of {0, 10, 20, ...}
-for ((i=0; i<=20; i+=5)); do
-    IABS=$(( (i-10) * 10 ))
-    if [ $IABS -lt 0 ]; then
+
+# for ((i=-100; i<=100; i+=10)); do
+for i in -100 -50 0 50 100; do
+    IABS=$i
+    if [ $i -lt 0 ]; then
         UPDOWN="Down"
         IABS=$((-1*$IABS))
     elif [ $IABS -eq 0 ]; then
@@ -56,7 +66,7 @@ for ((i=0; i<=20; i+=5)); do
     BIN=massShift${LABEL}${IABS}MeV$UPDOWN
     PSEUDO="massWeight${LABEL}_massShift_${BIN}"
 
-    echo "Perform unfolding with index = $i : $PSEUDO"
+    echo "Perform unfolding for $PSEUDO"
 
     # 1) Unfold pseudodata
     FITRESULT=${COMBINE_ANALYSIS_OUTDIR}/fitresults_123456789_${BIN}.hdf5
@@ -77,7 +87,7 @@ for ((i=0; i<=20; i+=5)); do
         echo "The file $THEOMODEL_PATH exists, continue using it."
     else
         ./scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/combine/setupCombine.py \
-            -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --fitvar qGen-ptGen-absEtaGen --postfix $BIN $OPT \
+            -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --fitvar qGen-ptGen-absEtaGen --postfix $BIN $STATONLYOPT \
             --fitresult $FITRESULT
     fi
 
@@ -88,11 +98,10 @@ for ((i=0; i<=20; i+=5)); do
         echo "The file $FITRESULT_FINAL exists, continue using it."
     else
         cmssw-cc7 --command-to-run scripts/ci/setup_and_run_combine.sh $CMSSW_BASE $THEOMODEL_DIR \
-            $THEOMODEL --chisqFit --externalCovariance # --doImpacts 
+            $THEOMODEL --chisqFit --externalCovariance 
     fi
 
     # 4) Compare observed mass pulls with pseudodata value
-
 
 done
 
