@@ -113,10 +113,10 @@ if args.unfolding:
     min_pt_unfolding = template_minpt+template_wpt
     max_pt_unfolding = template_maxpt-template_wpt
     npt_unfolding = args.genBins[0]-2
-    unfolding_axes, unfolding_cols = differential.get_pt_eta_axes(npt_unfolding, min_pt_unfolding, max_pt_unfolding, args.genBins[1], flow_eta=args.poiAsNoi)
+    unfolding_axes, unfolding_cols = differential.get_pt_eta_axes(npt_unfolding, min_pt_unfolding, max_pt_unfolding, args.genBins[1] if "absEtaGen" in args.genVars else None , flow_eta=args.poiAsNoi)
     if not args.poiAsNoi:
         datasets = unfolding_tools.add_out_of_acceptance(datasets, group = "Wmunu")
-        datasets = unfolding_tools.add_out_of_acceptance(datasets, group = "Wtaunu")
+        # datasets = unfolding_tools.add_out_of_acceptance(datasets, group = "Wtaunu")
 
 elif args.theoryAgnostic:
     theoryAgnostic_axes, theoryAgnostic_cols = differential.get_theoryAgnostic_axes(ptV_bins=args.genPtVbinEdges, absYV_bins=args.genAbsYVbinEdges, ptV_flow=args.poiAsNoi, absYV_flow=args.poiAsNoi)
@@ -239,15 +239,15 @@ def build_graph(df, dataset):
     axes = nominal_axes
     cols = nominal_cols
 
-    if args.unfolding and isW:
+    if args.unfolding and isWmunu:
         df = unfolding_tools.define_gen_level(df, args.genLevel, dataset.name, mode="wmass")
         if hasattr(dataset, "out_of_acceptance"):
             logger.debug("Reject events in fiducial phase space")
-            df = unfolding_tools.select_fiducial_space(df, mode="wmass", accept=False)
+            df = unfolding_tools.select_fiducial_space(df, mtw_min=args.mtCut, mode="wmass", accept=False)
         else:
             if not args.poiAsNoi:
                 logger.debug("Select events in fiducial phase space")
-                df = unfolding_tools.select_fiducial_space(df, mode="wmass", accept=True)
+                df = unfolding_tools.select_fiducial_space(df, mtw_min=args.mtCut, mode="wmass", accept=True)
                 axes = [*nominal_axes, *unfolding_axes] 
                 cols = [*nominal_cols, *unfolding_cols]
             
@@ -268,9 +268,6 @@ def build_graph(df, dataset):
                 cols = [*nominal_cols, *theoryAgnostic_cols]
                 theoryAgnostic_tools.add_xnorm_histograms(results, df, args, dataset.name, corr_helpers, qcdScaleByHelicity_helper, theoryAgnostic_axes, theoryAgnostic_cols)
 
-    if args.xnormOnly:
-        return results, weightsum
-
     if not args.makeMCefficiency:
         # remove trigger, it will be part of the efficiency selection for passing trigger
         hltString="HLT_IsoTkMu24 || HLT_IsoMu24" if era == "2016PostVFP" else "HLT_IsoMu24"
@@ -288,22 +285,18 @@ def build_graph(df, dataset):
     df = muon_calibration.define_corrected_reco_muon_kinematics(df)
 
     df = muon_selections.select_standalone_muons(df, dataset, args.trackerMuons, "goodMuons")
- 
+
     df = muon_selections.veto_electrons(df)
     df = muon_selections.apply_met_filters(df)
     if args.makeMCefficiency:
-        if dataset.group in common.background_MCprocs:
-            df = df.Define("GoodTrigObjs", "wrem::goodMuonTriggerCandidate(TrigObj_id,TrigObj_pt,TrigObj_l1pt,TrigObj_l2pt,TrigObj_filterBits)")
-        else:
-            df = df.Define("GoodTrigObjs", "wrem::goodMuonTriggerCandidate(TrigObj_id,TrigObj_filterBits)")
+        df = df.Define("GoodTrigObjs", "wrem::goodMuonTriggerCandidate(TrigObj_id,TrigObj_filterBits)")
         df = df.Define("passTrigger","(HLT_IsoTkMu24 || HLT_IsoMu24) && wrem::hasTriggerMatch(goodMuons_eta0,goodMuons_phi0,TrigObj_eta[GoodTrigObjs],TrigObj_phi[GoodTrigObjs])")
-
     else:
         df = muon_selections.apply_triggermatching_muon(df, dataset, "goodMuons_eta0", "goodMuons_phi0")
 
     # gen match to bare muons to select only prompt muons from MC processes, but also including tau decays
     # status flags in NanoAOD: https://cms-nanoaod-integration.web.cern.ch/autoDoc/NanoAODv9/2016ULpostVFP/doc_TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8_RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1.html
-    postFSRmuonDef = "GenPart_status == 1 && (GenPart_statusFlags & 1 || GenPart_statusFlags & (5<<1)) && abs(GenPart_pdgId) == 13"
+    postFSRmuonDef = "GenPart_status == 1 && (GenPart_statusFlags & 1 || GenPart_statusFlags & (1<<5)) && abs(GenPart_pdgId) == 13"
     if not dataset.is_data and not isQCDMC and not args.noGenMatchMC:
         df = df.Define("postFSRmuons", postFSRmuonDef)
         df = df.Filter("wrem::hasMatchDR2(goodMuons_eta0,goodMuons_phi0,GenPart_eta[postFSRmuons],GenPart_phi[postFSRmuons],0.09)")
@@ -340,7 +333,7 @@ def build_graph(df, dataset):
             for reco_type in ['crctd', 'cvh', 'uncrct', 'gen_smeared']:
                 df = muon_validation.define_reco_over_gen_cols(df, reco_type)
 
-    if args.isolationDefinition == "iso04" or dataset.group in bkgMCprocs:
+    if args.isolationDefinition == "iso04":
         df = df.Define("goodMuons_pfRelIso04_all0", "Muon_pfRelIso04_all[goodMuons][0]")
     elif args.isolationDefinition == "iso04vtxAgn":
         df = df.Define("goodMuons_pfRelIso04_all0", "Muon_vtxAgnPfRelIso04_all[goodMuons][0]")
@@ -533,7 +526,7 @@ def build_graph(df, dataset):
     return results, weightsum
 
 resultdict = narf.build_and_run(datasets, build_graph)
-if not args.xnormOnly and not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeightsGaus' and not (args.theoryAgnostic and not args.poiAsNoi):
+if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeightsGaus' and not (args.theoryAgnostic and not args.poiAsNoi):
     logger.debug("Apply smearingWeights")
     muon_calibration.transport_smearing_weights_to_reco(
         resultdict,
@@ -543,7 +536,7 @@ if not args.xnormOnly and not args.onlyMainHistograms and args.muonScaleVariatio
 if args.validationHists:
     muon_validation.muon_scale_variation_from_manual_shift(resultdict)
 
-if not args.xnormOnly and not args.noScaleToData:
+if not args.noScaleToData:
     scale_to_data(resultdict)
     aggregate_groups(datasets, resultdict, groups_to_aggregate)
 
