@@ -2,7 +2,8 @@ import copy
 from utilities import common
 
 lumicsv = f"{common.data_dir}/bylsoutput.csv"
-lumijson = f"{common.data_dir}/Cert_271036-284044_13TeV_Legacy2016_Collisions16_JSON.txt"
+lumijson_preVFP = f"{common.data_dir}/Cert_271036-284044_13TeV_Legacy2016_Collisions16preVFP_JSON.txt"
+lumijson_postVFP = f"{common.data_dir}/Cert_271036-284044_13TeV_Legacy2016_Collisions16postVFP_JSON.txt"
 
 dataDictV9 = {
     'dataPostVFP' : { 
@@ -12,7 +13,7 @@ dataDictV9 = {
                                      ],
                       'group': "Data",
                       "lumicsv":lumicsv,
-                      "lumijson":lumijson
+                      "lumijson":lumijson_postVFP
     },
     'ZmumuPostVFP' : { 
                    'filepaths' :
