@@ -87,6 +87,7 @@ def define_gen_level(df, gen_level, dataset_name, mode="wmass"):
         df = df.Define("antilepGen", "ROOT::Math::PtEtaPhiMVector(GenPart_pt[postFSRantileps][postFSRantilepIdx], GenPart_eta[postFSRantileps][postFSRantilepIdx], GenPart_phi[postFSRantileps][postFSRantilepIdx], GenPart_mass[postFSRantileps][postFSRantilepIdx])")
         df = df.Define("VGen", "ROOT::Math::PxPyPzEVector(lepGen)+ROOT::Math::PxPyPzEVector(antilepGen)")
 
+        df = df.Define("deltaphiGen", "std::abs(wrem::deltaPhi(lepGen.phi(), antilepGen.phi()))")
         df = df.Define("massVGen", "VGen.mass()")
         df = df.Define("ptVGen", "VGen.pt()")
         df = df.Define("absYVGen", "fabs(VGen.Rapidity())")  
@@ -96,7 +97,7 @@ def define_gen_level(df, gen_level, dataset_name, mode="wmass"):
 
     return df
 
-def select_fiducial_space(df, select=True, accept=True, mode="wmass", pt_min=None, pt_max=None, mass_min=60, mass_max=120, mtw_min=0, selections=[]):
+def select_fiducial_space(df, select=True, accept=True, mode="wmass", pt_min=None, pt_max=None, mass_min=60, mass_max=120, mtw_min=0, deltaphi_min=0, selections=[]):
     # Define a fiducial phase space and if select=True, either select events inside/outside
     # accept = True: select events in fiducial phase space 
     # accept = False: reject events in fiducial pahse space
@@ -121,6 +122,10 @@ def select_fiducial_space(df, select=True, accept=True, mode="wmass", pt_min=Non
 
     if mtw_min > 0:
         selection += f" && (mTWGen > {mtw_min})"
+
+    if deltaphi_min > 0:
+        deltaphi_cut = deltaphi_min * np.pi
+        selection += f" && (deltaphiGen > {deltaphi_cut})"
 
     for sel in selections:
         logger.debug(f"Add selection {sel} for fiducial phase space")
