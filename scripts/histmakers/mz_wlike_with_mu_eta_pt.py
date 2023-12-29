@@ -16,11 +16,10 @@ import time
 import os
 import numpy as np
 
-parser.add_argument("--mtCut", type=int, default=45, help="Value for the transverse mass cut in the event selection") # 40 for Wmass, thus be 45 here (roughly half the boson mass)
-
+parser = common.set_parser_default(parser, "mtCut", 45) # 40 for Wmass, thus be 45 here (roughly half the boson mass)
+parser = common.set_parser_default(parser, "pt", [34, 26, 60])
 parser = common.set_parser_default(parser, "genVars", ["qGen", "ptGen", "absEtaGen"])
 parser = common.set_parser_default(parser, "genBins", [18, 0])
-parser = common.set_parser_default(parser, "pt", [34, 26, 60])
 parser = common.set_parser_default(parser, "aggregateGroups", ["Diboson", "Top", "Wtaunu", "Wmunu"])
 parser = common.set_parser_default(parser, "theoryCorr", ["scetlib_dyturbo", "virtual_ew_wlike", "horaceqedew_FSR"])
 

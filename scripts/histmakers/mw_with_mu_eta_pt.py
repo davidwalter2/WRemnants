@@ -32,7 +32,6 @@ parser.add_argument("--makeMCefficiency", action="store_true", help="Save yields
 parser.add_argument("--onlyTheorySyst", action="store_true", help="Keep only theory systematic variations, mainly for tests")
 parser.add_argument("--oneMCfileEveryN", type=int, default=None, help="Use 1 MC file every N, where N is given by this option. Mainly for tests")
 parser.add_argument("--noAuxiliaryHistograms", action="store_true", help="Remove auxiliary histograms to save memory (removed by default with --unfolding or --theoryAgnostic)")
-parser.add_argument("--mtCut", type=int, default=40, help="Value for the transverse mass cut in the event selection")
 
 args = parser.parse_args()
 
@@ -240,14 +239,17 @@ def build_graph(df, dataset):
     cols = nominal_cols
 
     if args.unfolding and isWmunu:
+        genMtCut = args.mtCut if args.genMtCut else 0
+        genDeltaPhiCut = args.dphiMuonMetCut * np.pi if args.genDphiMuonMetCut else 0
+
         df = unfolding_tools.define_gen_level(df, args.genLevel, dataset.name, mode="wmass")
         if hasattr(dataset, "out_of_acceptance"):
             logger.debug("Reject events in fiducial phase space")
-            df = unfolding_tools.select_fiducial_space(df, mtw_min=args.mtCut, mode="wmass", accept=False)
+            df = unfolding_tools.select_fiducial_space(df, mtw_min=genMtCut, deltaphi_min=genDeltaPhiCut, mode="wmass", accept=False)
         else:
             if not args.poiAsNoi:
                 logger.debug("Select events in fiducial phase space")
-                df = unfolding_tools.select_fiducial_space(df, mtw_min=args.mtCut, mode="wmass", accept=True)
+                df = unfolding_tools.select_fiducial_space(df, mtw_min=genMtCut, deltaphi_min=genDeltaPhiCut, mode="wmass", accept=True)
                 axes = [*nominal_axes, *unfolding_axes] 
                 cols = [*nominal_cols, *unfolding_cols]
             

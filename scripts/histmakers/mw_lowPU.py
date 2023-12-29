@@ -41,9 +41,8 @@ logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 
 for d in datasets: logger.info(f"Dataset {d.name}")
 
-mtw_min=40 # for Wmass (roughly half the boson mass)
-
-
+# transverse boson mass cut
+mtw_min = args.mtCut
 
 # axes used in fakerate calculation
 axis_fakerate_pt = hist.axis.Variable([26., 27., 28., 29., 30., 32., 34., 37., 40., 44., 49., 56.], name = "pt", underflow=False)
@@ -120,16 +119,18 @@ def build_graph(df, dataset):
     cols = nominal_cols
 
     if args.unfolding and dataset.name in sigProcs:
-        df = unfolding_tools.define_gen_level(df, args.genLevel, dataset.name, mode="wmass")
+        genMtCut = args.mtCut if args.genMtCut else 0
+        genDeltaPhiCut = args.dphiMuonMetCut * np.pi if args.genDphiMuonMetCut else 0
 
+        df = unfolding_tools.define_gen_level(df, args.genLevel, dataset.name, mode="wmass")
         if hasattr(dataset, "out_of_acceptance"):
             logger.debug("Reject events in fiducial phase space")
-            df = unfolding_tools.select_fiducial_space(df, mode="wmass", pt_min=args.pt[1], pt_max=args.pt[2], 
-                mtw_min=mtw_min, selections=unfolding_selections, accept=False)
+            df = unfolding_tools.select_fiducial_space(df, mtw_min=genMtCut, deltaphi_min=genDeltaPhiCut, mode="wmass", pt_min=args.pt[1], pt_max=args.pt[2], 
+                selections=unfolding_selections, accept=False)
         else:
             logger.debug("Select events in fiducial phase space")
-            df = unfolding_tools.select_fiducial_space(df, mode="wmass", pt_min=args.pt[1], pt_max=args.pt[2], 
-                mtw_min=mtw_min, selections=unfolding_selections, accept=True)
+            df = unfolding_tools.select_fiducial_space(df, mtw_min=genMtCut, deltaphi_min=genDeltaPhiCut, mode="wmass", pt_min=args.pt[1], pt_max=args.pt[2], 
+                selections=unfolding_selections, accept=True)
 
             unfolding_tools.add_xnorm_histograms(results, df, args, dataset.name, corr_helpers, qcdScaleByHelicity_helper, unfolding_axes, unfolding_cols)
             axes = [*axes, *unfolding_axes] 
@@ -248,6 +249,9 @@ def build_graph(df, dataset):
         df = theory_tools.define_postfsr_vars(df)
         postFSRLeps = "postfsrMuons" if flavor == "mu" else "postfsrElectrons"
         df = df.Filter(f"wrem::hasMatchDR2(lep_eta,lep_phi,GenPart_eta[{postFSRLeps}],GenPart_phi[{postFSRLeps}],0.09)")
+
+    dphiMuonMetCut = args.dphiMuonMetCut * np.pi
+    df = df.Filter(f"deltaPhiMuonMet > {dphiMuonMetCut}") # pi/4 was found to be a good threshold for signal with mT > 40 GeV
 
     df = df.Define("noTrigMatch", "Sum(trigMatch)")
     results.append(df.HistoBoost("noTrigMatch", [axis_lin], ["noTrigMatch", "nominal_weight"]))
@@ -415,7 +419,7 @@ def build_graph_cutFlow(df, dataset):
         # mT cut
         if met == "DeepMETReso": df = df.Define("mT_uncorr", "wrem::mt_2(Lep_pt, Lep_phi, DeepMETResolutionTune_pt, DeepMETResolutionTune_phi)")
         if met == "RawPFMET": df = df.Define("mT_uncorr", "wrem::mt_2(Lep_pt, Lep_phi, RawMET_pt, RawMET_phi)")
-        df = df.Filter("mT_uncorr > 40")
+        df = df.Filter(f"mT_uncorr > {mtw_min}")
         results.append(df.HistoBoost("cutflow_12", [axis_cutFlow], ["cutFlow", "weight"]))
 
 
