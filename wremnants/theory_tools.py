@@ -188,6 +188,9 @@ def define_prefsr_vars(df):
     df = df.Define("etagen", "event % 2 == 0 ? genlanti.eta() : genl.eta()")
     df = df.Define("qgen", "event % 2 == 0 ? -1 : 1")
 
+    df = df.Define("prefsrMT", "wrem::mt_2(genl.pt(), genl.phi(), genlanti.pt(), genlanti.phi())")
+    df = df.Define("prefsrDeltaPhiMuonMet", "std::fabs(wrem::deltaPhi(genl.phi(), genlanti.phi()))")
+
     return df
 
 def define_postfsr_vars(df, mode=None):

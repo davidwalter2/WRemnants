@@ -208,8 +208,8 @@ def extendHistByMirror(hvar, hnom, downAsUp=False, downAsNomi=False):
     return hnew
 
 # add new axis and set values of old histogram to idx
-def addGenChargeAxis(h, idx):
-    return addGenericAxis(h, hist.axis.Regular(2, -2., 2., underflow=False, overflow=False, name = "qGen"), idx, add_trailing=False, flow=True)
+def addGenChargeAxis(h, idx, name="qGen"):
+    return addGenericAxis(h, hist.axis.Regular(2, -2., 2., underflow=False, overflow=False, name=name), idx, add_trailing=False, flow=True)
     
 def addSystAxis(h, size=1, offset=0):
     return addGenericAxis(h, hist.axis.Regular(size,offset,size+offset, name="systIdx"))

@@ -82,6 +82,7 @@ def make_parser(parser=None):
     parser.add_argument("--scaleNormXsecHistYields", type=float, default=None, help="Scale yields of histogram with cross sections variations for theory agnostic analysis with POIs as NOIs. Can be used together with --priorNormXsec")
     parser.add_argument("--theoryAgnosticBandSize", type=float, default=1., help="Multiplier for theory-motivated band in theory agnostic analysis with POIs as NOIs.")
     parser.add_argument("--addTauToSignal", action='store_true', help="Events from the same process but from tau final states are added to the signal")
+    parser.add_argument("--noOOABkg", action='store_true', help="Filter out OOA background")
     # utility options to deal with charge when relevant, mainly for theory agnostic but also unfolding
     parser.add_argument("--recoCharge", type=str, default=["plus", "minus"], nargs="+", choices=["plus", "minus"], help="Specify reco charge to use, default uses both. This is a workaround for unfolding/theory-agnostic fit when running a single reco charge, as gen bins with opposite gen charge have to be filtered out")
     parser.add_argument("--forceRecoChargeAsGen", action="store_true", help="Force gen charge to match reco charge in CardTool, this only works when the reco charge is used to define the channel")
@@ -113,7 +114,7 @@ def setup(args, inputFile, fitvar, xnorm=False):
     logger.debug(f"Filtering these groups of processes: {args.filterProcGroups}")
     logger.debug(f"Excluding these groups of processes: {args.excludeProcGroups}")
 
-    datagroups = Datagroups(inputFile, excludeGroups=excludeGroup, filterGroups=filterGroup, applySelection= not xnorm and not args.ABCD, simultaneousABCD=args.ABCD)
+    datagroups = Datagroups(inputFile, excludeGroups=excludeGroup, filterGroups=filterGroup, applySelection=False, simultaneousABCD=args.ABCD)
 
     if not xnorm and (args.axlim or args.rebin or args.absval):
         datagroups.set_rebin_action(fitvar, args.axlim, args.rebin, args.absval)
@@ -193,11 +194,14 @@ def setup(args, inputFile, fitvar, xnorm=False):
             datagroups.defineSignalBinsUnfolding(base_group, base_group[0], member_filter=lambda x: not x.name.endswith("OOA"))
         
         # out of acceptance contribution
-        to_del = [m for m in datagroups.groups[base_group].members if not m.name.endswith("OOA")]
-        if len(datagroups.groups[base_group].members) == len(to_del):
+        if args.noOOABkg:
             datagroups.deleteGroup(base_group)
         else:
-            datagroups.groups[base_group].deleteMembers(to_del)    
+            to_del = [m for m in datagroups.groups[base_group].members if not m.name.endswith("OOA")]
+            if len(datagroups.groups[base_group].members) == len(to_del):
+                datagroups.deleteGroup(base_group)
+            else:
+                datagroups.groups[base_group].deleteMembers(to_del)    
 
     # Start to create the CardTool object, customizing everything
     cardTool = CardTool.CardTool(xnorm=xnorm, ABCD=simultaneousABCD, real_data=args.realData)

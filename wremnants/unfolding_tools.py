@@ -73,7 +73,8 @@ def define_gen_level(df, gen_level, dataset_name, mode="wmass"):
             df = df.Alias("massVGen", "postfsrMV")
             df = df.Define("absYVGen", "fabs(postfsrYV)")  
 
-        df = df.Alias("ptVGen", "postfsrPTV")      
+        df = df.Alias("ptVGen", "postfsrPTV")
+        df = df.Alias("deltaphiGen", "postfsrDeltaPhiMuonMet")      
 
     if mode == "wlike":
         df = df.Define("qGen", "event % 2 == 0 ? -1 : 1")
@@ -107,8 +108,7 @@ def select_fiducial_space(df, select=True, accept=True, mode="wmass", pt_min=Non
         selection += f" && (mTWGen > {mtw_min})"
 
     if deltaphi_min > 0:
-        deltaphi_cut = deltaphi_min * np.pi
-        selection += f" && (deltaphiGen > {deltaphi_cut})"
+        selection += f" && (deltaphiGen > {deltaphi_min})"
 
     for sel in selections:
         logger.debug(f"Add selection {sel} for fiducial phase space")

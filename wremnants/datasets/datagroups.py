@@ -83,7 +83,7 @@ class Datagroups(object):
             self.lumi = 1
             logger.warning(f"No data process was selected, normalizing MC to {self.lumi }/fb")
 
-    def get_members_from_results(self, startswith=[], not_startswith=[], is_data=False):
+    def get_members_from_results(self, startswith=[], not_startswith=[], endswith=[], not_endswith=[], is_data=False):
         dsets = {k: v for k, v in self.results.items() if type(v) == dict and "dataset" in v}
         if is_data:
             dsets = {k: v for k, v in dsets.items() if v["dataset"].get("is_data", False)}
@@ -97,6 +97,15 @@ class Datagroups(object):
             not_startswith = [not_startswith]
         if len(not_startswith) > 0:
             dsets = {k: v for k, v in dsets.items() if not any([v["dataset"]["name"].startswith(x) for x in not_startswith])}
+        if type(endswith) == str:
+            endswith = [endswith]
+        if len(endswith) > 0:
+            dsets = {k: v for k, v in dsets.items() if any([v["dataset"]["name"].endswith(x) for x in endswith])}
+        if type(not_endswith) == str:
+            not_endswith = [not_endswith]
+        if len(not_endswith) > 0:
+            dsets = {k: v for k, v in dsets.items() if not any([v["dataset"]["name"].endswith(x) for x in not_endswith])}
+
         return dsets
 
     def __del__(self):

@@ -3,17 +3,23 @@ import os
 import mplhep as hep
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import LogNorm
 
+import hist
 from wremnants import logging, common
 from wremnants import plot_tools
 from wremnants.datasets.datagroups import Datagroups
 from utilities import boostHistHelpers as hh
 from utilities.io_tools import output_tools
 
+import pdb
+
 parser = common.plot_parser()
 parser.add_argument("infile", help="Output file of the analysis stage, containing ND boost histogrdams")
 parser.add_argument("--procFilters", type=str, nargs="*", default="Zmumu", help="Filter to plot (default no filter, only specify if you want a subset")
+parser.add_argument("--baseName", type=str, help="Histogram name in the file (e.g., 'nominal')", default="nominal")
 parser.add_argument("--axes", type=str, nargs="+", default=["pt-ptGen","abs(eta)-absEtaGen"], help="Define for which axes the response matrix to be plotted")
+parser.add_argument("--threshold", type=str, default=None, help="Specify threshold for making a plot with low and high contribution around the threshold")
 parser.add_argument("-c", "--channels", type=str, nargs="+", choices=["plus", "minus", "all"], default=["all"], help="Select channel to plot")
 
 args = parser.parse_args()
@@ -22,15 +28,15 @@ logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 
 outdir = output_tools.make_plot_dir(args.outpath, args.outfolder)
 
-groups = Datagroups(args.infile, filterGroups=args.procFilters, excludeGroups=None if args.procFilters else ['QCD'])
+groups = Datagroups(args.infile, filterGroups=args.procFilters, excludeGroups=None if args.procFilters else ['QCD'], applySelection=False)
 
 groups.setGenAxes(sum_gen_axes=[]) # set gen axes empty to not integrate over when loading
 
-if "Wmunu" in groups.groups:
-    groups.copyGroup("Wmunu", "Wmunu_qGen0", member_filter=lambda x: x.name.startswith("Wminus"))
-    groups.copyGroup("Wmunu", "Wmunu_qGen1", member_filter=lambda x: x.name.startswith("Wplus"))
+# if "Wmunu" in groups.groups:
+#     groups.copyGroup("Wmunu", "Wmunu_qGen0", member_filter=lambda x: x.name.startswith("Wminus"))
+#     groups.copyGroup("Wmunu", "Wmunu_qGen1", member_filter=lambda x: x.name.startswith("Wplus"))
 
-    groups.deleteGroup("Wmunu")
+#     groups.deleteGroup("Wmunu")
 
 if "Zmumu" in groups.groups:
     groups.groups["Zmumu"].deleteMembers([m for m in groups.groups["Zmumu"].members if "BkgZmumu" in m.name])
@@ -39,7 +45,7 @@ if "Zmumu" in groups.groups:
 datasets = groups.getNames()
 logger.info(f"Will plot datasets {datasets}")
 
-groups.loadHistsForDatagroups("nominal", syst="nominal", procsToRead=datasets)
+groups.loadHistsForDatagroups(args.baseName, syst=args.baseName, procsToRead=datasets)
 
 datagroups = groups.getDatagroups()
 
@@ -53,6 +59,10 @@ translate_label = {
     "ptVGen" : "$\mathrm{Gen}\ p_\mathrm{T}(V)\ [\mathrm{GeV}]$",
     "abs(yll)" : "$\mathrm{Reco}\ |Y(\mathrm{V})|$",
     "absYVGen" : "$\mathrm{Gen}\ |Y(\mathrm{V})|$",
+    "genDphiMuonMet": r"$\mathrm{Gen}\ \Delta \phi (\mu, p_\mathrm{T}^\mathrm{miss.})$",
+    "recoDphiMuonMet": r"$\mathrm{Reco}\ \Delta \phi (\mu, p_\mathrm{T}^\mathrm{miss.})$",
+    "mt_gen": r"$\mathrm{Gen}\ m_\mathrm{T}^\mathrm{W}$",
+    "mt_reco": r"$\mathrm{Reco}\ m_\mathrm{T}^\mathrm{W}$",
 }
 
 
@@ -84,7 +94,7 @@ def get_stability(matrix, xbins, ybins):
 
 
 for g_name, group in datagroups.items():
-    hist = group.hists["nominal"]
+    histo = group.hists[args.baseName]
 
     for channel in args.channels:
         select = {} if channel == "all" else {"charge" : -1.j if channel == "minus" else 1.j}
@@ -99,12 +109,12 @@ for g_name, group in datagroups.items():
 
             if axes[0].startswith("abs("):
                 # mirror axis at half
-                hist2d = hist[select].project(axes[0][4:-1], *axes[1:])
+                hist2d = histo[select].project(axes[0][4:-1], *axes[1:])
                 nbins = len(hist2d.axes.edges[0])-1
                 values = hist2d.values(flow=genFlow)[:int(nbins/2)][::-1] + hist2d.values(flow=genFlow)[int(nbins/2):]
                 xbins = hist2d.axes[0].edges[int(nbins/2):]
             else:
-                hist2d = hist[select].project(*axes)
+                hist2d = histo[select].project(*axes)
                 values = hist2d.values(flow=genFlow)
                 xbins = hist2d.axes[0].edges
 
@@ -113,6 +123,8 @@ for g_name, group in datagroups.items():
                 ybins = np.array([ybins[0]-(ybins[1]-ybins[0]), *ybins, ybins[-1]+(ybins[-1]-ybins[-2])])
 
             outname = g_name+"_"+"_".join([a.replace("(","").replace(")","") for a in axes])
+            if args.postfix:
+                outname += f"_{args.postfix}"
 
             # plot purity
             fig = plt.figure(figsize=(8,4))
@@ -161,6 +173,40 @@ for g_name, group in datagroups.items():
             plot_tools.save_pdf_and_png(outdir, outfile)
 
 
+            # threshold plots
+            if args.threshold:
+                threshold = complex(args.threshold)
+                xlabel = translate_label[axes[1]]
+                
+                for density in (True, False):
+
+                    hist1d_hi = hist2d[{axes[0]:slice(threshold, None, hist.sum)}]
+                    hist1d_lo = hist2d[{axes[0]:slice(None, threshold, hist.sum)}]
+                    
+                    if density:
+                        ylabel = "a.u."
+                        hist1d_hi = hist1d_hi/hist1d_hi.sum().value
+                        hist1d_lo = hist1d_lo/hist1d_lo.sum().value
+                        ymax = max(max(hist1d_hi.values()), max(hist1d_lo.values()) )
+                    else:
+                        ylabel = "Events"
+                        ymax = max(max(hist1d_lo.values())*2, min(hist1d_hi.values())*1.2 )
+
+                    fig, ax = plot_tools.figure(hist1d_hi, xlabel, ylabel, ylim=(0,ymax))
+
+                    hep.histplot(hist1d_hi, color="red", label=f"{translate_label[axes[0]]} > {threshold.imag}")
+                    hep.histplot(hist1d_lo, color="blue", label=f"{translate_label[axes[0]]} <= {threshold.imag}")
+
+                    ax.plot([threshold.imag, threshold.imag],[0,ymax],linestyle="--", color="black")
+
+                    plot_tools.addLegend(ax, ncols=1, text_size=25*args.scaleleg)
+
+                    hep.cms.label(ax=ax, fontsize=20, label=args.cmsDecor, data=False)
+
+                    outfile = "threshold_"+outname + ("_density" if density else "")
+                    plot_tools.save_pdf_and_png(outdir, outfile)
+
+
             # plot response matrix
             fig = plt.figure()#figsize=(8*width,8))
             ax = fig.add_subplot() 
@@ -168,12 +214,15 @@ for g_name, group in datagroups.items():
             ax.set_xlabel(translate_label[axes[0]])
             ax.set_ylabel(translate_label[axes[1]])
 
-            hep.hist2dplot(values, xbins=xbins, ybins=ybins, cmin=0)#, labels=(xlabels,ylabels))
+            hep.hist2dplot(values, xbins=xbins, ybins=ybins, norm=LogNorm(vmin=1, vmax=1000000))#, labels=(xlabels,ylabels))
+
+            # colormesh = ax.pcolormesh(xedges, yedges, h2d.values(flow=flow).T, norm=LogNorm(vmin=clim[0], vmax=clim[1]), cmap=cm.RdBu)
+
 
             # calculate condition number
             cond = np.linalg.cond(values)
             logger.info(f"Condition number: {cond}")
-            plt.text(0.2, 0.94, round(cond,1), horizontalalignment='right', verticalalignment='top', transform=ax.transAxes, color="white")
+            # plt.text(0.2, 0.94, round(cond,1), horizontalalignment='right', verticalalignment='top', transform=ax.transAxes, color="white")
 
             # ax.set_xticks(np.arange(len(xlabels))+0.5)
             # ax.set_yticks(np.arange(len(xlabels))+0.5)
