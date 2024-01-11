@@ -67,6 +67,7 @@ args = parser.parse_args()
 thisAnalysis = ROOT.wrem.AnalysisType.Wmass
 
 era = args.era
+
 datasets = getDatasets(maxFiles=args.maxFiles,
                        filt=args.filterProcs,
                        excl=args.excludeProcs, 
@@ -554,9 +555,8 @@ if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeightsGa
 if args.validationHists:
     muon_validation.muon_scale_variation_from_manual_shift(resultdict)
 
-scale_to_data(resultdict)
-aggregate_groups(datasets, resultdict, groups_to_aggregate)
+if not args.noScaleToData:
+    scale_to_data(resultdict)
+    aggregate_groups(datasets, resultdict, groups_to_aggregate)
 
-outfile = output_tools.write_analysis_output(resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args)
-
-
+output_tools.write_analysis_output(resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args)
