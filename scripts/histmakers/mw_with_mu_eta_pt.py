@@ -64,7 +64,6 @@ if args.makeMCefficiency:
     parser = common.set_parser_default(parser, "pt", [nbinsPtEff, axis_pt_eff_list[0], axis_pt_eff_list[-1]])
 
 args = parser.parse_args()
-    
 thisAnalysis = ROOT.wrem.AnalysisType.Wmass
 
 era = args.era
@@ -115,7 +114,7 @@ if args.unfolding:
     unfolding_axes, unfolding_cols = differential.get_pt_eta_axes(npt_unfolding, min_pt_unfolding, max_pt_unfolding, args.genBins[1] if "absEtaGen" in args.genVars else None , flow_eta=args.poiAsNoi)
     if not args.poiAsNoi:
         datasets = unfolding_tools.add_out_of_acceptance(datasets, group = "Wmunu")
-        # datasets = unfolding_tools.add_out_of_acceptance(datasets, group = "Wtaunu")
+        datasets = unfolding_tools.add_out_of_acceptance(datasets, group = "Wtaunu")
 
 elif args.theoryAgnostic:
     theoryAgnostic_axes, theoryAgnostic_cols = differential.get_theoryAgnostic_axes(ptV_bins=args.genPtVbinEdges, absYV_bins=args.genAbsYVbinEdges, ptV_flow=args.poiAsNoi, absYV_flow=args.poiAsNoi)
@@ -227,7 +226,7 @@ def build_graph(df, dataset):
     require_prompt = "tau" not in dataset.name # for muon GEN-matching   
     
     # disable auxiliary histograms when unfolding to reduce memory consumptions
-    auxiliary_histograms = not args.unfolding and not (args.theoryAgnostic and not args.poiAsNoi) and not args.noAuxiliaryHistograms
+    auxiliary_histograms = not (args.theoryAgnostic and not args.poiAsNoi) and not args.noAuxiliaryHistograms
 
     apply_theory_corr = args.theoryCorr and dataset.name in corr_helpers
 
@@ -406,7 +405,7 @@ def build_graph(df, dataset):
         mTStudyForFakes = df.HistoBoost("mTStudyForFakes", mTStudyForFakes_axes, ["goodMuons_eta0", "goodMuons_pt0", "goodMuons_charge0", "transverseMass", "passIso", "hasCleanJet", "deltaPhiMuonMet", "nominal_weight"])
         results.append(mTStudyForFakes)
 
-    if args.unfolding and isW:
+    if args.unfolding and isW and auxiliary_histograms:
         df = theory_tools.define_prefsr_vars(df)
         results.append(df.HistoBoost("prefsr_dPhi", [axis_dphi_gen, axis_dphi_reco], ["prefsrDeltaPhiMuonMet", "deltaPhiMuonMet", "nominal_weight"]))
         results.append(df.HistoBoost("postfsr_dPhi", [axis_dphi_gen, axis_dphi_reco], ["postfsrDeltaPhiMuonMet", "deltaPhiMuonMet", "nominal_weight"]))
@@ -419,7 +418,7 @@ def build_graph(df, dataset):
         dphiMuonMetCut = args.dphiMuonMetCut * np.pi
         df = df.Filter(f"deltaPhiMuonMet > {dphiMuonMetCut}") # pi/4 was found to be a good threshold for signal with mT > 40 GeV
 
-    if args.unfolding and isW:
+    if args.unfolding and isW and auxiliary_histograms:
         results.append(df.HistoBoost("prefsr_mt", [axis_mt_gen, axis_mt_reco], ["prefsrMT", "transverseMass", "nominal_weight"]))
         results.append(df.HistoBoost("postfsr_mt", [axis_mt_gen, axis_mt_reco], ["postfsrMT", "transverseMass", "nominal_weight"]))
 
@@ -544,6 +543,7 @@ def build_graph(df, dataset):
     return results, weightsum
 
 resultdict = narf.build_and_run(datasets, build_graph)
+
 if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeightsGaus' and not (args.theoryAgnostic and not args.poiAsNoi):
     logger.debug("Apply smearingWeights")
     muon_calibration.transport_smearing_weights_to_reco(
@@ -554,8 +554,9 @@ if not args.onlyMainHistograms and args.muonScaleVariation == 'smearingWeightsGa
 if args.validationHists:
     muon_validation.muon_scale_variation_from_manual_shift(resultdict)
 
-if not args.noScaleToData:
-    scale_to_data(resultdict)
-    aggregate_groups(datasets, resultdict, groups_to_aggregate)
+scale_to_data(resultdict)
+aggregate_groups(datasets, resultdict, groups_to_aggregate)
 
-output_tools.write_analysis_output(resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args, update_name=not args.forceDefaultName)
+outfile = output_tools.write_analysis_output(resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args)
+
+
