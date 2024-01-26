@@ -52,17 +52,17 @@ ANALYSIS=WMass # ZMassWLike
 LABEL=${ANALYSIS:0:1}
 
 # settings
-GEN_VARS="qGen-ptGen" #-absEtaGen"
+GEN_VARS="qGen-ptGen-absEtaGen"
 GEN_AXES=$(echo "$GEN_VARS" | sed 's/-/ /g')
 GEN_VARS_STR=$(echo "$GEN_VARS" | sed 's/-/_/g')
 echo "GEN_VARS=${GEN_VARS}"
 echo "GEN_AXES=${GEN_AXES}"
 echo "GEN_VARS_STR=${GEN_VARS_STR}"
 
-FIT_VARS="pt-charge"
+FIT_VARS="eta-pt-charge"
 FIT_VARS_STR=$(echo "$FIT_VARS" | sed 's/-/_/g')
 FIT_VARS_STR="${FIT_VARS_STR}_passIso_passMT"
-FAKERATE_VARS="pt charge"
+FAKERATE_VARS="eta pt charge"
 echo "FIT_VARS=${FIT_VARS}"
 echo "FIT_VARS_STR=${FIT_VARS_STR}"
 echo "FAKERATE_VARS=${FAKERATE_VARS}"
@@ -105,7 +105,7 @@ for HISTMAKER_FILE in "$HISTMAKER_DIR"/*; do
         else
             echo "The file $COMBINE_ANALYSIS_PATH does not exists, produce it."
             COMMAND="./scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/combine/setupCombine.py \
-                -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --sparse --unfolding --ABCD $OPTTAU \
+                -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --sparse --unfolding --postfix massVar${massVariation}${STATONLY} --ABCD $OPTTAU \
                 --genAxes $GEN_AXES --fitvar $FIT_VARS --fakerateAxes $FAKERATE_VARS \
                 --pseudoData massWeight$LABEL --pseudoDataAxes massShift --pseudoDataIdxs -1 $OPTSTAT $OPTMASS"
             echo $COMMAND
@@ -116,20 +116,21 @@ for HISTMAKER_FILE in "$HISTMAKER_DIR"/*; do
 
         # for ((i=-100; i<=100; i+=10)); do
         for mass in "asimov" 100; do
-            MABS=$mass
-            if [ $mass -lt 0 ]; then
-                UPDOWN="Down"
-                MABS=$((-1*$MABS))
-            elif [ $MABS -eq 0 ]; then
-                UPDOWN=""
-            else
-                UPDOWN="Up"
-            fi
-            
+
             if [ "$mass" = "asimov" ]; then
                 BIN=asimov
                 echo "Perform unfolding for asimov data"
             else
+                MABS=$mass
+                if [ $mass -lt 0 ]; then
+                    UPDOWN="Down"
+                    MABS=$((-1*$MABS))
+                elif [ $MABS -eq 0 ]; then
+                    UPDOWN=""
+                else
+                    UPDOWN="Up"
+                fi
+            
                 BIN=massShift${LABEL}${MABS}MeV$UPDOWN
                 echo "Perform unfolding for $PSEUDO"
             fi
@@ -140,8 +141,11 @@ for HISTMAKER_FILE in "$HISTMAKER_DIR"/*; do
             if [ -e $FITRESULT ]; then
                 echo "The file $FITRESULT exists, continue using it."
             elif [ "$BIN" = "asimov" ]; then
+                echo "Run asimov fit"
                 COMMAND="cmssw-cc7 --command-to-run scripts/ci/setup_and_run_combine.sh $CMSSW_BASE $COMBINE_ANALYSIS_OUTDIR \
-                    ${ANALYSIS}.hdf5 -t 1 --postfix $BIN --binByBinStat --correlateXsecStat"
+                    ${ANALYSIS}.hdf5 -t -1 --postfix $BIN --binByBinStat --correlateXsecStat"
+                echo $COMMAND
+                eval $COMMAND
             else
                 PSEUDO="massWeight${LABEL}_massShift_${BIN}"
                 COMMAND="cmssw-cc7 --command-to-run scripts/ci/setup_and_run_combine.sh $CMSSW_BASE $COMBINE_ANALYSIS_OUTDIR \
@@ -150,8 +154,10 @@ for HISTMAKER_FILE in "$HISTMAKER_DIR"/*; do
                 eval $COMMAND
             fi
 
+            exit
+
             # 2)  Generate card with nominal theory model
-            THEOMODEL_DIR=${COMBINE_OUTDIR}/${ANALYSIS}_${GEN_VARS_STR}${STATONLY}_${BIN}/
+            THEOMODEL_DIR=${COMBINE_ANALYSIS_OUTDIR}/${ANALYSIS}_${GEN_VARS_STR}${STATONLY}_${BIN}/
             THEOMODEL=${ANALYSIS}.hdf5
             THEOMODEL_PATH=${THEOMODEL_DIR}/${THEOMODEL}
 
@@ -159,7 +165,7 @@ for HISTMAKER_FILE in "$HISTMAKER_DIR"/*; do
                 echo "The file $THEOMODEL_PATH exists, continue using it."
             else
                 COMMAND="./scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/combine/setupCombine.py \
-                    -i $HISTMAKER_FILE -o $COMBINE_OUTDIR --hdf5 --fitvar $GEN_VARS $OPTTAU --postfix $BIN $OPTSTAT \
+                    -i $HISTMAKER_FILE -o $COMBINE_ANALYSIS_OUTDIR --hdf5 --fitvar $GEN_VARS $OPTTAU --postfix $BIN $OPTSTAT \
                     --fitresult $FITRESULT"
                 echo $COMMAND
                 eval $COMMAND        
