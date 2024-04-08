@@ -17,6 +17,8 @@ import os
 import numpy as np
 
 parser.add_argument("--mtCut", type=int, default=45, help="Value for the transverse mass cut in the event selection") # 40 for Wmass, thus be 45 here (roughly half the boson mass)
+parser.add_argument("--includeSidebandRegions", action="store_true", help="Include low mT and anti iso regions in extra axes")
+parser.add_argument("--noAuxiliaryHistograms", action="store_true", help="Remove auxiliary histograms to save memory (removed by default with --unfolding or --theoryAgnostic)")
 
 args = parser.parse_args()
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
@@ -69,6 +71,13 @@ axis_pt = hist.axis.Regular(template_npt, template_minpt, template_maxpt, name =
 nominal_axes = [axis_eta, axis_pt, common.axis_charge]
 nominal_cols = ["trigMuons_eta0", "trigMuons_pt0", "trigMuons_charge0"]
 
+if args.includeSidebandRegions:
+    # ABCD axes to cross check modeling of prompt background in sideband regions
+    axis_mtCat = hist.axis.Variable(common.get_binning_fakes_mt(mtw_min), name = "mt", underflow=False, overflow=True)
+    axes_abcd = [axis_mtCat, common.axis_relIsoCat]
+    nominal_axes += axes_abcd
+    nominal_cols += ["transverseMass", "trigMuons_relIso0"]
+
 if isUnfolding:
     template_wpt = (template_maxpt-template_minpt)/args.genBins[0]
     min_pt_unfolding = template_minpt+template_wpt
@@ -81,6 +90,10 @@ if isUnfolding:
 # axes for mT measurement
 axis_mt = hist.axis.Regular(200, 0., 200., name = "mt",underflow=False, overflow=True)
 axis_eta_mT = hist.axis.Variable([-2.4, 2.4], name = "eta")
+
+# auxiliary axes
+axis_iso = hist.axis.Regular(100, 0, 25, name = "iso",underflow=False, overflow=True)
+axis_relIso = hist.axis.Regular(100, 0, 1, name = "relIso",underflow=False, overflow=True)
 
 # define helpers
 muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = wremnants.make_muon_prefiring_helpers(era = era)
@@ -133,6 +146,11 @@ def build_graph(df, dataset):
     isWorZ = isW or isZ
     apply_theory_corr = theory_corrs and dataset.name in corr_helpers
 
+    # disable auxiliary histograms when unfolding to reduce memory consumptions, or when doing the original theory agnostic without --poiAsNoi
+    auxiliary_histograms = True
+    if args.noAuxiliaryHistograms or isUnfolding:
+        auxiliary_histograms = False
+
     if dataset.is_data:
         df = df.DefinePerSample("weight", "1.0")
     else:
@@ -172,9 +190,18 @@ def build_graph(df, dataset):
     df = muon_calibration.define_corrected_muons(df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper)
 
     df = muon_selections.select_veto_muons(df, nMuons=2)
-    df = muon_selections.select_good_muons(df, template_minpt, template_maxpt, dataset.group, nMuons=2, use_trackerMuons=args.trackerMuons, use_isolation=True, isoDefinition=args.isolationDefinition)
+    if args.includeSidebandRegions:
+        df = muon_selections.select_good_muons(df, template_minpt, template_maxpt, dataset.group, nMuons=2, use_trackerMuons=args.trackerMuons, use_isolation=True, isoDefinition=args.isolationDefinition)
+    else:
+        df = muon_selections.select_good_muons(df, template_minpt, template_maxpt, dataset.group, nMuons=2, use_trackerMuons=args.trackerMuons)
 
     df = muon_selections.define_trigger_muons(df)
+
+    if args.includeSidebandRegions:
+        df = muon_selections.define_muon_isolation(args.isolationDefinition, "trigMuons")
+        df = muon_selections.define_muon_isolation(args.isolationDefinition, "nonTrigMuons")
+        df = df.Filter("nonTrigMuons_relIso0 < 0.15")
+        df = df.Define("passIso", "trigMuons_relIso0 < 0.15")
 
     df = muon_selections.select_z_candidate(df, mass_min, mass_max)
 
@@ -230,14 +257,19 @@ def build_graph(df, dataset):
     ###########
     met_vars = ("MET_pt", "MET_phi")
     df = df.Define("transverseMass_uncorr", f"wrem::get_mt_wlike(trigMuons_pt0, trigMuons_phi0, nonTrigMuons_pt0, nonTrigMuons_phi0, {', '.join(met_vars)})")
-    results.append(df.HistoBoost("transverseMass_uncorr", [axis_mt], ["transverseMass_uncorr", "nominal_weight"]))
     ###########
     met_vars = ("MET_corr_rec_pt", "MET_corr_rec_phi")
     df = df.Define("met_wlike_TV2", f"wrem::get_met_wlike(nonTrigMuons_pt0, nonTrigMuons_phi0, {', '.join(met_vars)})")
     df = df.Define("transverseMass", "wrem::get_mt_wlike(trigMuons_pt0, trigMuons_phi0, met_wlike_TV2)")
-    results.append(df.HistoBoost("transverseMass", [axis_mt], ["transverseMass", "nominal_weight"]))
-    results.append(df.HistoBoost("MET", [hist.axis.Regular(20, 0, 100, name="MET")], ["MET_corr_rec_pt", "nominal_weight"]))
     df = df.Define("met_wlike_TV2_pt", "met_wlike_TV2.Mod()")
+
+    if args.includeSidebandRegions:
+        results.append(df.HistoBoost("transverseMass", [axis_mt, common.axis_relIsoCat], ["transverseMass", "trigMuons_relIso0", "nominal_weight"]))
+    else:
+        results.append(df.HistoBoost("transverseMass", [axis_mt], ["transverseMass", "nominal_weight"]))
+
+    results.append(df.HistoBoost("transverseMass_uncorr", [axis_mt, common.axis_relIsoCat], ["transverseMass_uncorr", "trigMuons_relIso0", "nominal_weight"]))
+    results.append(df.HistoBoost("MET", [hist.axis.Regular(20, 0, 100, name="MET")], ["MET_corr_rec_pt", "nominal_weight"]))
     results.append(df.HistoBoost("WlikeMET", [hist.axis.Regular(20, 0, 100, name="Wlike-MET")], ["met_wlike_TV2_pt", "nominal_weight"]))
     ###########
 
@@ -245,7 +277,8 @@ def build_graph(df, dataset):
     if args.dphiMuonMetCut > 0.0:
         df = df.Define("deltaPhiMuonMet", "std::abs(wrem::deltaPhi(trigMuons_phi0,met_wlike_TV2.Phi()))")
         df = df.Filter(f"deltaPhiMuonMet > {args.dphiMuonMetCut*np.pi}")
-    df = df.Filter(f"transverseMass >= {mtw_min}")
+    if not args.includeSidebandRegions:
+        df = df.Filter(f"transverseMass >= {mtw_min}")
 
     if not args.onlyMainHistograms:
         # plot reco vertex distribution before and after PU reweigthing
@@ -260,6 +293,12 @@ def build_graph(df, dataset):
         results.append(df.HistoBoost("PV_npvsGood", [axis_nRecoVtx], ["PV_npvsGood", "nominal_weight"]))
         results.append(df.HistoBoost("fixedGridRhoFastjetAll_uncorr", [axis_nRecoVtx], ["fixedGridRhoFastjetAll", "nominal_weight_noPUandVtx"]))
         results.append(df.HistoBoost("fixedGridRhoFastjetAll", [axis_nRecoVtx], ["fixedGridRhoFastjetAll", "nominal_weight"]))
+
+    if auxiliary_histograms:
+        # other plots
+        results.append(df.HistoBoost("iso", [axis_iso], ["trigMuons_iso0", "nominal_weight"]))
+        results.append(df.HistoBoost("relIso", [axis_relIso], ["trigMuons_relIso0", "nominal_weight"]))
+
 
     nominal = df.HistoBoost("nominal", axes, [*cols, "nominal_weight"])
     results.append(nominal)

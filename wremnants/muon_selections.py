@@ -43,6 +43,23 @@ def select_good_muons(df, ptLow, ptHigh, datasetGroup, nMuons=1, use_trackerMuon
 
     return df
 
+def define_muon_isolation(isoDefinition, muon_collection="goodMuons", idx=0):
+    if isoDefinition == "iso04":
+        df = df.Define(f"{muon_collection}_relIso{idx}", f"Muon_pfRelIso04_all[{muon_collection}][{idx}]")
+        df = df.Define(f"{muon_collection}_iso{idx}", f"Muon_pfRelIso04_all[{muon_collection}][{idx}]*Muon_pt[{muon_collection}][{idx}]")
+    elif isoDefinition == "iso04vtxAgn":
+        df = df.Define(f"{muon_collection}_relIso{idx}", f"Muon_vtxAgnPfRelIso04_all[{muon_collection}][{idx}]")
+        df = df.Define(f"{muon_collection}_iso{idx}", f"Muon_vtxAgnPfRelIso04_all[{muon_collection}][{idx}]*Muon_pt[{muon_collection}][{idx}]")
+    elif isoDefinition == "iso04chg":
+        df = df.Define(f"{muon_collection}_relIso{idx}", f"Muon_pfRelIso04_chg[{muon_collection}][{idx}]")
+        df = df.Define(f"{muon_collection}_iso{idx}", f"Muon_pfRelIso04_chg[{muon_collection}][{idx}]*Muon_pt[{muon_collection}][{idx}]")
+    elif isoDefinition == "iso04chgvtxAgn":
+        df = df.Define(f"{muon_collection}_relIso{idx}", f"Muon_vtxAgnPfRelIso04_chg[{muon_collection}][{idx}]")
+        df = df.Define(f"{muon_collection}_iso{idx}", f"Muon_vtxAgnPfRelIso04_chg[{muon_collection}][{idx}]*Muon_pt[{muon_collection}][{idx}]")
+    else:
+        raise NotImplementedError(f"Isolation definition {isoDefinition} not implemented")
+    return df
+
 def define_trigger_muons(df, name_first="trigMuons", name_second="nonTrigMuons", dilepton=False):
     if dilepton:
         # by convention define first as negative charge, but actually both leptons could be triggering here 
