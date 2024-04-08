@@ -113,3 +113,8 @@ def make_qcdscale_helper_helicity(qcd_axes,nhelicity=6):
     helper = ROOT.wrem.tensorRank2_helper_helicity[3, 3, nhelicity]()
     tensor_axes = [axis_helicity_multidim, *qcd_axes]
     return helper, tensor_axes
+
+def make_ew_helper_helicity(n_ew, ew_axis, nhelicity=9):
+    helper = ROOT.wrem.tensor1D_helper_helicity[n_ew, nhelicity]()
+    tensor_axes = [axis_helicity, ew_axis]
+    return helper, tensor_axes

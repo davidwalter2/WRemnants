@@ -5,14 +5,14 @@ parser,initargs = common.common_parser()
 
 import narf
 import wremnants
-from wremnants import theory_tools,syst_tools,theory_corrections
+from wremnants import theory_tools,syst_tools, theory_corrections, theoryAgnostic_tools
+from wremnants import helicity_utils as hel
 from wremnants.datasets.dataset_tools import getDatasets
 import hist
 import math
 import os
 import numpy as np
 from utilities.differential import get_theoryAgnostic_axes
-
 
 parser.add_argument("--skipAngularCoeffs", action='store_true', help="Skip the conversion of helicity moments to angular coeff fractions")
 parser.add_argument("--propagatePDFstoHelicity", action='store_true', help="Propagate PDF uncertainties to helicity moments")
@@ -64,6 +64,21 @@ axis_ygen = hist.axis.Regular(10, -5., 5., name="y")
 axis_rapidity = axis_ygen if args.signedY else axis_absYVgen
 col_rapidity =  "yVgen" if args.signedY else "absYVgen"
 
+# axes for EW studies
+massBinsZ = theory_tools.make_ew_binning(mass = 91.1535, width = 2.4932, initialStep=0.010, bin_edges_low=[0,50,60], bin_edges_high=[120])
+massBinsW = theory_tools.make_ew_binning(mass = 80.3815, width = 2.0904, initialStep=0.010)
+axis_genMZ = hist.axis.Variable(massBinsZ, name = "massVgen", underflow=False)
+axis_ewMZll = hist.axis.Variable(massBinsZ, name = "ewMll", underflow=False)
+axis_genMW = hist.axis.Variable(massBinsW, name = "massVgen", underflow=False)
+axis_ewMWll = hist.axis.Variable(massBinsW, name = "ewMll", underflow=False)
+axis_genPtV = hist.axis.Variable(common.ptV_binning, underflow=False, name = "ptVgen") 
+axis_ewPtll = hist.axis.Variable(common.ptV_binning, underflow=False, name = "ewPTll") 
+axis_genAbsYV = hist.axis.Regular(50, 0, 5, name = "absYVgen")
+axis_ewAbsYll = hist.axis.Regular(50, 0, 5, name = "ewAbsYll")
+
+axis_cosThetaStarll = hist.axis.Regular(20, -1., 1., name = "cosThetaStarll", underflow=False, overflow=False)
+axis_phiStarll = hist.axis.Regular(20, -math.pi, math.pi, circular = True, name = "phiStarll")
+
 if not args.useTheoryAgnosticBinning:
     axis_ptVgen = hist.axis.Variable(
      list(range(0,151))+[160., 190.0, 220.0, 250.0, 300.0, 400.0, 500.0, 800.0, 13000.0], 
@@ -107,7 +122,8 @@ def build_graph(df, dataset):
     isW = dataset.name.startswith("W") and dataset.name[1] not in ["W", "Z"] #in common.wprocs
     isZ = dataset.name.startswith("Z") and dataset.name[1] not in ["W", "Z"] #in common.zprocs
 
-    weight_expr = "std::copysign(1.0, genWeight)"
+    # weight_expr = "std::copysign(1.0, genWeight)"
+    weight_expr = "genWeight"
 
     if "reweight_h2" in dataset.name:
         weight_expr = f"{weight_expr}*H2BugFixWeight[0]"
@@ -141,35 +157,49 @@ def build_graph(df, dataset):
         results.append(df.HistoBoost("nominal_genlep", lep_axes, [*lep_cols, "nominal_weight"], storage=hist.storage.Weight()))
 
     if not args.skipEWHists and (isW or isZ):
-        if isZ:
-            massBins = theory_tools.make_ew_binning(mass = 91.1535, width = 2.4932, initialStep=0.010, bin_edges_low=[0,50,60], bin_edges_high=[120])
-        else:
-            massBins = theory_tools.make_ew_binning(mass = 80.3815, width = 2.0904, initialStep=0.010)
-        
-        # pre FSR
-        axis_genMV = hist.axis.Variable(massBins, name = "massVgen", underflow=False)
-        axis_genPtV = hist.axis.Variable(common.ptV_binning, underflow=False, name = "ptVgen") 
-        axis_genAbsYV = hist.axis.Regular(50, 0, 5, name = "absYVgen")
-        results.append(df.HistoBoost("preFSR_massVptV", [axis_genMV, axis_genPtV], ["massVgen", "ptVgen", "nominal_weight"], storage=hist.storage.Weight()))
-        results.append(df.HistoBoost("preFSR_absYVptV", [axis_genAbsYV, axis_genPtV], ["absYVgen", "ptVgen", "nominal_weight"], storage=hist.storage.Weight()))
-        results.append(df.HistoBoost("preFSR_absYVmassV", [axis_genAbsYV, axis_genMV], ["absYVgen", "massVgen", "nominal_weight"], storage=hist.storage.Weight()))
 
-        # post FSR, pre tau decay
-        axis_ewMll = hist.axis.Variable(massBins, name = "ewMll", underflow=False)
-        axis_ewPtll = hist.axis.Variable(common.ptV_binning, underflow=False, name = "ewPTll") 
-        axis_ewAbsYll = hist.axis.Regular(50, 0, 5, name = "ewAbsYll")
-        results.append(df.HistoBoost("ew_MllPTll", [axis_ewMll, axis_ewPtll], ["ewMll", "ewPTll", "nominal_weight"], storage=hist.storage.Weight()))
-        results.append(df.HistoBoost("ew_YllPTll", [axis_ewAbsYll, axis_ewPtll], ["ewAbsYll", "ewPTll", "nominal_weight"], storage=hist.storage.Weight()))
-        results.append(df.HistoBoost("ew_YllMll", [axis_ewAbsYll, axis_ewMll], ["ewAbsYll", "ewMll", "nominal_weight"], storage=hist.storage.Weight()))
+        df = df.Define("cosThetaStarll", "csSineCosThetaPhi.costheta")
+        df = df.Define("phiStarll", "std::atan2(csSineCosThetaPhi.sinphi, csSineCosThetaPhi.cosphi)")
 
-        # dressed
-        axis_ewMll = hist.axis.Variable(massBins, name = "ewMll", underflow=False)
-        axis_ewPtll = hist.axis.Variable(common.ptV_binning, underflow=False, name = "ewPTll") 
-        axis_ewAbsYll = hist.axis.Regular(50, 0, 5, name = "ewAbsYll")
+        axis_genMV = axis_genMW if isW else axis_genMZ
+        axis_ewMll = axis_ewMWll if isW else axis_ewMZll
         df = theory_tools.define_dressed_vars(df, mode="wmass" if isW else "dilepton")
-        results.append(df.HistoBoost("dressed_MllPTll", [axis_ewMll, axis_ewPtll], ["dressed_MV", "dressed_PTV", "nominal_weight"], storage=hist.storage.Weight()))
-        results.append(df.HistoBoost("dressed_YllPTll", [axis_ewAbsYll, axis_ewPtll], ["dressed_absYV", "dressed_PTV", "nominal_weight"], storage=hist.storage.Weight()))
-        results.append(df.HistoBoost("dressed_YllMll", [axis_ewAbsYll, axis_ewMll], ["dressed_absYV", "dressed_MV", "nominal_weight"], storage=hist.storage.Weight()))
+
+        systematic_variations=[]
+        tensor_axes=[]
+        if "winhac" in dataset.name and dataset.name.endswith("weights"):
+            nweights=16
+            df = df.Define("ewWeights_tensor", """
+                auto res = wrem::vec_to_tensor_t<double, 16>(LHEReweightingWeight);
+                if(LHEWeight_originalXWGTUP==0){
+                    res.setZero();
+                }
+                return res;""")
+            df = df.Define("ewWeights_tensor_wnom", "auto res = ewWeights_tensor; res = nominal_weight*res; return res;")
+
+            # split in angular moments
+            # axis_ew = hist.axis.Integer(0, nweights, name="ew", underflow=False, overflow=False)
+            # df = df.Define("helicity_moments_ew_tensor", "wrem::makeHelicityMomentEWTensor(csSineCosThetaPhi, ewWeights_tensor, nominal_weight)")
+            # systematic_variations.append(("ewVariations_","helicity_moments_ew_tensor", [hel.axis_helicity, axis_ew]))
+
+            systematic_variations.append(("ewVariations_","ewWeights_tensor_wnom", None))
+
+        for suffix, variation, tensor_axes in [*systematic_variations, ("", "nominal_weight", None)]:
+            # pre FSR
+            results.append(df.HistoBoost(f"{suffix}preFSR_massVptV", [axis_genMV, axis_genPtV], ["massVgen", "ptVgen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}preFSR_absYVptV", [axis_genAbsYV, axis_genPtV], ["absYVgen", "ptVgen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}preFSR_absYVmassV", [axis_genAbsYV, axis_genMV], ["absYVgen", "massVgen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}preFSR_cs", [axis_cosThetaStarll, axis_phiStarll], ["cosThetaStarll", "phiStarll", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+
+            # post FSR, pre tau decay
+            results.append(df.HistoBoost(f"{suffix}ew_MllPTll", [axis_ewMll, axis_ewPtll], ["ewMll", "ewPTll", variation], storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}ew_YllPTll", [axis_ewAbsYll, axis_ewPtll], ["ewAbsYll", "ewPTll", variation], storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}ew_YllMll", [axis_ewAbsYll, axis_ewMll], ["ewAbsYll", "ewMll", variation], storage=hist.storage.Weight()))
+
+            # dressed            
+            results.append(df.HistoBoost(f"{suffix}dressed_MllPTll", [axis_ewMll, axis_ewPtll], ["dressed_MV", "dressed_PTV", variation], storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}dressed_YllPTll", [axis_ewAbsYll, axis_ewPtll], ["dressed_absYV", "dressed_PTV", variation], storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}dressed_YllMll", [axis_ewAbsYll, axis_ewMll], ["dressed_absYV", "dressed_MV", variation], storage=hist.storage.Weight()))
 
         if args.auxiliaryHistograms:
             axis_ewMlly = hist.axis.Variable(massBins, name = "ewMlly")

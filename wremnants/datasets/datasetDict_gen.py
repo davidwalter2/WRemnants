@@ -134,6 +134,15 @@ genDataDict = {
                    'xsec' : xsec_winhac_WplusToMuNu_NLOEW,
                     'group': "Wmunu",
     },
+    'Wplusmunu_winhac-weights' : { 
+                   'filepaths' :
+                    [
+                        "{BASE_PATH}/Winhac/WplusToMuNu_TuneCP5_13TeV-winhac-ew-dsm-weighted-fsr-off-isr-pythia",
+                        "{BASE_PATH}/Winhac/WplusJetsToMuNu_NLOEW_Weights_TuneCP5_13TeV-winhac-pythia8"
+                    ],
+                   'xsec' : xsec_winhac_WplusToMuNu_LO,
+                    'group': "Wmunu",
+    },
     'Wplusmunu_MiNNLO-noqedisr' : { 
                    'filepaths' :
                     ["{BASE_PATH}/WplusJetsToMuNu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"],
@@ -186,6 +195,15 @@ genDataDict = {
                    'filepaths' :
                     ["{BASE_PATH}/WminusJetsToMuNu_NLOEW_TuneCP5_13TeV-winhac-pythia8"],
                    'xsec' : xsec_winhac_WminusToMuNu_NLOEW,
+                   'group': "Wmunu",
+    },
+    'Wminusmunu_winhac-weights' : { 
+                   'filepaths' :
+                    [
+                        "{BASE_PATH}/Winhac/WminusToMuNu_TuneCP5_13TeV-winhac-ew-dsm-weighted-fsr-off-isr-pythia",
+                        "{BASE_PATH}/Winhac/WminusJetsToMuNu_NLOEW_Weights_TuneCP5_13TeV-winhac-pythia8"                        
+                    ],
+                   'xsec' : xsec_winhac_WminusToMuNu_LO,
                    'group': "Wmunu",
     },
     'Wminusmunu_MiNNLO-noqedisr' : { 

@@ -198,6 +198,24 @@ using helicity_scale_tensor_t = Eigen::TensorFixedSize<double, Eigen::Sizes<NHEL
     return original_weight * scale_tensor.reshape(reshapescale).broadcast(broadcasthelicities) * moments.broadcast(broadcastscales);
   }
 
+using helicity_ew_tensor_t = Eigen::TensorFixedSize<double, Eigen::Sizes<NHELICITY, 16>>;
+
+  helicity_ew_tensor_t makeHelicityMomentEWTensor(const CSVars &csvars, const scale_tensor_t &ew_tensor, double original_weight = 1.0)
+  {
+
+    constexpr Eigen::Index nhelicity = NHELICITY;
+    constexpr Eigen::Index n_ew = 16;
+
+    constexpr std::array<Eigen::Index, 2> broadcastscales = {1, n_ew};
+    constexpr std::array<Eigen::Index, 2> broadcasthelicities = {nhelicity, 1};
+    constexpr std::array<Eigen::Index, 2> reshapescale = {1, n_ew};
+
+    Eigen::TensorFixedSize<double, Eigen::Sizes<nhelicity, 1>> moments = csAngularMoments(csvars).reshape(broadcasthelicities);
+
+    return original_weight * ew_tensor.reshape(reshapescale).broadcast(broadcasthelicities) * moments.broadcast(broadcastscales);
+  }
+
+
   template <Eigen::Index Npdfs>
   class makeHelicityMomentPdfTensor
   {

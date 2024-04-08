@@ -258,6 +258,7 @@ class Datagroups(object):
         applySelection=True, forceNonzero=True, preOpMap=None, preOpArgs={}, 
         scaleToNewLumi=1, excludeProcs=None, forceToNominal=[], sumFakesPartial=True,
     ):
+        forceNonzero=False
         logger.debug("Calling loadHistsForDatagroups()")
         logger.debug(f"The basename and syst is: {baseName}, {syst}")
         logger.debug(f"The procsToRead and excludedProcs are: {procsToRead}, {excludeProcs}")
