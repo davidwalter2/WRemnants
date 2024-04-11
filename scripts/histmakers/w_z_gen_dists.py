@@ -76,8 +76,10 @@ axis_ewPtll = hist.axis.Variable(common.ptV_binning, underflow=False, name = "ew
 axis_genAbsYV = hist.axis.Regular(50, 0, 5, name = "absYVgen")
 axis_ewAbsYll = hist.axis.Regular(50, 0, 5, name = "ewAbsYll")
 
-axis_cosThetaStarll = hist.axis.Regular(20, -1., 1., name = "cosThetaStarll", underflow=False, overflow=False)
-axis_phiStarll = hist.axis.Regular(20, -math.pi, math.pi, circular = True, name = "phiStarll")
+axis_genCosThetaStar = hist.axis.Regular(20, -1., 1., name = "cosThetaStargen", underflow=False, overflow=False)
+axis_genPhiStar = hist.axis.Regular(20, -math.pi, math.pi, circular = True, name = "phiStargen")
+axis_ewCosThetaStar = hist.axis.Regular(20, -1., 1., name = "ewCosThetaStar", underflow=False, overflow=False)
+axis_ewPhiStar = hist.axis.Regular(20, -math.pi, math.pi, circular = True, name = "ewPhiStar")
 
 if not args.useTheoryAgnosticBinning:
     axis_ptVgen = hist.axis.Variable(
@@ -161,8 +163,8 @@ def build_graph(df, dataset):
 
     if not args.skipEWHists and (isW or isZ):
 
-        df = df.Define("cosThetaStarll", "csSineCosThetaPhi.costheta")
-        df = df.Define("phiStarll", "std::atan2(csSineCosThetaPhi.sinphi, csSineCosThetaPhi.cosphi)")
+        df = df.Define("cosThetaStargen", "csSineCosThetaPhigen.costheta")
+        df = df.Define("phiStargen", "std::atan2(csSineCosThetaPhigen.sinphi, csSineCosThetaPhigen.cosphi)")
 
         axis_genMV = axis_genMW if isW else axis_genMZ
         axis_ewMll = axis_ewMWll if isW else axis_ewMZll
@@ -188,16 +190,23 @@ def build_graph(df, dataset):
             systematic_variations.append(("ewVariations_","ewWeights_tensor_wnom", None))
 
         for suffix, variation, tensor_axes in [*systematic_variations, ("", "nominal_weight", None)]:
+            # LHE
+            results.append(df.HistoBoost(f"{suffix}lhe_massVptV", [axis_genMV, axis_genPtV], ["lheMV", "lhePTV", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}lhe_absYVptV", [axis_genAbsYV, axis_genPtV], ["lheAbsY", "lhePTV", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}lhe_absYVmassV", [axis_genAbsYV, axis_genMV], ["lheAbsYV", "lheMV", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}lhe_cs", [axis_genCosThetaStar, axis_genPhiStar], ["lheCosThetaStar", "lhePhiStar", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+
             # pre FSR
             results.append(df.HistoBoost(f"{suffix}preFSR_massVptV", [axis_genMV, axis_genPtV], ["massVgen", "ptVgen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
             results.append(df.HistoBoost(f"{suffix}preFSR_absYVptV", [axis_genAbsYV, axis_genPtV], ["absYVgen", "ptVgen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
             results.append(df.HistoBoost(f"{suffix}preFSR_absYVmassV", [axis_genAbsYV, axis_genMV], ["absYVgen", "massVgen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
-            results.append(df.HistoBoost(f"{suffix}preFSR_cs", [axis_cosThetaStarll, axis_phiStarll], ["cosThetaStarll", "phiStarll", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}preFSR_cs", [axis_genCosThetaStar, axis_genPhiStar], ["cosThetaStargen", "phiStargen", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
 
             # post FSR, pre tau decay
             results.append(df.HistoBoost(f"{suffix}ew_MllPTll", [axis_ewMll, axis_ewPtll], ["ewMll", "ewPTll", variation], storage=hist.storage.Weight()))
             results.append(df.HistoBoost(f"{suffix}ew_YllPTll", [axis_ewAbsYll, axis_ewPtll], ["ewAbsYll", "ewPTll", variation], storage=hist.storage.Weight()))
             results.append(df.HistoBoost(f"{suffix}ew_YllMll", [axis_ewAbsYll, axis_ewMll], ["ewAbsYll", "ewMll", variation], storage=hist.storage.Weight()))
+            results.append(df.HistoBoost(f"{suffix}ew_cs", [axis_ewCosThetaStar, axis_genPhiStarll], ["ewCosThetaStarll", "ewPhiStar", variation], tensor_axes=tensor_axes, storage=hist.storage.Weight()))
 
             # dressed            
             results.append(df.HistoBoost(f"{suffix}dressed_MllPTll", [axis_ewMll, axis_ewPtll], ["dressed_MV", "dressed_PTV", variation], storage=hist.storage.Weight()))

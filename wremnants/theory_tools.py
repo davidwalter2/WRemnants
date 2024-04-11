@@ -270,6 +270,37 @@ def define_dressed_vars(df, mode, flavor="mu"):
 
     return df
 
+def define_lhe_vars(df, mode=None):
+    if "lheLeps" in df.GetColumnNames():
+        logger.debug("LHE leptons are already defined, do nothing here.")
+        return df
+
+    logger.info("Defining LHE variables")
+
+    df = df.Define("lheLeps", "wrem::lheLeptons(GenPart_status, GenPart_statusFlags, GenPart_pdgId, GenPart_genPartIdxMother)")
+    df = df.Define("lhel", "ROOT::Math::PtEtaPhiMVector(GenPart_pt[lheLeps[0]], GenPart_eta[lheLeps[0]], GenPart_phi[lheLeps[0]], GenPart_mass[lheLeps[0]])")
+    df = df.Define("lhelanti", "ROOT::Math::PtEtaPhiMVector(GenPart_pt[lheLeps[1]], GenPart_eta[lheLeps[1]], GenPart_phi[lheLeps[1]], GenPart_mass[lheLeps[1]])")
+    df = df.Define("lheV", "ROOT::Math::PxPyPzEVector(genl)+ROOT::Math::PxPyPzEVector(genlanti)")
+    df = df.Define("lhePTVgen", "lheV.pt()")
+    df = df.Define("lheMVgen", "lheV.mass()")
+    df = df.Define("lheYVgen", "lheV.Rapidity()")
+    df = df.Define("phiVgen", "lheV.Phi()")
+    df = df.Define("lheAbsYV", "std::fabs(lheYVgen)")
+    df = df.Define("lheChargeV", "GenPart_pdgId[lheLeps[0]] + GenPart_pdgId[lheLeps[1]]")
+    df = df.Define("lheCsSineCosThetaPhi", "wrem::csSineCosThetaPhi(genlanti, genl)")
+
+    # # define w and w-like variables 
+    # df = df.Define("qgen", "isEvenEvent ? -1 : 1")
+    # df = df.Define("ptgen", "isEvenEvent ? genl.pt() : genlanti.pt()")
+    # df = df.Define("etagen", "isEvenEvent ? genl.eta() : genlanti.eta()")
+    # df = df.Define("absetagen", "std::fabs(etagen)")
+    # df = df.Define("ptOthergen", "isEvenEvent ? genlanti.pt() : genl.pt()")
+    # df = df.Define("etaOthergen", "isEvenEvent ? genlanti.eta() : genl.eta()")
+    # df = df.Define("absetaOthergen", "std::fabs(etaOthergen)")
+    # df = df.Define("mTVgen", "wrem::mt_2(genl.pt(), genl.phi(), genlanti.pt(), genlanti.phi())")   
+
+    return df
+
 def define_prefsr_vars(df, mode=None):
     if "prefsrLeps" in df.GetColumnNames():
         logger.debug("PreFSR leptons are already defined, do nothing here.")
