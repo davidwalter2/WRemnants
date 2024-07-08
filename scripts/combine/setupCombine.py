@@ -602,20 +602,18 @@ def setup(args, inputFile, inputBaseName, inputLumiScale, fitvar, genvar=None, x
         return cardTool
 
     if not args.noTheoryUnc:
-        cardTool.addSystematic(f"sin2thetaWeightZ",
-                                rename=f"Sin2thetaZ0p00003",
-                                processes= ['z_samples'],
-                                action=lambda h: h[{"sin2theta" : ['sin2thetaZ0p23151', 'sin2thetaZ0p23157']}],
-                                group=f"sin2thetaZ",
-                                mirror=False,
-                                systAxes=["sin2theta"],
-                                outNames=[f"sin2thetaZDown", f"sin2thetaZUp"],
-                                passToFakes=passSystToFakes,
-        )
+        if wmass and not xnorm:
+            cardTool.addSystematic(f"massWeightZ",
+                                    processes=['single_v_nonsig_samples'],
+                                    group="ZmassAndWidth",
+                                    splitGroup = {"theory": ".*"},
+                                    skipEntries=massWeightNames(proc="Z", exclude=2.1),
+                                    mirror=False,
+                                    noConstraint=False,
+                                    systAxes=["massShift"],
+                                    passToFakes=passSystToFakes,
+            )
 
-        combine_helpers.add_electroweak_uncertainty(cardTool, [*args.ewUnc, *args.fsrUnc, *args.isrUnc], 
-            samples="single_v_samples", flavor=datagroups.flavor, passSystToFakes=passSystToFakes)
-        
         # Experimental range
         #widthVars = (42, ['widthW2p043GeV', 'widthW2p127GeV']) if wmass else (2.3, ['widthZ2p4929GeV', 'widthZ2p4975GeV'])
         # Variation from EW fit (mostly driven by alphas unc.)    
@@ -646,6 +644,20 @@ def setup(args, inputFile, inputBaseName, inputLumiScale, fitvar, genvar=None, x
                                     outNames=["widthWDown", "widthWUp"],
                                     passToFakes=passSystToFakes,
             )
+
+        cardTool.addSystematic(f"sin2thetaWeightZ",
+                                rename=f"Sin2thetaZ0p00003",
+                                processes= ['z_samples'],
+                                action=lambda h: h[{"sin2theta" : ['sin2thetaZ0p23151', 'sin2thetaZ0p23157']}],
+                                group=f"sin2thetaZ",
+                                mirror=False,
+                                systAxes=["sin2theta"],
+                                outNames=[f"sin2thetaZDown", f"sin2thetaZUp"],
+                                passToFakes=passSystToFakes,
+        )
+
+        combine_helpers.add_electroweak_uncertainty(cardTool, [*args.ewUnc, *args.fsrUnc, *args.isrUnc], 
+            samples="single_v_samples", flavor=datagroups.flavor, passSystToFakes=passSystToFakes)
 
         to_fakes = passSystToFakes and not args.noQCDscaleFakes and not xnorm
         

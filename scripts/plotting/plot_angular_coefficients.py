@@ -4,57 +4,9 @@ from utilities.styles import styles
 from wremnants import theory_tools, plot_tools
 
 import numpy as np
-import matplotlib as mpl
-import hist
-import math
 import mplhep as hep
 import h5py
 
-def plot_angular_coefficient(outdir, args):
-    colors = mpl.colormaps["tab10"]
-    linestyles = ["solid","dotted","dashed","dashdot"]
-    
-
-    # 1D plots
-    for axis_name, ais in [("cosTheta", [0,1,5]), ("phi", [3,4,6,8])]:
-        h1ds = [histo.project(axis_name)/np.product([histo.axes[n].size for n in histo.axes.name if n != axis_name]) for histo in histos]
-
-        fig, ax1 = plot_tools.figure(h1ds[0], xlabel=styles.xlabels.get(f"{axis_name.lower()}starll", axis_name), ylabel="Frequency",
-            grid=True, automatic_scale=False, width_scale=1.2, logy=False)    
-        
-        j=0
-        for i, h1d in enumerate(h1ds):
-            if i not in ais:
-                continue
-
-            val_x = h1d.axes[0].centers
-            val_y = h1d.values()
-            if i == 0:
-                idx = "\mathrm{UL}"
-            else:
-                idx = str(i-1)
-            if moments:
-                val_y = val_y * scales[i] + offsets[i]
-                label=f"$\mathrm{{M}}_{idx}$"
-            else:
-                label=f"$\mathrm{{P}}_{idx}$"
-
-            ax1.plot(val_x, val_y, color=colors(i), linestyle=linestyles[j], label=label)
-            j += 1
-
-        plot_tools.addLegend(ax1, ncols=2, text_size=12, loc="upper left")
-        plot_tools.fix_axes(ax1, logy=False)
-
-        scale = max(1, np.divide(*ax1.get_figure().get_size_inches())*0.3)
-        hep.cms.label(ax=ax1, lumi=None, fontsize=20*args.scaleleg*scale, 
-            label=args.cmsDecor, data=False)
-
-        outfile = "harmonic_polynomial"
-        outfile += f"_{axis_name}"
-        if args.postfix:
-            outfile += f"_{args.postfix}"
-        plot_tools.save_pdf_and_png(outdir, outfile)
-        plot_tools.write_index_and_log(outdir, outfile, args=args)
 
 if __name__ == '__main__':
     parser = common.plot_parser()

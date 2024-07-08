@@ -651,11 +651,11 @@ class Datagroups(object):
 
         for indices, proc_name in zip(
             itertools.product(*gen_bin_indices), 
-            self.getPOINames(gen_bin_indices, axesToRead, base_name=group_name if new_name is None else new_name)
+            self.getPOINames(gen_bin_indices, axesNamesToRead, base_name=group_name if new_name is None else new_name)
         ):
             logger.debug(f"Now at {proc_name} with indices {indices}")
             self.copyGroup(group_name, proc_name, member_filter=member_filter)
-            memberOp = lambda x, indices=indices, genvars=axesToRead: x[{var : i for var, i in zip(genvars, indices)}]
+            memberOp = lambda x, indices=indices, genvars=axesNamesToRead: x[{var : i for var, i in zip(genvars, indices)}]
             self.groups[proc_name].memberOp = [memberOp for m in self.groups[group_name].members[:]]
 
             self.unconstrainedProcesses.append(proc_name)
