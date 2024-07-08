@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
         hhelicities_1D = hhelicity.project(var, "helicity")
     
-        hcoeffs = theory_tools.moments_to_angular_coeffs(hhelicities_1D)
+        hcoeffs = theory_tools.helicity_xsec_to_angular_coeffs(hhelicities_1D)
 
         for i in hcoeffs.axes["helicity"]:
             if i == -1:

@@ -20,6 +20,22 @@ horace_v4 = False
 horace_v5 = False
 
 genDataDict = {
+    'Zmumu_MiNNLO' : { 
+                   'filepaths' :
+                    [
+                        "{BASE_PATH}/DYJetsToMuMu_H2ErratumFix_PDFExt_2WVars_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos",
+                    ],
+                   'xsec' : xsec_ZmmPostVFP,
+                   'group': "Zmumu",
+    },
+    'Zee_MiNNLO' : { 
+                   'filepaths' :
+                    [
+                        "{BASE_PATH}/DYJetsToEE_H2ErratumFix_PDFExt_2WVars_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos",
+                    ],
+                   'xsec' : xsec_ZmmPostVFP,
+                   'group': "Zee",
+    },
     'ZmumuMiNLO' : { 
                    'filepaths' :
                     ["{BASE_PATH}/DYJetsToMuMu_TuneCP5_13TeV-powheg-NNLOPS-pythia8-photos/RunIISummer15wmLHEGS/221121_114507"],
