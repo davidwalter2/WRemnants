@@ -10,8 +10,6 @@ import mplhep as hep
 import numpy as np
 from scipy.stats import chi2
 
-import pdb
-
 if __name__ == '__main__':
     parser = common.plot_parser()
     parser.add_argument("helicities", nargs="+", type=str, help="File `w_z_helicity_xsecs.hdf` with helicity cross sections produced in w_z_gen_dists.py histmaker")
@@ -179,4 +177,3 @@ if __name__ == '__main__':
 
     if output_tools.is_eosuser_path(args.outpath) and args.eoscp:
         output_tools.copy_to_eos(outdir, args.outpath, args.outfolder)
-

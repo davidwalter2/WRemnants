@@ -15,7 +15,6 @@ from wremnants import plot_tools
 import os
 import re
 import json
-
 from narf import ioutils
 
 from utilities.styles.styles import nuisance_groupings as groupings
@@ -263,7 +262,7 @@ def plotImpacts(df, impact_title="", pulls=False, normalize=False, oneSidedImpac
 def readFitInfoFromFile(rf, filename, poi, group=False, grouping=None, filters=[], stat=0.0, normalize=False, scale=1):    
     logger.debug("Read impacts for poi from file")
     impacts, labels, norm = combinetf_input.read_impacts_poi(rf, group, add_total=group, stat=stat, poi=poi, normalize=normalize)
-    
+
     if (group and grouping) or filters:
         filtimpacts = []
         filtlabels = []
@@ -277,7 +276,7 @@ def readFitInfoFromFile(rf, filename, poi, group=False, grouping=None, filters=[
         impacts = filtimpacts
         labels = filtlabels
 
-    df = pd.DataFrame(np.array(impacts, dtype=np.float64).T*scale, columns=["impact"])    
+    df = pd.DataFrame(np.array(impacts, dtype=np.float64).T*scale, columns=["impact"])
     df['label'] = [translate_label.get(l, l) for l in labels]
     df['absimpact'] = np.abs(df['impact'])
     if not group:
@@ -392,7 +391,7 @@ def producePlots(fitresult, args, poi, group=False, normalize=False, fitresult_r
     if fitresult_ref:
         df_ref = readFitInfoFromFile(fitresult_ref, args.referenceFile, poi, group, stat=args.stat/100., normalize=normalize, scale=scale, grouping=grouping)
         df = df.merge(df_ref, how="outer", on="label", suffixes=("","_ref"))
-
+    
         # Set default values for missing entries in respective columns
         default_values = {'impact_color': "#377eb8",  'impact_color_ref': "#377eb8"}  
         for col in df.columns:
@@ -401,6 +400,7 @@ def producePlots(fitresult, args, poi, group=False, normalize=False, fitresult_r
     if args.sort:
         logger.debug("Sort impacts")
         if args.sort.endswith("diff"):
+            logger.debug("Sort impacts")
             key = args.sort.replace("_diff","")
             df[f"{key}_diff"] = df[key] - df[f"{key}_ref"]
         elif args.sort.endswith("both"):
