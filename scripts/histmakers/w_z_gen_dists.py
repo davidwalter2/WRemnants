@@ -295,7 +295,7 @@ def build_graph(df, dataset):
         qcdScaleByHelicity_helper = theory_corrections.make_qcd_uncertainty_helper_by_helicity(is_w_like = dataset.name[0] != "W") if args.helicity else None
         df = syst_tools.add_theory_hists(results, df, args, dataset.name, corr_helpers, qcdScaleByHelicity_helper, nominal_axes, nominal_cols, base_name="nominal_gen")
         
-        df = syst_tools.add_helicity_hists(results, df, nominal_axes, nominal_cols, base_name="nominal_gen")
+        df = syst_tools.add_helicity_hists(results, df, nominal_axes, nominal_cols, base_name="nominal_gen", storage=hist.storage.Weight())
 
     return results, weightsum
 
@@ -309,6 +309,7 @@ if not args.skipHelicityXsecs:
 
     z_helicity_xsecs_lhe = None
     w_helicity_xsecs_lhe = None
+
     for dataset in datasets:
         name = dataset.name
         if "nominal_gen_helicity_xsecs_scale" not in resultdict[name]["output"]:
@@ -321,19 +322,15 @@ if not args.skipHelicityXsecs:
                 z_helicity_xsecs = helicity_xsecs
                 z_helicity_xsecs_lhe = helicity_xsecs_lhe
             else:
-                new_helicity_xsecs = helicity_xsecs
-                new_helicity_xsecs_lhe = helicity_xsecs_lhe
-                z_helicity_xsecs = hh.addHists(z_helicity_xsecs, new_helicity_xsecs, createNew=False)
-                z_helicity_xsecs_lhe = hh.addHists(z_helicity_xsecs_lhe, new_helicity_xsecs_lhe, createNew=False)
+                z_helicity_xsecs = hh.addHists(z_helicity_xsecs, helicity_xsecs, createNew=False)
+                z_helicity_xsecs_lhe = hh.addHists(z_helicity_xsecs_lhe, helicity_xsecs_lhe, createNew=False)
         elif name in ["WplusmunuPostVFP", "WminusmunuPostVFP"]:
             if w_helicity_xsecs is None:
                 w_helicity_xsecs = helicity_xsecs
                 w_helicity_xsecs_lhe = helicity_xsecs_lhe
             else:
-                new_helicity_xsecs = helicity_xsecs
-                new_helicity_xsecs_lhe = helicity_xsecs_lhe
-                w_helicity_xsecs = hh.addHists(w_helicity_xsecs, new_helicity_xsecs, createNew=False)
-                w_helicity_xsecs_lhe = hh.addHists(w_helicity_xsecs_lhe, new_helicity_xsecs_lhe, createNew=False)
+                w_helicity_xsecs = hh.addHists(w_helicity_xsecs, helicity_xsecs, createNew=False)
+                w_helicity_xsecs_lhe = hh.addHists(w_helicity_xsecs_lhe, helicity_xsecs_lhe, createNew=False)
 
     helicity_xsecs_out={}
     if z_helicity_xsecs:

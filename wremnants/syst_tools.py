@@ -988,13 +988,13 @@ def add_theory_hists(results, df, args, dataset_name, corr_helpers, qcdScaleByHe
     return df
 
 
-def add_helicity_hists(results, df, axes, cols, base_name="nominal_gen"):
+def add_helicity_hists(results, df, axes, cols, base_name="nominal_gen", storage=hist.storage.Double()):
     df = df.Define("helicity_xsecs_scale_tensor", "wrem::makeHelicityMomentScaleTensor(csSineCosThetaPhigen, scaleWeights_tensor, nominal_weight)")
     helicity_xsecs_scale = df.HistoBoost(
         f"{base_name}_helicity_xsecs_scale",
         axes, [*cols, "helicity_xsecs_scale_tensor"],
         tensor_axes = [axis_helicity, *theory_tools.scale_tensor_axes],
-        storage=hist.storage.Double()
+        storage=storage
         )
     results.append(helicity_xsecs_scale)
 
@@ -1007,7 +1007,7 @@ def add_helicity_hists(results, df, axes, cols, base_name="nominal_gen"):
             f"{base_name}_helicity_xsecs_scale_lhe",
             axes, [*lhe_cols, "helicity_xsecs_scale_lhe_tensor"],
             tensor_axes = [axis_helicity, *theory_tools.scale_tensor_axes],
-            storage=hist.storage.Double()
+            storage=storage
         )
         results.append(helicity_xsecs_scale_lhe)
 
@@ -1017,7 +1017,7 @@ def add_helicity_hists(results, df, axes, cols, base_name="nominal_gen"):
             f"{base_name}_helicity_xsecs_scale_hardProcess",
             axes, [*hardProcess_cols, "helicity_xsecs_scale_hardProcess_tensor"],
             tensor_axes = [axis_helicity, *theory_tools.scale_tensor_axes],
-            storage=hist.storage.Double()
+            storage=storage
         )
         results.append(helicity_xsecs_scale_hardProcess)
 
@@ -1027,7 +1027,7 @@ def add_helicity_hists(results, df, axes, cols, base_name="nominal_gen"):
             f"{base_name}_helicity_xsecs_scale_postShower",
             axes, [*postShower_cols, "helicity_xsecs_scale_postShower_tensor"],
             tensor_axes = [axis_helicity, *theory_tools.scale_tensor_axes],
-            storage=hist.storage.Double()
+            storage=storage
         )
         results.append(helicity_xsecs_scale_postShower)
 
@@ -1037,7 +1037,7 @@ def add_helicity_hists(results, df, axes, cols, base_name="nominal_gen"):
             f"{base_name}_helicity_xsecs_scale_postBeamRemnants",
             axes, [*postBeamRemnants_cols, "helicity_xsecs_scale_postBeamRemnants_tensor"],
             tensor_axes = [axis_helicity, *theory_tools.scale_tensor_axes],
-            storage=hist.storage.Double()
+            storage=storage
         )
         results.append(helicity_xsecs_scale_postBeamRemnants)
 
