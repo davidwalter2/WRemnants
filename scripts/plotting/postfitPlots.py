@@ -330,8 +330,8 @@ def make_plot(h_data, h_inclusive, h_stack, axes, colors=None, labels=None, hup=
             text_pieces.append(f"$= {round(chi2[0],1)}/{chi2[1]}\ (\mathit{{p}}={p_val}\%)$")
         else:
             text_pieces.append(f"${chi2_name} = {round(chi2[0],1)}/{chi2[1]}\ (\mathit{{p}}={p_val}\%)$")
-    
-    plot_tools.add_cms_decor(ax1, args.cmsDecor, data=data, lumi=lumi if args.dataName=="Data" and not args.noData else None, loc=args.logoPos)
+
+    plot_tools.add_cms_decor(ax1, args.cmsDecor, data=data or "Nonprompt" in labels, lumi=lumi if args.dataName=="Data" and not args.noData else None, loc=args.logoPos)
 
     if len(h_stack) < 10:
         plot_tools.addLegend(ax1, ncols=args.legCols, loc=args.legPos, text_size=args.legSize, extra_text=text_pieces, extra_text_loc=args.extraTextLoc)
