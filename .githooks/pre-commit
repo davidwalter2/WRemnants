@@ -34,7 +34,7 @@ done
 
 
 # Find all staged json files
-STAGED_FILES_JSON=$(git diff --cached --name-only --diff-filter=d | grep -E '\.ya?ml$' || true)
+STAGED_FILES_JSON=$(git diff --cached --name-only --diff-filter=d | grep -E '\.json$' || true)
 
 # Check syntax of each json file
 for FILE in $STAGED_FILES_JSON; do
