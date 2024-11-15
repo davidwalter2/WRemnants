@@ -558,6 +558,111 @@ def build_graph(df, dataset):
             )
         )
 
+        if dataset.name in ["WplustaunuPostVFP", "WminustaunuPostVFP"]:
+            ### construct neutrino invariant masses for BSM interpretation
+            df = df.Define(
+                "postfsrMuonNeutrino",
+                "postfsrLeptons && abs(GenPart_pdgId)==14",
+            )
+            df = df.Define(
+                "postfsrTauNeutrino",
+                "postfsrLeptons && GenPart_pdgId==16",
+            )
+            df = df.Define(
+                "postfsrTauAntiNeutrino",
+                "postfsrLeptons && GenPart_pdgId==-16",
+            )
+
+            df = df.Define(
+                "postfsrMuonNeutrino_mom4",
+                """ROOT::Math::PtEtaPhiMVector(
+                    GenPart_pt[postfsrMuonNeutrino][0], GenPart_eta[postfsrMuonNeutrino][0], GenPart_phi[postfsrMuonNeutrino][0], 0)""",
+            )
+            df = df.Define(
+                "postfsrTauNeutrino_mom4",
+                """ROOT::Math::PtEtaPhiMVector(
+                    GenPart_pt[postfsrTauNeutrino][0], GenPart_eta[postfsrTauNeutrino][0], GenPart_phi[postfsrTauNeutrino][0], 0)""",
+            )
+            df = df.Define(
+                "postfsrTauAntiNeutrino_mom4",
+                """ROOT::Math::PtEtaPhiMVector(
+                    GenPart_pt[postfsrTauAntiNeutrino][0], GenPart_eta[postfsrTauAntiNeutrino][0], GenPart_phi[postfsrTauAntiNeutrino][0], 0)""",
+            )
+
+            df = df.Define(
+                "postfsrMuons_charge0", "GenPart_pdgId[postfsrMuons][0] < 0 ? -1 : 1"
+            )
+
+            # invariant mass from 3 neutrinos as proxy for heavy neutrino
+            # invariant mass two neutrinos as proxy for leptophilic Z' or neutrophilic phi'
+            df = df.Define(
+                "nuTau_nuAntiTau",
+                "postfsrTauNeutrino_mom4 + postfsrTauAntiNeutrino_mom4",
+            )
+            df = df.Define(
+                "nuMu_nuTau", "postfsrMuonNeutrino_mom4 + postfsrTauNeutrino_mom4"
+            )
+            df = df.Define(
+                "nuMu_nuAntuTau",
+                "postfsrMuonNeutrino_mom4 + postfsrTauAntiNeutrino_mom4",
+            )
+
+            df = df.Define(
+                "heavyNeutrino", "nuTau_nuAntiTau + postfsrMuonNeutrino_mom4"
+            )
+
+            if dataset.name == "WplustaunuPostVFP":
+                df = df.Alias("zPrime", "nuMu_nuAntuTau")
+                df = df.Alias("zAntiPrime", "nuMu_nuTau")
+            else:
+                df = df.Alias("zPrime", "nuMu_nuTau")
+                df = df.Alias("zAntiPrime", "nuMu_nuAntuTau")
+
+            df = df.Define("zPrime_mass", "zPrime.mass()")
+            df = df.Define("zAntiPrime_mass", "zAntiPrime.mass()")
+            df = df.Define("zTauPrime_mass", "nuTau_nuAntiTau.mass()")
+
+            df = df.Define("heavyNeutrino_mass", "heavyNeutrino.mass()")
+
+            axis_mass = hist.axis.Regular(80, 0, 80, name="mass")
+            axis_charge = hist.axis.Regular(
+                2, -2, 2, name="charge", underflow=False, overflow=False
+            )
+
+            results.append(
+                df.HistoBoost(
+                    "nominal_heavyNeutrino_mass",
+                    [axis_mass, axis_charge],
+                    ["heavyNeutrino_mass", "postfsrMuons_charge0", "nominal_weight"],
+                    storage=hist.storage.Weight(),
+                )
+            )
+
+            results.append(
+                df.HistoBoost(
+                    "nominal_zPrime_mass",
+                    [axis_mass, axis_charge],
+                    ["zPrime_mass", "postfsrMuons_charge0", "nominal_weight"],
+                    storage=hist.storage.Weight(),
+                )
+            )
+            results.append(
+                df.HistoBoost(
+                    "nominal_zAntiPrime_mass",
+                    [axis_mass, axis_charge],
+                    ["zAntiPrime_mass", "postfsrMuons_charge0", "nominal_weight"],
+                    storage=hist.storage.Weight(),
+                )
+            )
+            results.append(
+                df.HistoBoost(
+                    "nominal_zTauPrime_mass",
+                    [axis_mass, axis_charge],
+                    ["zTauPrime_mass", "postfsrMuons_charge0", "nominal_weight"],
+                    storage=hist.storage.Weight(),
+                )
+            )
+
         if args.auxiliaryHistograms:
             axis_ewMlly = hist.axis.Variable(massBins, name="ewMlly")
             results.append(
