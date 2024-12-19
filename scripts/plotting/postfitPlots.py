@@ -247,6 +247,7 @@ def make_plot(
     labels=None,
     hup=None,
     hdown=None,
+    h_data_stat=None,
     variation="",
     suffix="",
     chi2=None,
@@ -324,6 +325,10 @@ def make_plot(
             hdown = [
                 hh.unrolledHist(h, binwnorm=binwnorm, obs=axes_names) for h in hdown
             ]
+        if h_data_stat is not None:
+            h_data_stat = hh.unrolledHist(
+                h_data_stat, binwnorm=binwnorm, obs=axes_names
+            )
 
     if args.normToData:
         scale = h_data.values().sum() / h_inclusive.values().sum()
@@ -414,6 +419,24 @@ def make_plot(
             zorder=2,
             flow="none",
         )
+        if h_data_stat is not None:
+            var_stat = h_data_stat.values() ** 2
+            h_data_stat = h_data.copy()
+            h_data_stat.variances()[...] = var_stat
+
+            hep.histplot(
+                h_data_stat,
+                yerr=True,
+                histtype=histtype_data,
+                color="black",
+                # label=args.dataName,
+                binwnorm=binwnorm,
+                capsize=2,
+                ax=ax1,
+                alpha=1.0,
+                zorder=2,
+                flow="none",
+            )
     if args.unfoldedXsec:
         hep.histplot(
             h_inclusive,
@@ -483,6 +506,10 @@ def make_plot(
         if diff:
             h1 = hh.addHists(h_inclusive, h_inclusive, scale2=-1)
             h2 = hh.addHists(h_data, h_inclusive, scale2=-1)
+            if h_data_stat is not None:
+                h2_stat = hh.divideHists(
+                    h_data_stat, h_inclusive, cutoff=0.01, rel_unc=True
+                )
         else:
             h1 = hh.divideHists(
                 h_inclusive,
@@ -493,6 +520,10 @@ def make_plot(
                 by_ax_name=False,
             )
             h2 = hh.divideHists(h_data, h_inclusive, cutoff=0.01, rel_unc=True)
+            if h_data_stat is not None:
+                h2_stat = hh.divideHists(
+                    h_data_stat, h_inclusive, cutoff=0.01, rel_unc=True
+                )
 
         hep.histplot(
             h1,
@@ -516,6 +547,17 @@ def make_plot(
                 ax=ax2,
                 flow="none",
             )
+            if h_data_stat is not None:
+                hep.histplot(
+                    h2_stat,
+                    histtype="errorbar",
+                    color="black",
+                    yerr=True,
+                    linewidth=2,
+                    capsize=2,
+                    ax=ax2,
+                    flow="none",
+                )
 
         # for uncertaity bands
         edges = h_inclusive.axes[0].edges
@@ -718,7 +760,9 @@ def make_plots(
     labels,
     colors,
     hist_var=None,
+    hist_data_stat=None,
     channel="",
+    lumi=1,
     *opts,
     **kwopts,
 ):
@@ -730,6 +774,14 @@ def make_plots(
         l if p not in args.suppressProcsLabel else None for l, p in zip(labels, procs)
     ]
 
+    if args.unfoldedXsec:
+        # convert number in cross section in pb
+        hist_data = hh.scaleHist(hist_data, 1.0 / (lumi * 1000))
+        hist_inclusive = hh.scaleHist(hist_inclusive, 1.0 / (lumi * 1000))
+        hist_stack = [hh.scaleHist(h, 1.0 / (lumi * 1000)) for h in hist_stack]
+        if hist_data_stat is not None:
+            hist_data_stat = hh.scaleHist(hist_data_stat, 1.0 / (lumi * 1000))
+
     if hist_var is not None:
         hists_down = [
             hist_var[{"downUpVar": 0, "vars": n}].project(*[a.name for a in axes])
@@ -739,6 +791,8 @@ def make_plots(
             hist_var[{"downUpVar": 1, "vars": n}].project(*[a.name for a in axes])
             for n in varNames
         ]
+        hists_up = [hh.scaleHist(h, 1.0 / (lumi * 1000)) for h in hists_up]
+        hists_down = [hh.scaleHist(h, 1.0 / (lumi * 1000)) for h in hists_down]
     else:
         hists_down = None
         hists_up = None
@@ -765,6 +819,10 @@ def make_plots(
             h_data = hist_data[idxs]
             h_inclusive = hist_inclusive[idxs]
             h_stack = [h[idxs] for h in hist_stack]
+            if hist_data_stat is not None:
+                h_data_stat = hist_data_stat[idxs]
+            else:
+                h_data_stat = None
 
             if hist_var is not None:
                 hdown = [h[idxs] for h in hists_down]
@@ -806,7 +864,9 @@ def make_plots(
                 suffix=suffix,
                 hup=hup,
                 hdown=hdown,
+                h_data_stat=h_data_stat,
                 selection=selection,
+                lumi=lumi,
                 *opts,
                 **kwopts,
             )
@@ -821,6 +881,8 @@ def make_plots(
             suffix=channel,
             hup=hists_up,
             hdown=hists_down,
+            h_data_stat=hist_data_stat,
+            lumi=lumi,
             *opts,
             **kwopts,
         )
@@ -863,15 +925,20 @@ if len(args.project) == 0:
             logger.info(f"Skip masked channel {channel}")
             continue
 
-        if not args.unfoldedXsec:
+        hist_data_stat = None
+        if args.unfoldedXsec:
+            hist_data = fitresult[f"hist_{fittype}_inclusive"][channel].get()
+            if f"hist_global_impacts_grouped_{fittype}_inclusive" in fitresult.keys():
+                hist_data_stat = fitresult[
+                    f"hist_global_impacts_grouped_{fittype}_inclusive"
+                ][channel].get()[{"impacts": "stat"}]
+            hist_inclusive = fitresult[f"hist_prefit_inclusive"][channel].get()
+            hist_stack = []
+        else:
             hist_data = fitresult["hist_data_obs"][channel].get()
             hist_inclusive = fitresult[f"hist_{fittype}_inclusive"][channel].get()
             hist_stack = fitresult[f"hist_{fittype}"][channel].get()
             hist_stack = [hist_stack[{"processes": p}] for p in procs]
-        else:
-            hist_data = fitresult[f"hist_prefit_inclusive"][channel].get()
-            hist_inclusive = fitresult[f"hist_{fittype}_inclusive"][channel].get()
-            hist_stack = []
 
         # vary poi by postfit uncertainty
         if varNames is not None:
@@ -915,19 +982,13 @@ if len(args.project) == 0:
                 h.values()[...] = 1e5 * np.log(h.values())
                 h.variances()[...] = 1e10 * (h.variances()) / np.square(or_vals)
 
-        lumi = info["lumi"]
-        if args.unfoldedXsec:
-            # convert number in cross section in pb
-            hist_data = hh.scaleHist(hist_data, 1.0 / (lumi * 1000))
-            hist_inclusive = hh.scaleHist(hist_inclusive, 1.0 / (lumi * 1000))
-            hist_stack = [hh.scaleHist(h, 1.0 / (lumi * 1000)) for h in hist_stack]
-
         make_plots(
             hist_data,
             hist_inclusive,
             hist_stack,
             info["axes"],
             hist_var=hist_var,
+            hist_data_stat=hist_data_stat,
             channel=channel,
             procs=procs,
             labels=labels,
@@ -935,17 +996,22 @@ if len(args.project) == 0:
             chi2=chi2,
             saturated_chi2=saturated_chi2,
             meta=meta,
-            lumi=lumi,
+            lumi=info["lumi"],
         )
 else:
-    for result in fitresult["projections"]:
-        channel = result["channel"]
-        axes = result["axes"]
+    for projection in args.project:
+        channel = projection[0]
+        axes = projection[1:]
 
-        for projection in args.project:
-            if channel == projection[0] and set(axes) == set(projection[1:]):
+        result = None
+        for fr in fitresult["projections"]:
+            if channel == fr["channel"] and set(axes) == set(fr["axes"]):
+                result = fr
                 break
         else:
+            logger.warning(
+                f"Projection {projection} not found in fitresult, available projection are: {[(f['channel'], f['axes']) for f in fitresult['projections']]}. Skip!"
+            )
             continue
 
         axes = [
@@ -957,15 +1023,20 @@ else:
         else:
             chi2 = None
 
-        if not args.unfoldedXsec:
+        hist_data_stat = None
+        if args.unfoldedXsec:
+            hist_data = result[f"hist_{fittype}_inclusive"].get()
+            if f"hist_global_impacts_grouped_{fittype}_inclusive" in result.keys():
+                hist_data_stat = result[
+                    f"hist_global_impacts_grouped_{fittype}_inclusive"
+                ].get()[{"impacts": "stat"}]
+            hist_inclusive = result[f"hist_prefit_inclusive"].get()
+            hist_stack = []
+        else:
             hist_data = result["hist_data_obs"].get()
             hist_inclusive = result[f"hist_{fittype}_inclusive"].get()
             hist_stack = result[f"hist_{fittype}"].get()
             hist_stack = [hist_stack[{"processes": p}] for p in procs]
-        else:
-            hist_data = result[f"hist_prefit_inclusive"].get()
-            hist_inclusive = result[f"hist_{fittype}_inclusive"].get()
-            hist_stack = []
 
         # vary poi by postfit uncertainty
         if varNames is not None:
@@ -973,27 +1044,20 @@ else:
         else:
             hist_var = None
 
-        lumi = meta_input["channel_info"][channel]["lumi"]
-
-        if args.unfoldedXsec:
-            # convert number in cross section in pb
-            hist_data = hh.scaleHist(hist_data, 1.0 / (lumi * 1000))
-            hist_inclusive = hh.scaleHist(hist_inclusive, 1.0 / (lumi * 1000))
-            hist_stack = [hh.scaleHist(h, 1.0 / (lumi * 1000)) for h in hist_stack]
-
         make_plots(
             hist_data,
             hist_inclusive,
             hist_stack,
             axes,
             hist_var=hist_var,
+            hist_data_stat=hist_data_stat,
             channel=channel,
             procs=procs,
             labels=labels,
             colors=colors,
             chi2=chi2,
             meta=meta,
-            lumi=lumi,
+            lumi=meta_input["channel_info"][channel]["lumi"],
         )
 
 if output_tools.is_eosuser_path(args.outpath) and args.eoscp:

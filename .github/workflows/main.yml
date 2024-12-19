@@ -528,7 +528,7 @@ jobs:
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh narf/scripts/fitting/combinetf2.py 
           $COMBINED_DIR/Combination_WMass_lowPUZMass_lowPU_ptVGen/Combination.hdf5 -o $COMBINED_DIR/Combination_WMass_lowPUZMass_lowPU_ptVGen/fitresults.hdf5
           --externalPostfit $COMBINED_DIR/Combination_WMass_lowPUZMass_lowPU_ptll/fitresults.hdf5
-          --saveHists --computeHistErrors
+          --saveHists --computeHistErrors --computeHistCov --computeHistImpacts --noChi2
 
       - name: lowpu combine unfolded xsec plot
         run: >-
