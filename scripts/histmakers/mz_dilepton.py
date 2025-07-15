@@ -356,14 +356,13 @@ muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = 
 
 
 if args.unfolding and add_helicity_axis:
-    qcdScaleByHelicity_helper = theory_corrections.make_qcd_uncertainty_helper_by_helicity(
-        is_z=True,
-        filename=f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs_scetlib_dyturboCorr_maxFiles_m1_unfoldingBinning.hdf5",
-        rebi_ptVgen=False,
+    qcdScaleByHelicity_helpers = theory_corrections.make_qcd_uncertainty_helper_by_helicity(
+        filename_z=f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs_scetlib_dyturboCorr_maxFiles_m1_unfoldingBinning.hdf5",
+        rebin_ptZgen=False,
     )
 else:
-    qcdScaleByHelicity_helper = (
-        theory_corrections.make_qcd_uncertainty_helper_by_helicity(is_z=True)
+    qcdScaleByHelicity_helpers = (
+        theory_corrections.make_qcd_uncertainty_helpers_by_helicity()
     )
 
 # extra axes which can be used to label tensor_axes
@@ -475,6 +474,9 @@ def build_graph(df, dataset):
     isW = dataset.name in common.wprocs
     isZ = dataset.name in common.zprocs
     isWorZ = isW or isZ
+
+    if isWorZ:
+        qcdScaleByHelicity_helper = qcdScaleByHelicity_helpers[dataset.name[0]]
 
     cvh_helper = data_calibration_helper if dataset.is_data else mc_calibration_helper
     jpsi_helper = data_jpsi_crctn_helper if dataset.is_data else mc_jpsi_crctn_helper

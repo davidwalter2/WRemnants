@@ -142,11 +142,12 @@ columns_fakerate = [
 ]  ## was transverseMass
 
 
-qcdScaleByHelicity_helper = (
-    wremnants.theory_corrections.make_qcd_uncertainty_helper_by_helicity()
+qcdScaleByHelicity_helpers = (
+    wremnants.theory_corrections.make_qcd_uncertainty_helpers_by_helicity()
 )
-axis_ptVgen = qcdScaleByHelicity_helper.hist.axes["ptVgen"]
-axis_chargeVgen = qcdScaleByHelicity_helper.hist.axes["chargeVgen"]
+
+axis_ptVgen = qcdScaleByHelicity_helpers["W"].hist.axes["ptVgen"]
+axis_chargeVgen = qcdScaleByHelicity_helpers["W"].hist.axes["chargeVgen"]
 
 groups_to_aggregate = args.aggregateGroups
 
@@ -193,6 +194,9 @@ def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
     isQCDMC = dataset.group == "QCD"
+
+    if dataset.name in common.vprocs_lowpu:
+        qcdScaleByHelicity_helper = qcdScaleByHelicity_helpers[dataset.name[0]]
 
     if dataset.is_data:
         df = df.DefinePerSample("weight", "1.0")

@@ -109,11 +109,11 @@ axis_wlike_met = hist.axis.Regular(200, 0, 200, name="WlikeMET")
 axes_mt = [axis_mt]
 cols_mt = ["transverseMass"]
 
-qcdScaleByHelicity_helper = (
-    wremnants.theory_corrections.make_qcd_uncertainty_helper_by_helicity(is_z=True)
+qcdScaleByHelicity_helpers = (
+    wremnants.theory_corrections.make_qcd_uncertainty_helpers_by_helicity()
 )
-axis_ptVgen = qcdScaleByHelicity_helper.hist.axes["ptVgen"]
-axis_chargeVgen = qcdScaleByHelicity_helper.hist.axes["chargeVgen"]
+axis_ptVgen = qcdScaleByHelicity_helpers["Z"].hist.axes["ptVgen"]
+axis_chargeVgen = qcdScaleByHelicity_helpers["Z"].hist.axes["chargeVgen"]
 
 if args.unfolding:
     unfolding_axes = {}
@@ -158,6 +158,9 @@ def build_graph(df, dataset):
 
     isW = dataset.name in common.wprocs_lowpu
     isZ = dataset.name in common.zprocs_lowpu
+
+    if dataset.name in common.vprocs_lowpu:
+        qcdScaleByHelicity_helper = qcdScaleByHelicity_helpers[dataset.name[0]]
 
     if dataset.is_data:
         df = df.DefinePerSample("weight", "1.0")

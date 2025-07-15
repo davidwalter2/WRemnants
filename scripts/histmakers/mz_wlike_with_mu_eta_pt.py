@@ -289,8 +289,8 @@ muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = 
     muon_prefiring.make_muon_prefiring_helpers(era=era)
 )
 
-qcdScaleByHelicity_helper = theory_corrections.make_qcd_uncertainty_helper_by_helicity(
-    is_z=True
+qcdScaleByHelicity_helpers = (
+    theory_corrections.make_qcd_uncertainty_helpers_by_helicity()
 )
 
 # extra axes which can be used to label tensor_axes
@@ -445,7 +445,9 @@ def build_graph(df, dataset):
     isW = dataset.name in common.wprocs
     isZ = dataset.name in common.zprocs
     isWorZ = isW or isZ
-    apply_theory_corr = theory_corrs and dataset.name in corr_helpers
+
+    if isWorZ:
+        qcdScaleByHelicity_helper = qcdScaleByHelicity_helpers[dataset.name[0]]
 
     if dataset.is_data:
         df = df.DefinePerSample("weight", "1.0")

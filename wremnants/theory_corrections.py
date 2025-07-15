@@ -400,11 +400,27 @@ def make_corr_by_helicity(
     return corr_coeffs
 
 
-def make_qcd_uncertainty_helper_by_helicity(
-    is_z=False, filename=None, rebi_ptVgen=True
+def make_qcd_uncertainty_helpers_by_helicity(
+    filename_z=f"{common.data_dir}/angularCoefficients/w_z_moments.hdf5",
+    filename_w=f"{common.data_dir}/angularCoefficients/w_z_moments.hdf5",
+    rebin_ptWgen=True,
+    rebin_ptZgen=True,
 ):
-    if filename is None:
-        filename = f"{common.data_dir}/angularCoefficients/w_z_moments.hdf5"
+    helper_w = make_qcd_uncertainty_helper_by_helicity(
+        is_z=False, filename=filename_w, rebin_ptVgen=rebin_ptWgen
+    )
+    helper_z = make_qcd_uncertainty_helper_by_helicity(
+        is_z=True, filename=filename_z, rebin_ptVgen=rebin_ptZgen
+    )
+
+    return {"W": helper_w, "Z": helper_z}
+
+
+def make_qcd_uncertainty_helper_by_helicity(
+    is_z=False,
+    filename=f"{common.data_dir}/angularCoefficients/w_z_moments.hdf5",
+    rebin_ptVgen=True,
+):
 
     # load helicity cross sections from file
     with h5py.File(filename, "r") as h5file:
@@ -423,8 +439,8 @@ def make_qcd_uncertainty_helper_by_helicity(
             h = hh.rebinHist(h, "massVgen", axis_massVgen.edges[::2])
         return h
 
-    helicity_xsecs = get_helicity_xsecs(rebin=rebi_ptVgen)
-    helicity_xsecs_lhe = get_helicity_xsecs("_lhe", rebin=rebi_ptVgen)
+    helicity_xsecs = get_helicity_xsecs(rebin=rebin_ptVgen)
+    helicity_xsecs_lhe = get_helicity_xsecs("_lhe", rebin=rebin_ptVgen)
 
     helicity_xsecs_nom = helicity_xsecs[{"muRfact": 1.0j, "muFfact": 1.0j}].values()
 
