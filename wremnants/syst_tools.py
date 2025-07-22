@@ -2433,15 +2433,15 @@ def add_theory_hists(
 
     df = theory_tools.define_scale_tensor(df)
 
-    if (
-        "MEParamWeight" not in df.GetColumnNames()
-        and "LHEReweightingWeight" not in df.GetColumnNames()
-    ):
-        logger.warning(
-            "MEParamWeight not in list of columns, mass, width, and sin2theta weight tensors can not be defined"
-        )
-    else:
-        df = define_mass_width_sin2theta_weights(df, dataset_name)
+    # if (
+    #     "MEParamWeight" not in df.GetColumnNames()
+    #     and "LHEReweightingWeight" not in df.GetColumnNames()
+    # ):
+    #     logger.warning(
+    #         "MEParamWeight not in list of columns, mass, width, and sin2theta weight tensors can not be defined"
+    #     )
+    # else:
+    #     df = define_mass_width_sin2theta_weights(df, dataset_name)
 
     # common kwargs
     info = dict(
@@ -2481,13 +2481,13 @@ def add_theory_hists(
 
         if "MEParamWeight" not in df.GetColumnNames():
             return df
-        # TODO: Should have consistent order here with the scetlib correction function
-        add_massweights_hist(results, df, axes, cols, proc=dataset_name, **info)
-        add_widthweights_hist(results, df, axes, cols, proc=dataset_name, **info)
-        if isZ:
-            add_sin2thetaweights_hist(
-                results, df, axes, cols, proc=dataset_name, **info
-            )
+        # # TODO: Should have consistent order here with the scetlib correction function
+        # add_massweights_hist(results, df, axes, cols, proc=dataset_name, **info)
+        # add_widthweights_hist(results, df, axes, cols, proc=dataset_name, **info)
+        # if isZ:
+        #     add_sin2thetaweights_hist(
+        #         results, df, axes, cols, proc=dataset_name, **info
+        #     )
 
     return df
 
