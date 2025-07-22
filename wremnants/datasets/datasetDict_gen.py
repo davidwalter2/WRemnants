@@ -28,199 +28,227 @@ horace_v4 = False
 horace_v5 = False
 
 genDataDict = {
+    "ZmumuPostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/NanoGen/DYJetsToMuMu_H2ErratumFix_PDFExt_2WVars_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/RunIISummer20UL16wmLHENanoGENpruned-106X_mcRun2_asymptotic_v13-v1",
+            "{BASE_PATH}/NanoGen/DYJetsToEE_H2ErratumFix_PDFExt_2WVars_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/RunIISummer20UL16wmLHENanoGENpruned-106X_mcRun2_asymptotic_v13-v1",
+        ],
+        "xsec": xsec_DYJetsToMuMu,
+        "group": "Zmumu",
+    },
     "ZmumuMiNLO": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_TuneCP5_13TeV-powheg-NNLOPS-pythia8-photos/RunIISummer15wmLHEGS/221121_114507"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_TuneCP5_13TeV-powheg-NNLOPS-pythia8-photos/RunIISummer15wmLHEGS/221121_114507"
         ],
         "xsec": 1863.0,
         "group": "Zmumu",
     },
     "ZmumuNNLOPS": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_TuneCP5_13TeV-powheg-NNLOPS-pythia8-photos/RunIISummer15wmLHEGS/221121_114507"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_TuneCP5_13TeV-powheg-NNLOPS-pythia8-photos/RunIISummer15wmLHEGS/221121_114507"
         ],
         "xsec": 1863.0,
         "group": "Zmumu",
     },
     "Zmumu_horace-lo-photos": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_LO_TuneCP5_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_LO_TuneCP5_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_ZToMuMu_LO,
         "group": "Zmumu",
     },
     "Zmumu_horace-lo-photos-mecoff": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_LO_TuneCP5_PhotosMecOff_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_LO_TuneCP5_PhotosMecOff_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_ZToMuMu_LO,
         "group": "Zmumu",
     },
     "Zmumu_horace-lo-photos-isroff": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_LO_TuneCP5_ISROff_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_LO_TuneCP5_ISROff_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_ZToMuMu_LO,
         "group": "Zmumu",
     },
     "Zmumu_horace-qed": {
-        "filepaths": ["{BASE_PATH}/DYJetsJetsToMuMu_LO_TuneCP5_13TeV-horace-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/DYJetsJetsToMuMu_LO_TuneCP5_13TeV-horace-pythia8"
+        ],
         "xsec": xsec_powheg_ZToMuMu_LO,
         "group": "Zmumu",
     },
     "Zmumu_horace-nlo": {
-        "filepaths": ["{BASE_PATH}/DYJetsToMuMu_NLOEW_TuneCP5_13TeV-horace-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_NLOEW_TuneCP5_13TeV-horace-pythia8"
+        ],
         "xsec": xsec_powheg_ZToMuMu_NLOEW,
         "group": "Zmumu",
     },
     "Zmumu_powheg-lo": {
-        "filepaths": ["{BASE_PATH}/DYJetsToMuMu_NOEW_TuneCP5_13TeV-powheg-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_NOEW_TuneCP5_13TeV-powheg-pythia8"
+        ],
         "xsec": xsec_powheg_ZToMuMu_LO,
         "group": "Zmumu",
     },
     "Zmumu_powheg-nloew-qedveto": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_NLOEW_QEDVeto_TuneCP5_13TeV-powheg-pythia8"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_NLOEW_QEDVeto_TuneCP5_13TeV-powheg-pythia8"
         ],
         "xsec": xsec_powheg_ZToMuMu_NLOEW,
         "group": "Zmumu",
     },
     "Zmumu_powheg-nloew": {
-        "filepaths": ["{BASE_PATH}//DYJetsToMuMu_NLOEW_TuneCP5_13TeV-powheg-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN//DYJetsToMuMu_NLOEW_TuneCP5_13TeV-powheg-pythia8"
+        ],
         "xsec": xsec_powheg_ZToMuMu_NLOEW,
         "group": "Zmumu",
     },
     "Zmumu_MiNNLO-noqedisr": {
         "filepaths": [
-            "{BASE_PATH}/DYJetsToMuMu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"
+            "{BASE_PATH}/NanoGEN/DYJetsToMuMu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"
         ],
         "xsec": xsec_DYJetsToMuMu,
         "group": "Zmumu",
     },
     "Wplusmunu_horace-lo-photos": {
         "filepaths": [
-            "{BASE_PATH}/WplusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_WplusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wplusmunu_horace-lo-photos-mecoff": {
         "filepaths": [
-            "{BASE_PATH}/WplusJetsToMuNu_LO_TuneCP5_PhotosAllMecOff_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_LO_TuneCP5_PhotosAllMecOff_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_WplusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wplusmunu_horace-lo-photos-isroff": {
         "filepaths": [
-            "{BASE_PATH}/WplusJetsToMuNu_LO_NoQEDISR_TuneCP5_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_LO_NoQEDISR_TuneCP5_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_WplusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wplusmunu_horace-qed": {
-        "filepaths": ["{BASE_PATH}/WplusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8"
+        ],
         "xsec": xsec_powheg_WplusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wplusmunu_horace-nlo": {
-        "filepaths": ["{BASE_PATH}/WplusJetsToMuNu_NLOEW_TuneCP5_13TeV-horace-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_NLOEW_TuneCP5_13TeV-horace-pythia8"
+        ],
         "xsec": xsec_powheg_WplusToMuNu_NLOEW,
         "group": "Wmunu",
     },
     "Wplusmunu_winhac-lo-photos": {
         "filepaths": [
-            "{BASE_PATH}/WplusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8-photospp"
         ],
         "xsec": xsec_winhac_WplusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wplusmunu_winhac-lo": {
-        "filepaths": ["{BASE_PATH}/WplusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8"
+        ],
         "xsec": xsec_winhac_WplusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wplusmunu_winhac-nlo": {
-        "filepaths": ["{BASE_PATH}/WplusJetsToMuNu_NLOEW_TuneCP5_13TeV-winhac-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_NLOEW_TuneCP5_13TeV-winhac-pythia8"
+        ],
         "xsec": xsec_winhac_WplusToMuNu_NLOEW,
         "group": "Wmunu",
     },
     "Wplusmunu_MiNNLO-noqedisr": {
         "filepaths": [
-            "{BASE_PATH}/WplusJetsToMuNu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"
+            "{BASE_PATH}/NanoGEN/WplusJetsToMuNu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"
         ],
         "xsec": xsec_WplusJetsToMuNu,
         "group": "Wmunu",
     },
     "WplusCharmToMuNu": {
         "filepaths": [
-            "{BASE_PATH}/WplusCharmToMuNu_TuneCP5_13TeV-powheg-pythia8-photos"
+            "{BASE_PATH}/NanoGEN/WplusCharmToMuNu_TuneCP5_13TeV-powheg-pythia8-photos"
         ],
         "xsec": xsec_WplusCharmToMuNu,
         "group": "Wmunu",
     },
     "Wminusmunu_horace-lo-photos": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_WminusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wminusmunu_horace-lo-photos-mecoff": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_LO_TuneCP5_PhotosAllMecOff_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_LO_TuneCP5_PhotosAllMecOff_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_WminusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wminusmunu_horace-lo-photos-isroff": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_LO_NoQEDISR_TuneCP5_13TeV-horace-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_LO_NoQEDISR_TuneCP5_13TeV-horace-pythia8-photospp"
         ],
         "xsec": xsec_powheg_WminusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wminusmunu_horace-qed": {
-        "filepaths": ["{BASE_PATH}/WminusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_LO_TuneCP5_13TeV-horace-pythia8"
+        ],
         "xsec": xsec_powheg_WminusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wminusmunu_horace-nlo": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_NLOEW_TuneCP5_13TeV-horace-pythia8"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_NLOEW_TuneCP5_13TeV-horace-pythia8"
         ],
         "xsec": xsec_powheg_WminusToMuNu_NLOEW,
         "group": "Wmunu",
     },
     "Wminusmunu_winhac-lo-photos": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8-photospp"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8-photospp"
         ],
         "xsec": xsec_winhac_WminusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wminusmunu_winhac-lo": {
-        "filepaths": ["{BASE_PATH}/WminusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8"],
+        "filepaths": [
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_LO_TuneCP5_13TeV-winhac-pythia8"
+        ],
         "xsec": xsec_winhac_WminusToMuNu_LO,
         "group": "Wmunu",
     },
     "Wminusmunu_winhac-nlo": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_NLOEW_TuneCP5_13TeV-winhac-pythia8"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_NLOEW_TuneCP5_13TeV-winhac-pythia8"
         ],
         "xsec": xsec_winhac_WminusToMuNu_NLOEW,
         "group": "Wmunu",
     },
     "Wminusmunu_MiNNLO-noqedisr": {
         "filepaths": [
-            "{BASE_PATH}/WminusJetsToMuNu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"
+            "{BASE_PATH}/NanoGEN/WminusJetsToMuNu_H2ErratumFix_NoQEDISR_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos"
         ],
         "xsec": xsec_WminusJetsToMuNu,
         "group": "Wmunu",
     },
     "WminusCharmToMuNu": {
         "filepaths": [
-            "{BASE_PATH}/WminusCharmToMuNu_TuneCP5_13TeV-powheg-pythia8-photos"
+            "{BASE_PATH}/NanoGEN/WminusCharmToMuNu_TuneCP5_13TeV-powheg-pythia8-photos"
         ],
         "xsec": xsec_WminusCharmToMuNu,
         "group": "Wmunu",
@@ -232,14 +260,14 @@ genDataDict.update(
     {
         "Zmumu_renesance-lo": {
             "filepaths": [
-                "{BASE_PATH}/Renesance_v0/ZToMuMu_TuneCP5_13TeV-renesance_loqcd-fsr-photos-isr-pythia"
+                "{BASE_PATH}/NanoGEN/Renesance_v0/ZToMuMu_TuneCP5_13TeV-renesance_loqcd-fsr-photos-isr-pythia"
             ],
             "xsec": xsec_powheg_ZToMuMu_LO,
             "group": "Zmumu",
         },
         "Zmumu_renesance-nlo": {
             "filepaths": [
-                "{BASE_PATH}/Renesance_v0/ZToMuMu_TuneCP5_13TeV-renesance_loqcdnloweak-fsr-photos-isr-pythia"
+                "{BASE_PATH}/NanoGEN/Renesance_v0/ZToMuMu_TuneCP5_13TeV-renesance_loqcdnloweak-fsr-photos-isr-pythia"
             ],
             "xsec": xsec_powheg_ZToMuMu_NLOEW,
             "group": "Zmumu",
@@ -253,17 +281,17 @@ genDataDict.update(
 genDataDict.update(
     {
         "Zmumu_powheg-weak-low": {
-            "filepaths": ["{BASE_PATH}/svn4049/46mll80"],
+            "filepaths": ["{BASE_PATH}/NanoGEN/svn4049/46mll80"],
             "xsec": 1,
             "group": "Zmumu",
         },
         "Zmumu_powheg-weak-peak": {
-            "filepaths": ["{BASE_PATH}/svn4049/80mll100"],
+            "filepaths": ["{BASE_PATH}/NanoGEN/svn4049/80mll100"],
             "xsec": 1,
             "group": "Zmumu",
         },
         "Zmumu_powheg-weak-high": {
-            "filepaths": ["{BASE_PATH}/svn4049/100mll150"],
+            "filepaths": ["{BASE_PATH}/NanoGEN/svn4049/100mll150"],
             "xsec": 1,
             "group": "Zmumu",
         },
@@ -275,49 +303,49 @@ if horace_v1:
         {
             "Zmumu_horace-v1-alpha-old-fsr-off-isr-pythia": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-alpha-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-alpha-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v1-born-fsr-photos-isr-pythia": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photos-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photos-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v1-born-fsr-photoslow-isr-pythia": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photoslow-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photoslow-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v1-lo-photos": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photosnopair-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photosnopair-isr-pythia"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_LO,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v1-born-fsr-pythia-isr-pythia": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-pythia-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-pythia-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v1-nlo": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-exp-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-exp-fsr-off-isr-off"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_NLOEW,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v1-qed": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v1/ZToMuMu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
@@ -330,21 +358,21 @@ if horace_v2:
         {
             "Zmumu_horace-v2-lo-photos": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v2/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v2/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_LO,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v2-nlo": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v2/ZToMuMu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v2/ZToMuMu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_NLOEW,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v2-qed": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v2/ZToMuMu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v2/ZToMuMu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
@@ -357,63 +385,63 @@ if horace_v3:
         {
             "Zmumu_horace-v3-lo-photos": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/ZToMuMu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_LO,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v3-qed": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/ZToMuMu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/ZToMuMu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v3-nlo": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/ZToMuMu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/ZToMuMu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_NLOEW,
                 "group": "Zmumu",
             },
             "Wplusmunu_horace-v3-lo-photos": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/WplusToMuNu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/WplusToMuNu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
                 ],
                 "xsec": xsec_powheg_WplusToMuNu_LO,
                 "group": "Wmunu",
             },
             "Wplusmunu_horace-v3-qed": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/WplusToMuNu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/WplusToMuNu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_WplusJetsToMuNu,
                 "group": "Wmunu",
             },
             "Wplusmunu_horace-v3-nlo": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/WplusToMuNu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/WplusToMuNu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
                 ],
                 "xsec": xsec_powheg_WplusToMuNu_NLOEW,
                 "group": "Wmunu",
             },
             "Wminusmunu_horace-v3-lo-photos": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/WminusToMuNu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/WminusToMuNu_TuneCP5_13TeV-horace-born-fsr-photos_nopair-isr-pythia"
                 ],
                 "xsec": xsec_powheg_WminusToMuNu_LO,
                 "group": "Wmunu",
             },
             "Wminusmunu_horace-v3-qed": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/WminusToMuNu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/WminusToMuNu_TuneCP5_13TeV-horace-exp-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_WminusJetsToMuNu,
                 "group": "Wmunu",
             },
             "Wminusmunu_horace-v3-nlo": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v3/WminusToMuNu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v3/WminusToMuNu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
                 ],
                 "xsec": xsec_powheg_WminusToMuNu_NLOEW,
                 "group": "Wmunu",
@@ -426,28 +454,28 @@ if horace_v5:
         {
             "Zmumu_horace-v5-alpha-fsr-off-isr-off": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-alpha-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-alpha-fsr-off-isr-off"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v5-alpha-old-fsr-off-isr-off": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-alpha-old-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-alpha-old-fsr-off-isr-off"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v5-alpha-old-fsr-off-isr-pythia": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-alpha-old-fsr-off-isr-pythia"
+                    "{BASE_PATH}/NanoGEN/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-alpha-old-fsr-off-isr-pythia"
                 ],
                 "xsec": xsec_DYJetsToMuMu,
                 "group": "Zmumu",
             },
             "Zmumu_horace-v5-nlo": {
                 "filepaths": [
-                    "{BASE_PATH}/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
+                    "{BASE_PATH}/NanoGEN/Horace_v5/ZToMuMu_TuneCP5_13TeV-horace-exp-new-fsr-off-isr-off"
                 ],
                 "xsec": xsec_powheg_ZToMuMu_NLOEW,
                 "group": "Zmumu",
