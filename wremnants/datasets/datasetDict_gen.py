@@ -28,14 +28,6 @@ horace_v4 = False
 horace_v5 = False
 
 genDataDict = {
-    "ZmumuPostVFP": {
-        "filepaths": [
-            "{BASE_PATH}/NanoGen/DYJetsToMuMu_H2ErratumFix_PDFExt_2WVars_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/RunIISummer20UL16wmLHENanoGENpruned-106X_mcRun2_asymptotic_v13-v1",
-            "{BASE_PATH}/NanoGen/DYJetsToEE_H2ErratumFix_PDFExt_2WVars_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/RunIISummer20UL16wmLHENanoGENpruned-106X_mcRun2_asymptotic_v13-v1",
-        ],
-        "xsec": xsec_DYJetsToMuMu,
-        "group": "Zmumu",
-    },
     "ZmumuMiNLO": {
         "filepaths": [
             "{BASE_PATH}/NanoGEN/DYJetsToMuMu_TuneCP5_13TeV-powheg-NNLOPS-pythia8-photos/RunIISummer15wmLHEGS/221121_114507"

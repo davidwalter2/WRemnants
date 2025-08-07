@@ -454,13 +454,13 @@ def define_lhe_vars(df):
         "csAngularMomentslhe", "wrem::csAngularMoments(csSineCosThetaPhilhe)"
     )
 
-    # if "LHEWeight_originalXWGTUP" in df.GetColumnNames():
-    #     df = df.Define(
-    #         "csAngularMomentslhe_wnom",
-    #         "auto res = csAngularMomentslhe; res = LHEWeight_originalXWGTUP*res; return res;",
-    #     )
-    # else:
-    df = df.Alias("csAngularMomentslhe_wnom", "csAngularMomentslhe")
+    if "LHEWeight_originalXWGTUP" in df.GetColumnNames():
+        df = df.Define(
+            "csAngularMomentslhe_wnom",
+            "auto res = csAngularMomentslhe; res = LHEWeight_originalXWGTUP*res; return res;",
+        )
+    else:
+        df = df.Alias("csAngularMomentslhe_wnom", "csAngularMomentslhe")
 
     return df
 
