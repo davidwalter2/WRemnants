@@ -527,6 +527,18 @@ def common_parser(analysis_label=""):
             action="store_true",
             help="When adding the run axis with --addRunAxis, randomly put data events into the various bins",
         )
+        parser.add_argument(
+            "--addMuonPhiAxis",
+            type=float,
+            default=None,
+            nargs="+",
+            help="""
+            Add another fit axis with the muon phi.
+            Specify a positive number of bins (default does nothing), which will be uniformly spaced,
+            or a list of bin edges (the number of bins is inferred accordingly.
+            Phi is defined between -pi and +pi
+            """,
+        )
 
     commonargs, _ = parser.parse_known_args()
 
@@ -793,6 +805,12 @@ def plot_parser():
         help="Legend text size (small: axis ticks size, large: axis label size, number)",
     )
     parser.add_argument(
+        "--cmsDecorSize",
+        type=str,
+        default="small",
+        help="'CMS xxx' text size (small: axis ticks size, large: axis label size, number)",
+    )
+    parser.add_argument(
         "--legCols", type=int, default=2, help="Number of columns in legend"
     )
     parser.add_argument(
@@ -801,6 +819,11 @@ def plot_parser():
         default="auto",
         choices=choices_padding,
         help="Where to put empty entries in legend",
+    )
+    parser.add_argument(
+        "--noLowerLeg",
+        action="store_true",
+        help="Don't plot the legend on the lower panel",
     )
     parser.add_argument(
         "--lowerLegPos",

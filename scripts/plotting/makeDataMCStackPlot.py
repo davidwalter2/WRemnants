@@ -573,6 +573,7 @@ for h in args.hists:
         width_scale=1.25 if len(h.split("-")) == 1 else 1,
         legPos=args.legPos,
         leg_padding=args.legPadding,
+        lowerLeg=not args.noLowerLeg,
         lowerLegCols=args.lowerLegCols,
         lowerLegPos=args.lowerLegPos,
         lower_leg_padding=args.lowerLegPadding,

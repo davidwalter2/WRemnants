@@ -352,7 +352,8 @@ class UnfolderZ:
             # helper to derive helicity xsec shape from event by event reweighting
             self.weightsByHelicity_helper_unfolding = helicity_utils.make_helicity_weight_helper(
                 is_z=True,
-                filename=f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs_scetlib_dyturboCorr_maxFiles_m1_alphaSunfoldingBinning_helicity.hdf5",
+                filename=f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs_maxFiles_m1_alphaSunfoldingBinning_helicity.hdf5",
+                # filename=f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs_maxFiles_m1_nnpdf31_alphaSunfoldingBinning_helicity.hdf5",
                 rebi_ptVgen=True,
             )
 
@@ -367,6 +368,7 @@ class UnfolderZ:
                 level,
                 flow_y=self.poi_as_noi,
                 add_out_of_acceptance_axis=self.poi_as_noi,
+                rebin_pt=True,
             )
             self.unfolding_axes[level] = a
             self.unfolding_cols[level] = c
@@ -377,6 +379,7 @@ class UnfolderZ:
                     if ax.name == "acceptance":
                         continue
                     # check if binning is consistent between correction helper and unfolding axes
+                    #   unfolding axes must a subset of corretion helper
                     wbh_axis = self.weightsByHelicity_helper_unfolding.hist.axes[
                         ax.name.replace("Gen", "gen")
                     ]
@@ -418,6 +421,25 @@ class UnfolderZ:
             )
         else:
             for level in self.unfolding_levels:
+                # add full phase space histograms for inclusive cross section
+                df_full = df.Filter(f"{level}V_mass > 60")
+                df_full = df_full.Filter(f"{level}V_mass < 120")
+                add_xnorm_histograms(
+                    results,
+                    df_full,
+                    args,
+                    dataset.name,
+                    corr_helpers,
+                    qcdScaleByHelicity_helper,
+                    [a for a in self.unfolding_axes[level] if a.name != "acceptance"],
+                    [
+                        c
+                        for c in self.unfolding_cols[level]
+                        if c != f"{level}_acceptance"
+                    ],
+                    base_name=f"{level}_full",
+                )
+
                 df = select_fiducial_space(
                     df,
                     level,
@@ -461,6 +483,7 @@ class UnfolderZ:
                     add_helicity_axis=self.add_helicity_axis,
                     base_name=level,
                 )
+
         return df
 
     def add_poi_as_noi_histograms(self, df, results, nominal_axes, nominal_cols):
