@@ -184,6 +184,11 @@ parser.add_argument(
     default=(0.05, 0.8),
     help="Location in (x,y) for additional text, aligned to upper left",
 )
+parser.add_argument(
+    "--invertProcessOrder",
+    action="store_true",
+    help="Auto generate colors in pairs (useful for systematics)",
+)
 subparsers = parser.add_subparsers(dest="variation")
 variation = subparsers.add_parser(
     "variation", help="Arguments for adding variation hists"
@@ -230,7 +235,6 @@ variation.add_argument(
     default=0,
     help="Plot n first variations in lower panel only",
 )
-
 args = parser.parse_args()
 
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
@@ -266,8 +270,12 @@ outdir = output_tools.make_plot_dir(args.outpath, args.outfolder, eoscp=args.eos
 groups = Datagroups(
     args.infile,
     filterGroups=args.procFilters,
-    excludeGroups=None if args.procFilters else ["QCD"],
+    excludeGroups=None,  # if args.procFilters else ["QCD"],
 )
+
+import pdb
+
+pdb.set_trace()
 
 if not args.fineGroups:
     if groups.mode in styles.process_supergroups:
@@ -447,7 +455,9 @@ if addVariation:
         exclude.append(varname)
         unstack.append(varname)
 
-groups.sortByYields(args.baseName, nominalName=nominalName)
+groups.sortByYields(
+    args.baseName, nominalName=nominalName, reverse=not args.invertProcessOrder
+)
 histInfo = groups.groups
 
 logger.info(f"Unstacked processes are {exclude}")

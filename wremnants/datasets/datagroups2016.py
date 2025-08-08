@@ -32,46 +32,50 @@ def make_datagroups_2016(
             label=f"pdf{pseudodata_pdfset.upper()}",
             color="dimgray",
         )
-    if dg.mode in ["vgen", "w_mass"]:
-        dg.addGroup(
-            "Wmunu",
-            members=dg.get_members_from_results(
-                startswith=["Wplusmunu", "Wminusmunu", "Wmunu"]
-            ),
-        )
-        dg.addGroup(
-            "Wtaunu",
-            members=dg.get_members_from_results(
-                startswith=["Wplustaunu", "Wminustaunu"]
-            ),
-        )
-        dg.addGroup(
-            "DYlowMass",
-            members=dg.get_members_from_results(
-                startswith=["DYlowMass", "DYJetsToMuMuMass10to50"]
-            ),
-        )
-        dg.addGroup(
-            "Top",
-            members=dg.get_members_from_results(startswith=["Top", "SingleT", "TT"]),
-        )
-        dg.addGroup(
-            "Diboson",
-            members=dg.get_members_from_results(
-                startswith=["Diboson", "WW", "WZ", "ZZ"]
-            ),
-        )
-        dg.addGroup(
-            "QCD",
-            members=dg.get_members_from_results(startswith=["QCD"]),
-        )
-    else:
-        dg.addGroup(
-            "Other",
-            members=dg.get_members_from_results(
-                not_startswith=["Zmumu", "Ztautau", "QCD", "GG", "QG"]
-            ),
-        )
+    # if dg.mode in ["vgen", "w_mass"]:
+    dg.addGroup(
+        "Wmunu",
+        members=dg.get_members_from_results(
+            startswith=["Wplusmunu", "Wminusmunu", "Wmunu"]
+        ),
+    )
+    dg.addGroup(
+        "Wtaunu",
+        members=dg.get_members_from_results(startswith=["Wplustaunu", "Wminustaunu"]),
+    )
+    dg.addGroup(
+        "DYlowMass",
+        members=dg.get_members_from_results(
+            startswith=["DYlowMass", "DYJetsToMuMuMass10to50"]
+        ),
+    )
+    dg.addGroup(
+        "Top",
+        members=dg.get_members_from_results(startswith=["TTSemileptonic"]),
+    )
+    dg.addGroup(
+        "Diboson",
+        members=dg.get_members_from_results(startswith=["Diboson", "WW", "WZ", "ZZ"]),
+    )
+    dg.addGroup(
+        "QCD",
+        members=dg.get_members_from_results(startswith=["QCD"]),
+    )
+    dg.addGroup(
+        "JpsiToMuMu",
+        members=dg.get_members_from_results(startswith=["JpsiToMuMu"]),
+    )
+    dg.addGroup(
+        "Upsilon",
+        members=dg.get_members_from_results(startswith=["Upsilon"]),
+    )
+    # else:
+    #     dg.addGroup(
+    #         "Other",
+    #         members=dg.get_members_from_results(
+    #             not_startswith=["Zmumu", "Ztautau", "QCD", "GG", "QG"]
+    #         ),
+    #     )
 
     dg.filterGroups(filterGroups)
     dg.excludeGroups(excludeGroups)

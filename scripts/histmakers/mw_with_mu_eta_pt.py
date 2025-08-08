@@ -904,6 +904,66 @@ def build_graph(df, dataset):
         # remove trigger, it will be part of the efficiency selection for passing trigger
         df = df.Filter(muon_selections.hlt_string(era))
 
+    df = df.Define(
+        "vetoMuonsPre",
+        "Muon_looseId && abs(Muon_dxybs) < 0.05 && Muon_charge != -99",
+    )
+    df = df.Define(
+        "Muon_isGoodGlobal",
+        f"Muon_isGlobal && Muon_highPurity",
+    )
+    df = df.Define(
+        "vetoMuons",
+        f"vetoMuonsPre && Muon_pt > {args.pt[1]} && Muon_pt < {args.pt[2]} && abs(Muon_eta) < 2.4",
+    )
+    df = df.Filter(f"Sum(vetoMuons) ==1")
+
+    df = df.Define("Muon_category", "Muon_isGlobal && Muon_highPurity")
+
+    goodMuonsSelection = f"Muon_pt > {args.pt[1]} && Muon_pt < {args.pt[2]} && vetoMuons && Muon_category && Muon_mediumId"  # && {isoBranch} < 0.15"
+
+    df = df.Define("goodMuons", goodMuonsSelection)
+    df = df.Filter(f"Sum(goodMuons) == 1")
+
+    # met = "DeepMETResolutionTune" if args.met == "DeepMETReso" else args.met
+    # df = df.Alias("MET_corr_rec_pt", f"{met}_pt")
+    # df = df.Alias("MET_corr_rec_phi", f"{met}_phi")
+
+    df = df.Define("Muon_eta0", "Muon_eta[goodMuons][0]")
+    df = df.Define("Muon_pt0", "Muon_pt[goodMuons][0]")
+    df = df.Define("Muon_phi0", "Muon_phi[goodMuons][0]")
+    df = df.Define("Muon_charge0", "Muon_charge[goodMuons][0]")
+    df = df.Define("Muon_iso0", f"{isoBranch}[goodMuons][0]")
+    df = df.Define(
+        "transverseMass0",
+        "wrem::mt_2(Muon_pt0, Muon_phi0, DeepMETResponseTune_pt, DeepMETResponseTune_phi)",
+    )
+
+    results.append(
+        df.HistoBoost(
+            "nominal",
+            axes,
+            [
+                "Muon_eta0",
+                "Muon_pt0",
+                "Muon_charge0",
+                "transverseMass0",
+                "Muon_iso0",
+                "weight",
+            ],
+        )
+    )
+
+    results.append(
+        df.HistoBoost(
+            "relIso",
+            [axis_eta, axis_pt, axis_relIso],
+            ["Muon_eta0", "Muon_pt0", "Muon_iso0", "weight"],
+        )
+    )
+
+    return results, weightsum
+
     df = muon_calibration.define_corrected_muons(
         df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper
     )
@@ -927,12 +987,26 @@ def build_graph(df, dataset):
         requirePixelHits=args.requirePixelHits,
     )
 
+    # results.append(df.HistoBoost(
+    #     "goodmuons",
+    #     axes,
+    #     [
+    #         "goodMuons_eta0",
+    #         "goodMuons_pt0",
+    #         "goodMuons_charge0",
+    #         "transverseMass",
+    #         "goodMuons_relIso0",
+    #         "weight"
+    #     ]
+    #     )
+    # )
+
     # the corrected RECO muon kinematics, which is intended to be used as the nominal
     df = muon_calibration.define_corrected_reco_muon_kinematics(df)
 
-    df = muon_selections.select_standalone_muons(
-        df, dataset, args.trackerMuons, "goodMuons"
-    )
+    # df = muon_selections.select_standalone_muons(
+    #     df, dataset, args.trackerMuons, "goodMuons"
+    # )
 
     df = muon_selections.veto_electrons(df)
     df = muon_selections.apply_met_filters(df)
@@ -1218,30 +1292,30 @@ def build_graph(df, dataset):
         df = df.Define("goodMuons_eta", "Muon_correctedEta[goodMuons]")
         df = df.Define("goodMuons_pt", "Muon_correctedPt[goodMuons]")
         df = df.Define("goodMuons_charge", "Muon_correctedCharge[goodMuons]")
-        df = df.Define(
-            f"goodMuons_{cvhName}NValidPixelHits",
-            f"Muon_{cvhName}NValidPixelHits[goodMuons]",
-        )
-        df = df.Define(
-            "goodMuons_triggerCat",
-            "ROOT::VecOps::RVec<wrem::TriggerCat>(goodMuons_eta.size(), wrem::TriggerCat::triggering)",
-        )
+        # df = df.Define(
+        #     f"goodMuons_{cvhName}NValidPixelHits",
+        #     f"Muon_{cvhName}NValidPixelHits[goodMuons]",
+        # )
+        # df = df.Define(
+        #     "goodMuons_triggerCat",
+        #     "ROOT::VecOps::RVec<wrem::TriggerCat>(goodMuons_eta.size(), wrem::TriggerCat::triggering)",
+        # )
 
-        pixel_multiplicity_cols = [
-            "goodMuons_triggerCat",
-            "goodMuons_eta",
-            "goodMuons_pt",
-            "goodMuons_charge",
-            f"goodMuons_{cvhName}NValidPixelHits",
-        ]
+        # pixel_multiplicity_cols = [
+        #     "goodMuons_triggerCat",
+        #     "goodMuons_eta",
+        #     "goodMuons_pt",
+        #     "goodMuons_charge",
+        #     f"goodMuons_{cvhName}NValidPixelHits",
+        # ]
 
-        if args.reweightPixelMultiplicity:
-            df = df.Define(
-                "weight_pixel_multiplicity",
-                pixel_multiplicity_helper,
-                pixel_multiplicity_cols,
-            )
-            weight_expr += "*weight_pixel_multiplicity"
+        # if args.reweightPixelMultiplicity:
+        #     df = df.Define(
+        #         "weight_pixel_multiplicity",
+        #         pixel_multiplicity_helper,
+        #         pixel_multiplicity_cols,
+        #     )
+        #     weight_expr += "*weight_pixel_multiplicity"
 
         logger.debug(f"Exp weight defined: {weight_expr}")
         df = df.Define("exp_weight", weight_expr)
@@ -2084,35 +2158,35 @@ def build_graph(df, dataset):
                         df, axes, results, cols, cols_gen_smeared
                     )
 
-                # add pixel multiplicity uncertainties
-                df = df.Define(
-                    "nominal_pixelMultiplicitySyst_tensor",
-                    pixel_multiplicity_uncertainty_helper,
-                    [*pixel_multiplicity_cols, "nominal_weight"],
-                )
-                hist_pixelMultiplicitySyst = df.HistoBoost(
-                    "nominal_pixelMultiplicitySyst",
-                    axes,
-                    [*cols, "nominal_pixelMultiplicitySyst_tensor"],
-                    tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(hist_pixelMultiplicitySyst)
+                # # add pixel multiplicity uncertainties
+                # df = df.Define(
+                #     "nominal_pixelMultiplicitySyst_tensor",
+                #     pixel_multiplicity_uncertainty_helper,
+                #     [*pixel_multiplicity_cols, "nominal_weight"],
+                # )
+                # hist_pixelMultiplicitySyst = df.HistoBoost(
+                #     "nominal_pixelMultiplicitySyst",
+                #     axes,
+                #     [*cols, "nominal_pixelMultiplicitySyst_tensor"],
+                #     tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
+                #     storage=hist.storage.Double(),
+                # )
+                # results.append(hist_pixelMultiplicitySyst)
 
-                if args.pixelMultiplicityStat:
-                    df = df.Define(
-                        "nominal_pixelMultiplicityStat_tensor",
-                        pixel_multiplicity_uncertainty_helper_stat,
-                        [*pixel_multiplicity_cols, "nominal_weight"],
-                    )
-                    hist_pixelMultiplicityStat = df.HistoBoost(
-                        "nominal_pixelMultiplicityStat",
-                        axes,
-                        [*cols, "nominal_pixelMultiplicityStat_tensor"],
-                        tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
-                        storage=hist.storage.Double(),
-                    )
-                    results.append(hist_pixelMultiplicityStat)
+                # if args.pixelMultiplicityStat:
+                #     df = df.Define(
+                #         "nominal_pixelMultiplicityStat_tensor",
+                #         pixel_multiplicity_uncertainty_helper_stat,
+                #         [*pixel_multiplicity_cols, "nominal_weight"],
+                #     )
+                #     hist_pixelMultiplicityStat = df.HistoBoost(
+                #         "nominal_pixelMultiplicityStat",
+                #         axes,
+                #         [*cols, "nominal_pixelMultiplicityStat_tensor"],
+                #         tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
+                #         storage=hist.storage.Double(),
+                #     )
+                #     results.append(hist_pixelMultiplicityStat)
 
                 # extra uncertainties from non-closure stats
                 df = df.Define(

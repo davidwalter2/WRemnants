@@ -18,6 +18,24 @@ constexpr double electron_mass = 5.110e-04;
 constexpr double muon_mass = 0.1056583745;
 constexpr double tau_mass = 1.77682;
 
+// int (const ROOT::VecOps::RVec<int> mother_idxs, const ROOT::VecOps::RVec<int>
+// pdgIds, int idx) {
+
+//   int mother_idx = idx
+//   while(true){
+
+//     if(mother_idx == -1){
+//       break;
+//     }
+//     mother_id =
+
+//   }
+
+//   const int mother_id = mother_idx == -1 ? mother_idx : pdgIds[mother_idx]
+
+//   return mother_id;
+// }
+
 template <typename T>
 ROOT::VecOps::RVec<T> absVal(const ROOT::VecOps::RVec<T> &val) {
 

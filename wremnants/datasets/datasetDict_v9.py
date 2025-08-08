@@ -217,6 +217,48 @@ dataDictV9 = {
         "xsec_dn": 3.588e01,
         "group": "PhotonInduced",
     },
+    "JpsiToMuMu_JpsiPt8PostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/JpsiToMuMu_JpsiPt8_TuneCP5_13TeV-pythia8/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": 25000.0,  # guessed on data vs. MC
+        "group": "JpsiToMuMu",
+    },
+    "BuToJpsiK_SoftQCDnonDPostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/BuToJpsiK_SoftQCDnonD_TuneCP5_13TeV-pythia8-evtgen+RunIISummer20UL16MiniAOD-106X_mcRun2_asymptotic_v13-v2+MINIAODSIM/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": 370000000.0,
+        "group": "BuToJpsiK",
+    },
+    "BuToJpsiK_BMuonFilter_SoftQCDnonDPostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/BuToJpsiK_BMuonFilter_SoftQCDnonD_TuneCP5_13TeV-pythia8-evtgen+RunIISummer20UL16MiniAOD-106X_mcRun2_asymptotic_v13-v1+MINIAODSIM/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": 11350000.0,
+        "group": "BuToJpsiK",
+    },
+    "Upsilon1SToMuMu_Pt5PostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/Upsilon1SToMuMu_Pt5_TuneCP5_13TeV_pythia8-EvtGen/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": 700.0,  # guessed on data vs. MC
+        "group": "Upsilon",
+    },
+    "Upsilon2SToMuMu_Pt5PostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/Upsilon2SToMuMu_Pt5_TuneCP5_13TeV_pythia8-EvtGen/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": 300.0,  # guessed on data vs. MC
+        "group": "Upsilon",
+    },
+    "Upsilon3SToMuMu_Pt5PostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/Upsilon3SToMuMu_Pt5_TuneCP5_13TeV_pythia8-EvtGen/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": 200.0,  # guessed on data vs. MC
+        "group": "Upsilon",
+    },
 }
 
 # extended version with additional samples (but missing some pdf sets)

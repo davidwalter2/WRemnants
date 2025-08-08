@@ -368,22 +368,28 @@ else:
     )
 
 # extra axes which can be used to label tensor_axes
-if args.binnedScaleFactors:
-    logger.info("Using binned scale factors and uncertainties")
-    # might never use it really anymore, but let's warn the user that this is obsolete
-    logger.warning(
-        "Only SF with no uT dependence are implemented, and the treatment for trigger is like Wlike"
-    )
-    # add usePseudoSmoothing=True for tests with Asimov
-    muon_efficiency_helper, muon_efficiency_helper_syst, muon_efficiency_helper_stat = (
-        muon_efficiencies_binned.make_muon_efficiency_helpers_binned(
+if not args.noScaleFactors:
+    if args.binnedScaleFactors:
+        logger.info("Using binned scale factors and uncertainties")
+        # might never use it really anymore, but let's warn the user that this is obsolete
+        logger.warning(
+            "Only SF with no uT dependence are implemented, and the treatment for trigger is like Wlike"
+        )
+        # add usePseudoSmoothing=True for tests with Asimov
+        (
+            muon_efficiency_helper,
+            muon_efficiency_helper_syst,
+            muon_efficiency_helper_stat,
+        ) = muon_efficiencies_binned.make_muon_efficiency_helpers_binned(
             filename=args.sfFile, era=era, max_pt=args.pt[2], is_w_like=True
         )
-    )
-else:
-    logger.info("Using smoothed scale factors and uncertainties")
-    muon_efficiency_helper, muon_efficiency_helper_syst, muon_efficiency_helper_stat = (
-        muon_efficiencies_smooth.make_muon_efficiency_helpers_smooth(
+    else:
+        logger.info("Using smoothed scale factors and uncertainties")
+        (
+            muon_efficiency_helper,
+            muon_efficiency_helper_syst,
+            muon_efficiency_helper_stat,
+        ) = muon_efficiencies_smooth.make_muon_efficiency_helpers_smooth(
             filename=args.sfFile,
             era=era,
             max_pt=args.pt[2],
@@ -392,22 +398,21 @@ else:
             smooth3D=args.smooth3dsf,
             isoDefinition=args.isolationDefinition,
         )
-    )
-logger.info(f"SF file: {args.sfFile}")
+    logger.info(f"SF file: {args.sfFile}")
 
-muon_efficiency_helper_syst_altBkg = {}
-for es in common.muonEfficiency_altBkgSyst_effSteps:
-    altSFfile = args.sfFile.replace(".root", "_altBkg.root")
-    logger.info(f"Additional SF file for alternate syst with {es}: {altSFfile}")
-    muon_efficiency_helper_syst_altBkg[es] = (
-        muon_efficiencies_smooth.make_muon_efficiency_helpers_smooth_altSyst(
-            filename=altSFfile,
-            era=era,
-            what_analysis=thisAnalysis,
-            max_pt=args.pt[2],
-            effStep=es,
+    muon_efficiency_helper_syst_altBkg = {}
+    for es in common.muonEfficiency_altBkgSyst_effSteps:
+        altSFfile = args.sfFile.replace(".root", "_altBkg.root")
+        logger.info(f"Additional SF file for alternate syst with {es}: {altSFfile}")
+        muon_efficiency_helper_syst_altBkg[es] = (
+            muon_efficiencies_smooth.make_muon_efficiency_helpers_smooth_altSyst(
+                filename=altSFfile,
+                era=era,
+                what_analysis=thisAnalysis,
+                max_pt=args.pt[2],
+                effStep=es,
+            )
         )
-    )
 
 pileup_helper = pileup.make_pileup_helper(era=era)
 vertex_helper = vertex.make_vertex_helper(era=era)
@@ -514,6 +519,7 @@ def build_graph(df, dataset):
     isW = dataset.name in common.wprocs
     isZ = dataset.name in common.zprocs
     isWorZ = isW or isZ
+    isQCDMC = dataset.group == "QCD"
 
     if isWorZ:
         qcdScaleByHelicity_helper = qcdScaleByHelicity_helpers[dataset.name[0]]
@@ -601,6 +607,116 @@ def build_graph(df, dataset):
 
     df = df.Filter(muon_selections.hlt_string(era))
 
+    df = df.Define(
+        "vetoMuonsPre",
+        "Muon_looseId && abs(Muon_dxybs) < 0.05 && Muon_charge != -99",
+    )
+    df = df.Define(
+        "Muon_isGoodGlobal",
+        f"Muon_isGlobal && Muon_highPurity",
+    )
+    df = df.Define(
+        "vetoMuons",
+        f"vetoMuonsPre && Muon_pt > {args.pt[1]} && Muon_pt < {args.pt[2]} && abs(Muon_eta) < 2.4",
+    )
+    df = df.Filter(f"Sum(vetoMuons) == 2")
+
+    df = df.Define("Muon_category", "Muon_isGlobal && Muon_highPurity")
+
+    goodMuonsSelection = (
+        f"vetoMuons && Muon_category && Muon_mediumId"  # && {isoBranch} < 0.15"
+    )
+
+    df = df.Define("goodMuons", goodMuonsSelection)
+    df = df.Filter(f"Sum(goodMuons) == 2")
+
+    df = df.Define("Muon_pt0", "Muon_pt[goodMuons][0]")
+    df = df.Define("Muon_pt1", "Muon_pt[goodMuons][1]")
+
+    df = df.Filter(f"Muon_pt0 > 26 || Muon_pt1 > 26")
+
+    df = df.Define("Muon_charge0", "Muon_charge[goodMuons][0]")
+    df = df.Define("Muon_charge1", "Muon_charge[goodMuons][1]")
+
+    df = df.Filter(f"Muon_charge0 != Muon_charge1")
+
+    # met = "DeepMETResolutionTune" if args.met == "DeepMETReso" else args.met
+    # df = df.Alias("MET_corr_rec_pt", f"{met}_pt")
+    # df = df.Alias("MET_corr_rec_phi", f"{met}_phi")
+
+    df = df.Define("Muon_eta0", "Muon_eta[goodMuons][0]")
+    df = df.Define("Muon_phi0", "Muon_phi[goodMuons][0]")
+    df = df.Define("Muon_iso0", f"{isoBranch}[goodMuons][0]")
+
+    df = df.Define("Muon_eta1", "Muon_eta[goodMuons][1]")
+    df = df.Define("Muon_phi1", "Muon_phi[goodMuons][1]")
+    df = df.Define("Muon_iso1", f"{isoBranch}[goodMuons][1]")
+
+    df = df.Define("iso", f"Muon_pt0 > Muon_pt1 ? Muon_iso0 : Muon_iso1")
+
+    df = df.Define(
+        f"muon0_mom4",
+        f"ROOT::Math::PtEtaPhiMVector(Muon_pt0, Muon_eta0, Muon_phi0, wrem::muon_mass)",
+    )
+    df = df.Define(
+        f"muon1_mom4",
+        f"ROOT::Math::PtEtaPhiMVector(Muon_pt1, Muon_eta1, Muon_phi1, wrem::muon_mass)",
+    )
+    df = df.Define(
+        "ll_mom4",
+        f"ROOT::Math::PxPyPzEVector(muon0_mom4)+ROOT::Math::PxPyPzEVector(muon1_mom4)",
+    )
+    df = df.Define("mll", "ll_mom4.mass()")
+
+    # df = df.Filter(f"mll >= {mass_min} && mll < {mass_max}")
+
+    # if isQCDMC:
+    #     # define lepton origin
+    #     df = df.Define("Muon_genPartIdx0", "Muon_genPartIdx[goodMuons][0]")
+    #     df = df.Define("Muon_genPartIdx1", "Muon_genPartIdx[goodMuons][1]")
+
+    #     df = df.Define("Muon_genPartIdxMother0", "wrem:hadronMotherFinder(GenPart_genPartIdxMother, GenPart_pdgId, Muon_genPartIdx0)")
+    #     df = df.Define("Muon_genPartIdxMother1", "wrem:hadronMotherFinder(GenPart_genPartIdxMother, GenPart_pdgId, Muon_genPartIdx1)")
+
+    #     # df = df.Define("Muon_genPartIdxMother0", "abs(GenPart_genPartIdxMother[Muon_genPartIdx0]) != 13 ? GenPart_genPartIdxMother[Muon_genPartIdx0] : GenPart_genPartIdxMother[GenPart_genPartIdxMother[Muon_genPartIdx0]]")
+    #     # df = df.Define("Muon_genPartIdxMother1", "abs(GenPart_genPartIdxMother[Muon_genPartIdx1]) != 13 ? GenPart_genPartIdxMother[Muon_genPartIdx1] : GenPart_genPartIdxMother[GenPart_genPartIdxMother[Muon_genPartIdx1]]")
+
+    #     df = df.Define("Muon_genPartMother0", "GenPart_pdgId[Muon_genPartIdxMother0]")
+    #     df = df.Define("Muon_genPartMother1", "GenPart_pdgId[Muon_genPartIdxMother1]")
+
+    #     df = df.Filter("mll > 3.05 && mll < 3.15")
+    #     results.append(df.HistoBoost(
+    #         "pdg",
+    #         [
+    #             hist.axis.Regular(1000, 0, 1000, name="pdg1"),
+    #             hist.axis.Regular(1000, 0, 1000, name="pdg2"),
+    #         ],
+    #         [
+    #             "Muon_genPartMother0",
+    #             "Muon_genPartMother1",
+    #         ]
+    #         )
+    #     )
+
+    #     # reject muons from J/Psi or Y
+    #     df = df.Define("Muon_fromJPsi","(Muon_genPartMother0 == Muon_genPartMother1) && (Muon_genPartMother0 == 443) ")
+    #     df = df.Define("Muon_fromUpsilon","(Muon_genPartMother0 == Muon_genPartMother1) && (Muon_genPartMother0 == 553)")
+    #     df = df.Filter("Muon_genPartMother0 != 443 && Muon_genPartMother1 != 443 && Muon_genPartMother0 != 553 && Muon_genPartMother1 != 553")
+
+    results.append(
+        df.HistoBoost(
+            "nominal",
+            [
+                hist.axis.Regular(150, 0, 15, name="mll"),
+                hist.axis.Regular(
+                    100, 0, 1, name="relIso", underflow=False, overflow=True
+                ),
+            ],
+            ["mll", "iso", "weight"],
+        )
+    )
+    return results, weightsum
+
     df = muon_selections.veto_electrons(df)
     df = muon_selections.apply_met_filters(df)
 
@@ -629,7 +745,7 @@ def build_graph(df, dataset):
     )
 
     # iso cut applied here, if requested, because it needs the definition of trigMuons and nonTrigMuons from muon_selections.define_trigger_muons
-    if not passIsoBoth:
+    if args.muonIsolation[0] + args.muonIsolation[1] == 1:
         df = muon_selections.apply_iso_muons(
             df, args.muonIsolation[0], args.muonIsolation[1], isoBranch, isoThreshold
         )

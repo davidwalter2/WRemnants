@@ -384,7 +384,17 @@ class Datagroups(object):
     def processScaleFactor(self, proc):
         if proc.is_data or proc.xsec is None:
             return 1
-        return self.lumi * 1000 * proc.xsec / proc.weight_sum
+        if proc.name == "JpsiToMuMu_JpsiPt8PostVFP":
+            xsec = 25000.0
+        elif proc.name == "Upsilon1SToMuMu_Pt5PostVFP":
+            xsec = 700.0
+        elif proc.name == "Upsilon2SToMuMu_Pt5PostVFP":
+            xsec = 300.0
+        elif proc.name == "Upsilon3SToMuMu_Pt5PostVFP":
+            xsec = 200.0
+        else:
+            xsec = proc.xsec
+        return self.lumi * 1000 * xsec / proc.weight_sum
 
     def getMetaInfo(self):
         if "meta_info" not in self.results and "meta_data" not in self.results:
@@ -708,7 +718,7 @@ class Datagroups(object):
                         procs.append(member.name)
         return procs
 
-    def sortByYields(self, histName, nominalName="nominal"):
+    def sortByYields(self, histName, nominalName="nominal", reverse=True):
         def get_sum(h):
             return h.sum() if not hasattr(h.sum(), "value") else h.sum().value
 
@@ -722,7 +732,7 @@ class Datagroups(object):
                     if nominalName in x[1].hists or histName in x[1].hists
                     else 0
                 ),
-                reverse=True,
+                reverse=reverse,
             )
         )
 

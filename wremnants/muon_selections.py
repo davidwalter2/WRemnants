@@ -77,9 +77,13 @@ def select_veto_muons(
         "vetoMuonsPre",
         "Muon_looseId && abs(Muon_dxybs) < 0.05 && Muon_correctedCharge != -99",
     )
+    # df = df.Define(
+    #     "Muon_isGoodGlobal",
+    #     f"Muon_isGlobal && Muon_highPurity && Muon_standalonePt > {staPtCut} && Muon_standaloneNumberOfValidHits > 0 && wrem::vectDeltaR2(Muon_standaloneEta, Muon_standalonePhi, Muon_correctedEta, Muon_correctedPhi) < 0.09",
+    # )
     df = df.Define(
         "Muon_isGoodGlobal",
-        f"Muon_isGlobal && Muon_highPurity && Muon_standalonePt > {staPtCut} && Muon_standaloneNumberOfValidHits > 0 && wrem::vectDeltaR2(Muon_standaloneEta, Muon_standalonePhi, Muon_correctedEta, Muon_correctedPhi) < 0.09",
+        f"Muon_isGlobal && Muon_highPurity",  # && Muon_standalonePt > {staPtCut} && Muon_standaloneNumberOfValidHits > 0 && wrem::vectDeltaR2(Muon_standaloneEta, Muon_standalonePhi, Muon_correctedEta, Muon_correctedPhi) < 0.09",
     )
     if useGlobalOrTrackerVeto:
         if tightGlobalOrTracker:
@@ -282,7 +286,13 @@ def select_z_candidate(
 
 
 def apply_triggermatching_muon(
-    df, dataset, muon, otherMuon=None, era="2016PostVFP", idx=0
+    df,
+    dataset,
+    muon,
+    otherMuon=None,
+    era="2016PostVFP",
+    idx=0,
+    min_pt=26,
 ):
     df = df.Define(
         "goodTrigObjs",
@@ -302,7 +312,12 @@ def apply_triggermatching_muon(
             f"{otherMuon}_passTrigger{idx}",
             f"wrem::hasTriggerMatch({otherMuon}_eta{idx},{otherMuon}_phi{idx},TrigObj_eta[goodTrigObjs],TrigObj_phi[goodTrigObjs])",
         )
-        df = df.Filter(f"{muon}_passTrigger{idx} || {otherMuon}_passTrigger{idx}")
+        df = df.Filter(
+            f"({muon}_passTrigger{idx} && {muon}_passIso{idx} && ({muon}_pt{idx} > {min_pt})) || ({otherMuon}_passTrigger{idx} && {otherMuon}_passIso{idx} && ({otherMuon}_pt{idx} > {min_pt}))"
+        )
+
+    #  && ({muon}_pt{idx} > {min_pt})
+    #  && ({otherMuon}_pt{idx} > {min_pt})
 
     return df
 
