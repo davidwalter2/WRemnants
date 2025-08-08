@@ -20,7 +20,6 @@ from wremnants import (
     muon_selections,
     pileup,
     theory_corrections,
-    theory_tools,
     vertex,
 )
 from wremnants.datasets.dataset_tools import getDatasets
@@ -75,16 +74,16 @@ axis_eta = hist.axis.Regular(
     template_mineta,
     template_maxeta,
     name="eta",
-    overflow=False,
-    underflow=False,
+    overflow=True,
+    underflow=True,
 )
 axis_pt = hist.axis.Regular(
     template_npt,
     template_minpt,
     template_maxpt,
     name="pt",
-    overflow=False,
-    underflow=False,
+    overflow=True,
+    underflow=True,
 )
 axis_charge = common.axis_charge
 axis_passVeto = hist.axis.Boolean(name="passVeto")
@@ -169,55 +168,65 @@ def build_graph(df, dataset):
     # gen match to bare muons to select only prompt muons from MC processes, but also including tau decays
     # status flags in NanoAOD: https://cms-nanoaod-integration.web.cern.ch/autoDoc/NanoAODv9/2016ULpostVFP/doc_TTToSemiLeptonic_TuneCP5_13TeV-powheg-pythia8_RunIISummer20UL16NanoAODv9-106X_mcRun2_asymptotic_v17-v1.html
     postFSRmuonDef = f"GenPart_status == 1 && (GenPart_statusFlags & 1 || GenPart_statusFlags & (1 << 5)) && abs(GenPart_pdgId) == 13 && GenPart_pt > {args.vetoGenPartPt}"
-    df = df.Define("postFSRmuons", postFSRmuonDef)
 
-    # restrict to one gen muon for simplicity
-    df = df.Filter("Sum(postFSRmuons) == 1")
-    df = muon_selections.veto_electrons(df)
-    df = muon_selections.apply_met_filters(df)
+    for sign in ("plus", "minus"):
+        # select
+        df_muon = df.Define(
+            "postFSRmuons",
+            f"{postFSRmuonDef} && GenPart_pdgId=={'13' if sign == 'plus' else '-13'}",
+        )
+        # df = df.Define("postFSRantimuons", f"{postFSRmuonDef} && GenPart_pdgId==-13")
 
-    ########################################################################
-    # define event weights here since they are needed below for some helpers
-    df = df.Define("weight_pu", pileup_helper, ["Pileup_nTrueInt"])
-    df = df.Define("weight_vtx", vertex_helper, ["GenVtx_z", "Pileup_nTrueInt"])
+        # restrict to one gen muon for simplicity
+        df_muon = df_muon.Filter("Sum(postFSRmuons) == 1")
+        # df = muon_selections.veto_electrons(df)
+        # df = muon_selections.apply_met_filters(df)
 
-    weight_expr = "weight_pu*L1PreFiringWeight_ECAL_Nom"
-    if not args.noVertexWeight:
-        weight_expr += "*weight_vtx"
+        ########################################################################
+        # # define event weights here since they are needed below for some helpers
+        # df = df.Define("weight_pu", pileup_helper, ["Pileup_nTrueInt"])
+        # df = df.Define("weight_vtx", vertex_helper, ["GenVtx_z", "Pileup_nTrueInt"])
 
-    logger.debug(f"Exp weight defined: {weight_expr}")
-    df = df.Define("exp_weight", weight_expr)
-    df = theory_tools.define_theory_weights_and_corrs(
-        df, dataset.name, corr_helpers, args
-    )
+        # weight_expr = "weight_pu*L1PreFiringWeight_ECAL_Nom"
+        # if not args.noVertexWeight:
+        #     weight_expr += "*weight_vtx"
 
-    ########################################################################
+        # logger.debug(f"Exp weight defined: {weight_expr}")
+        # df = df.Define("exp_weight", weight_expr)
+        # df = theory_tools.define_theory_weights_and_corrs(
+        #     df, dataset.name, corr_helpers, args
+        # )
 
-    df = df.Define("postFSRmuon_pt0", "GenPart_pt[postFSRmuons][0]")
-    df = df.Define("postFSRmuon_eta0", "GenPart_eta[postFSRmuons][0]")
-    df = df.Define("postFSRmuon_phi0", "GenPart_phi[postFSRmuons][0]")
-    df = df.Define(
-        "postFSRmuon_charge0", "-1 * std::copysign(1.0, GenPart_pdgId[postFSRmuons][0])"
-    )
+        ########################################################################
 
-    df = muon_selections.select_veto_muons(
-        df,
-        nMuons=0,
-        condition=">=",
-        ptCut=args.vetoRecoPt,
-        etaCut=3.0,
-        useGlobalOrTrackerVeto=False,
-        tightGlobalOrTracker=True,
-    )
-    # might have more veto muons, but will look for at least one gen matched to the only gen muon
-    df = df.Define("oneOrMoreVetoMuons", "Sum(vetoMuons) > 0")
-    df = df.Define(
-        "passVeto",
-        "oneOrMoreVetoMuons && wrem::hasMatchDR2(postFSRmuon_eta0,postFSRmuon_phi0,Muon_eta[vetoMuons],Muon_phi[vetoMuons],0.09)",
-    )
+        df_muon = df_muon.Define("postFSRmuon_pt0", "GenPart_pt[postFSRmuons][0]")
+        df_muon = df_muon.Define("postFSRmuon_eta0", "GenPart_eta[postFSRmuons][0]")
+        df_muon = df_muon.Define("postFSRmuon_phi0", "GenPart_phi[postFSRmuons][0]")
+        df_muon = df_muon.Define(
+            "postFSRmuon_charge0",
+            "-1 * std::copysign(1.0, GenPart_pdgId[postFSRmuons][0])",
+        )
 
-    nominal = df.HistoBoost("nominal", axes, [*cols, "nominal_weight"])
-    results.append(nominal)
+        df_muon = muon_selections.select_veto_muons(
+            df_muon,
+            nMuons=0,
+            condition=">=",
+            ptCut=10,  # args.vetoRecoPt,
+            etaCut=3.0,
+            useGlobalOrTrackerVeto=False,
+            tightGlobalOrTracker=True,
+        )
+        # might have more veto muons, but will look for at least one gen matched to the only gen muon
+        df_muon = df_muon.Define("oneOrMoreVetoMuons", "Sum(vetoMuons) > 0")
+        df_muon = df_muon.Define(
+            "passVeto",
+            "oneOrMoreVetoMuons && wrem::hasMatchDR2(postFSRmuon_eta0,postFSRmuon_phi0,Muon_eta[vetoMuons],Muon_phi[vetoMuons],0.09)",
+        )
+
+        nominal = df_muon.HistoBoost(
+            f"nominal_{sign}", axes, cols
+        )  # [*cols, "nominal_weight"])
+        results.append(nominal)
 
     return results, weightsum
 

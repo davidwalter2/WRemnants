@@ -663,6 +663,28 @@ if args.nToysMC > 0:
 smearing_weights_procs = []
 
 
+# for data-driven veto contribution
+import h5py
+
+from utilities.io_tools import input_tools
+from wremnants.correctionsTensor_helper import makeCorrectionsTensor
+from wums import boostHistHelpers as hh
+
+filename = "/home/submit/david_w/ceph/Unfolding/results_histmaker/250808_test_DDveto/mw_with_mu_eta_pt_VETOEFFI_scetlib_dyturboCorr_MCeff_v2.hdf5"
+h5file = h5py.File(filename, "r")
+results = input_tools.load_results_h5py(h5file)
+hp = results["ZmumuPostVFP"]["output"]["nominal_plus"].get()
+hm = results["ZmumuPostVFP"]["output"]["nominal_minus"].get()
+h1 = hh.addHists(hp, hm)
+# veto efficiency and transfer factor 1-eff = f/(p+f)
+veto_tf = (
+    h1.values(flow=True) / h1[{"passVeto": hist.sum}].values(flow=True)[..., np.newaxis]
+)
+h_veto_tf = hist.Hist(*h1.axes, storage=hist.storage.Double())
+h_veto_tf.values(flow=True)[...] = veto_tf
+veto_helper = makeCorrectionsTensor(h_veto_tf)
+
+
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
@@ -904,9 +926,142 @@ def build_graph(df, dataset):
         # remove trigger, it will be part of the efficiency selection for passing trigger
         df = df.Filter(muon_selections.hlt_string(era))
 
+    df = muon_selections.veto_electrons(df)
+    df = muon_selections.apply_met_filters(df)
+
     df = muon_calibration.define_corrected_muons(
         df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper
     )
+
+    # ---
+    # select events with 2 veto muons of which at least one is a good muon
+    df_dimuon = muon_selections.select_veto_muons(
+        df,
+        nMuons=2,
+        ptCut=args.vetoRecoPt,
+        useGlobalOrTrackerVeto=useGlobalOrTrackerVeto,
+    )
+    # opposite charge
+    df_dimuon = df_dimuon.Filter(
+        "Muon_charge[vetoMuons][0] + Muon_charge[vetoMuons][1] == 0"
+    )
+    # at least one good muon
+    df_dimuon = muon_selections.select_good_muons(
+        df_dimuon,
+        template_minpt,
+        template_maxpt,
+        dataset.group,
+        nMuons=1,
+        condition=">=",
+        use_trackerMuons=args.trackerMuons,
+        use_isolation=False,
+        nonPromptFromSV=args.selectNonPromptFromSV,
+        nonPromptFromLighMesonDecay=args.selectNonPromptFromLightMesonDecay,
+        requirePixelHits=args.requirePixelHits,
+    )
+
+    df_dimuon = df_dimuon.Define("plusMuons", "vetoMuons && Muon_charge == 1")
+    df_dimuon = df_dimuon.Define("minusMuons", "vetoMuons && Muon_charge == -1")
+
+    df_dimuon = muon_calibration.define_corrected_reco_muon_kinematics(
+        df_dimuon, muons="plusMuons", index=0
+    )
+    df_dimuon = muon_calibration.define_corrected_reco_muon_kinematics(
+        df_dimuon, muons="minusMuons", index=0
+    )
+
+    # postFSRmuonDef = f"GenPart_status == 1 && (GenPart_statusFlags & 1 || GenPart_statusFlags & (1 << 5)) && abs(GenPart_pdgId) == 13 && GenPart_pt > {args.vetoGenPartPt}"
+
+    df_dimuon = df_dimuon.Define(
+        "goodTrigObjs",
+        f"wrem::goodMuonTriggerCandidate<wrem::Era::Era_{era}>(TrigObj_id,TrigObj_filterBits)",
+    )
+    for sign, veto_sign in (
+        ("plus", "minus"),
+        ("minus", "plus"),
+    ):
+        # df_signed = df_dimuon.Define("postFSRmuons", f"{postFSRmuonDef} && GenPart_pdgId=={'13' if sign == 'plus' else '-13'}")
+
+        # events where positive (negative) muon is a good muon and passes the trigger, the negative (positive) muon is the veto muon
+        df_signed = df_dimuon.Define(f"good{sign}Muons", f"{sign}Muons && goodMuons")
+        df_signed = df_signed.Filter(
+            f"Sum(good{sign}Muons) == 1 && wrem::hasTriggerMatch({sign}Muons_eta0, {sign}Muons_phi0, TrigObj_eta[goodTrigObjs], TrigObj_phi[goodTrigObjs])"
+        )
+
+        df_signed = df_signed.Alias("goodMuons_pt0", f"{sign}Muons_pt0")
+        df_signed = df_signed.Alias("goodMuons_eta0", f"{sign}Muons_eta0")
+        df_signed = df_signed.Alias("goodMuons_phi0", f"{sign}Muons_phi0")
+        df_signed = df_signed.Alias("goodMuons_charge0", f"{sign}Muons_charge0")
+
+        df_signed = df_signed.Define(
+            "goodMuons_relIso0", f"{isoBranch}[{sign}Muons][0]"
+        )
+
+        # transfer factor is 1-veto efficiency of veto muon
+        # df_signed = df_signed.Define("pt0", "static_cast<double>(GenPart_pt[postFSRmuons][0])")
+        # df_signed = df_signed.Define("eta0", "static_cast<double>(GenPart_eta[postFSRmuons][0])")
+        # df_signed = df_signed.Define("postFSRmuon_charge0", "1" if sign == 'plus' else "-1")
+
+        df_signed = df_signed.Define(
+            "eta0", f"static_cast<double>({veto_sign}Muons_eta0)"
+        )
+        df_signed = df_signed.Define(
+            "pt0", f"static_cast<double>({veto_sign}Muons_pt0)"
+        )
+        df_signed = df_signed.Define(
+            "veto_weight_tensor",
+            veto_helper,
+            [
+                *[
+                    f"eta0",
+                    f"pt0",
+                    # f"postFSRmuon_charge0"
+                    f"{veto_sign}Muons_charge0",
+                ],
+                "weight",
+            ],
+        )
+        df_signed = df_signed.Define("nominal_weight", "veto_weight_tensor[0]")
+
+        if not args.noRecoil:
+            leps_uncorr = [
+                f"Muon_pt[{sign}Muons][0]",
+                f"Muon_eta[{sign}Muons][0]",
+                f"Muon_phi[{sign}Muons][0]",
+                f"Muon_charge[{sign}Muons][0]",
+            ]
+            leps_corr = [
+                "goodMuons_pt0",
+                "goodMuons_eta0",
+                "goodMuons_phi0",
+                "goodMuons_charge0",
+            ]
+            df_signed = recoilHelper.recoil_W(
+                df_signed,
+                results,
+                dataset,
+                common.wprocs_recoil,
+                leps_uncorr,
+                leps_corr,
+                cols_fakerate=columns_fakerate,
+                axes_fakerate=axes_fakerate,
+                mtw_min=mtw_min,
+            )  # produces corrected MET as MET_corr_rec_pt/phi
+
+        else:
+            met = "DeepMETResolutionTune" if args.met == "DeepMETReso" else args.met
+            df_signed = df_signed.Alias("MET_corr_rec_pt", f"{met}_pt")
+            df_signed = df_signed.Alias("MET_corr_rec_phi", f"{met}_phi")
+
+        df_signed = df_signed.Define(
+            "transverseMass",
+            "wrem::mt_2(goodMuons_pt0, goodMuons_phi0, MET_corr_rec_pt, MET_corr_rec_phi)",
+        )
+
+        results.append(
+            df_signed.HistoBoost(f"dimuon_{sign}", axes, [*cols, "nominal_weight"])
+        )
+    # ---
 
     df = muon_selections.select_veto_muons(
         df,
@@ -929,13 +1084,6 @@ def build_graph(df, dataset):
 
     # the corrected RECO muon kinematics, which is intended to be used as the nominal
     df = muon_calibration.define_corrected_reco_muon_kinematics(df)
-
-    df = muon_selections.select_standalone_muons(
-        df, dataset, args.trackerMuons, "goodMuons"
-    )
-
-    df = muon_selections.veto_electrons(df)
-    df = muon_selections.apply_met_filters(df)
 
     if args.makeMCefficiency:
         df = df.Define(

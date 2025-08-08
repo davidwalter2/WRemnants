@@ -1168,13 +1168,22 @@ def define_matched_reco_muon_kinematics(
 
 
 def define_corrected_reco_muon_kinematics(
-    df, muons="goodMuons", kinematic_vars=["pt", "eta", "phi", "charge"], index=0
+    df,
+    muons="goodMuons",
+    kinematic_vars=["pt", "eta", "phi", "charge"],
+    kinematic_vars_sa=["pt", "eta"],
+    index=0,
 ):
     for var in kinematic_vars:
         df = df.Define(
             f"{muons}_{var.lower()}{index}",
             f"Muon_corrected{var.capitalize()}[{muons}][{index}]",
         )
+    for var in kinematic_vars_sa:
+        df = df.Define(
+            f"{muons}_SA{var.lower()}{index}", f"Muon_SA{var.lower()}[{muons}][{index}]"
+        )
+
     return df
 
 

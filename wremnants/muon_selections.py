@@ -157,6 +157,33 @@ def select_good_muons(
     if requirePixelHits:
         goodMuonsSelection += " && Muon_cvhNValidPixelHits > 0"
 
+    if use_trackerMuons:
+        # try to use standalone variables when possible
+        df = df.Define(
+            f"Muon_SApt",
+            f"Muon_isStandalone ? Muon_standalonePt : Muon_correctedPt",
+        )
+        df = df.Define(
+            f"Muon_SAeta",
+            f"Muon_isStandalone ? Muon_standaloneEta : Muon_correctedEta",
+        )
+        df = df.Define(
+            f"Muon_SAphi",
+            f"Muon_isStandalone ? Muon_standalonePhi : Muon_correctedPhi",
+        )
+    else:
+        df = df.Define(f"Muon_SApt", f"Muon_standalonePt")
+        df = df.Define(f"Muon_SAeta", f"Muon_standaloneEta")
+        df = df.Define(f"Muon_SAphi", f"Muon_standalonePhi")
+
+    # the next cuts are mainly needed for consistency with the reco efficiency measurement for the case with global muons
+    # note, when SA does not exist this cut is still fine because of how we define these variables
+    goodMuonsSelection += f" && Muon_SApt > 15.0 && wrem::vectDeltaR2(Muon_SAeta, Muon_SAphi, Muon_correctedEta, Muon_correctedPhi) < 0.09"
+
+    nHitsSA = common.muonEfficiency_standaloneNumberOfValidHits
+    if nHitsSA > 0 and not use_trackerMuons:
+        goodMuonsSelection += f" && Muon_standaloneNumberOfValidHits >= {nHitsSA}"
+
     df = df.Define("goodMuons", goodMuonsSelection)
     if nMuons >= 0:
         df = df.Filter(f"Sum(goodMuons) {condition} {nMuons}")
@@ -314,42 +341,6 @@ def veto_electrons(df):
         "Electron_pt > 10 && Electron_cutBased > 0 && abs(Electron_eta) < 2.4 && abs(Electron_dxy) < 0.05 && abs(Electron_dz)< 0.2",
     )
     df = df.Filter("Sum(vetoElectrons) == 0")
-
-    return df
-
-
-def select_standalone_muons(
-    df, dataset, use_trackerMuons=False, muons="goodMuons", idx=0
-):
-
-    nHitsSA = common.muonEfficiency_standaloneNumberOfValidHits
-
-    if use_trackerMuons:
-        # try to use standalone variables when possible
-        df = df.Define(
-            f"{muons}_SApt{idx}",
-            f"Muon_isStandalone[{muons}][{idx}] ? Muon_standalonePt[{muons}][{idx}] : {muons}_pt{idx}",
-        )
-        df = df.Define(
-            f"{muons}_SAeta{idx}",
-            f"Muon_isStandalone[{muons}][{idx}] ? Muon_standaloneEta[{muons}][{idx}] : {muons}_eta{idx}",
-        )
-        df = df.Define(
-            f"{muons}_SAphi{idx}",
-            f"Muon_isStandalone[{muons}][{idx}] ? Muon_standalonePhi[{muons}][{idx}] : {muons}_phi{idx}",
-        )
-    else:
-        df = df.Define(f"{muons}_SApt{idx}", f"Muon_standalonePt[{muons}][{idx}]")
-        df = df.Define(f"{muons}_SAeta{idx}", f"Muon_standaloneEta[{muons}][{idx}]")
-        df = df.Define(f"{muons}_SAphi{idx}", f"Muon_standalonePhi[{muons}][{idx}]")
-
-    # the next cuts are mainly needed for consistency with the reco efficiency measurement for the case with global muons
-    # note, when SA does not exist this cut is still fine because of how we define these variables
-    df = df.Filter(
-        f"{muons}_SApt{idx} > 15.0 && wrem::deltaR2({muons}_SAeta{idx}, {muons}_SAphi{idx}, {muons}_eta{idx}, {muons}_phi{idx}) < 0.09"
-    )
-    if nHitsSA > 0 and not use_trackerMuons:
-        df = df.Filter(f"Muon_standaloneNumberOfValidHits[{muons}][{idx}] >= {nHitsSA}")
 
     return df
 

@@ -641,13 +641,6 @@ def build_graph(df, dataset):
 
     df = muon_selections.select_z_candidate(df, mass_min, mass_max)
 
-    df = muon_selections.select_standalone_muons(
-        df, dataset, args.trackerMuons, "trigMuons"
-    )
-    df = muon_selections.select_standalone_muons(
-        df, dataset, args.trackerMuons, "nonTrigMuons"
-    )
-
     if args.useDileptonTriggerSelection:
         df = muon_selections.apply_triggermatching_muon(
             df, dataset, "trigMuons", "nonTrigMuons", era=era
