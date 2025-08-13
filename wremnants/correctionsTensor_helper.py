@@ -1,8 +1,12 @@
+import hist
 import ROOT
 
 import narf
 
 narf.clingutils.Declare('#include "theory_corrections.hpp"')
+from wums import logging
+
+logger = logging.child_logger(__name__)
 
 
 def makeCorrectionsTensor(corrh, tensor=None, tensor_rank=1, tensor_weight=False):
@@ -13,6 +17,11 @@ def makeCorrectionsTensor(corrh, tensor=None, tensor_rank=1, tensor_weight=False
     The tensor rank defines the number of tensor axes.
     The event weight can be a scalar (tensor_weight=False) or a tensor itself (tensor_weight=False).
     """
+
+    if corrh.storage_type == hist.storage.Weight:
+        logger.warning(
+            "Trying to create a helper with storage 'Weight' will most likely fail!"
+        )
 
     corrhConv = narf.hist_to_pyroot_boost(corrh, tensor_rank=tensor_rank)
 
