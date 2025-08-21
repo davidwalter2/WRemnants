@@ -73,6 +73,13 @@ parser.add_argument(
     nargs="*",
     help="Filter to plot (default no filter, only specify if you want a subset",
 )
+parser.add_argument(
+    "--excludeProcs",
+    type=str,
+    nargs="*",
+    default=["QCD"],
+    help="Exclude processes to plot",
+)
 parser.add_argument("--noData", action="store_true", help="Don't plot data")
 parser.add_argument("--noFill", action="store_true", help="Don't fill")
 parser.add_argument("--noStack", action="store_true", help="Don't stack")
@@ -112,11 +119,16 @@ parser.add_argument(
 )
 parser.add_argument("--normToData", action="store_true", help="Normalize MC to data")
 parser.add_argument(
+    "--addVetoMuonBackground",
+    action="store_true",
+    help="Add veto muon background",
+)
+parser.add_argument(
     "--fakeEstimation",
     type=str,
     help="Set the mode for the fake estimation",
     default="extended1D",
-    choices=["simple", "extrapolate", "extended1D", "extended2D"],
+    choices=["none", "simple", "extrapolate", "extended1D", "extended2D"],
 )
 parser.add_argument(
     "--fakeMCCorr",
@@ -266,8 +278,11 @@ outdir = output_tools.make_plot_dir(args.outpath, args.outfolder, eoscp=args.eos
 groups = Datagroups(
     args.infile,
     filterGroups=args.procFilters,
-    excludeGroups=None if args.procFilters else ["QCD"],
+    excludeGroups=args.excludeProcs,
 )
+
+if args.addVetoMuonBackground:
+    groups.add_veto_group(args.procFilters, args.excludeProcs)
 
 if not args.fineGroups:
     if groups.mode in styles.process_supergroups:

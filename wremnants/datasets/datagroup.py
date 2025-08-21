@@ -7,11 +7,12 @@ logger = logging.child_logger(__name__)
 
 
 class Datagroup_member(object):
-    def __init__(self, name, result):
+    def __init__(self, name, result, is_veto=False):
         self.name = name
         self.xsec = result["dataset"]["xsec"]
         self.weight_sum = result["weight_sum"]
         self.is_data = result["dataset"].get("is_data", False)
+        self.is_veto = is_veto
         self.lumi = result.get("lumi", 0)
 
 

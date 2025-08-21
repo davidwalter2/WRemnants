@@ -114,7 +114,9 @@ class Datagroups(object):
 
         self.writer = None
 
-    def get_members_from_results(self, startswith=[], not_startswith=[], is_data=False):
+    def get_members_from_results(
+        self, startswith=[], not_startswith=[], endswith=[], is_data=False
+    ):
         dsets = {
             k: v for k, v in self.results.items() if type(v) == dict and "dataset" in v
         }
@@ -141,6 +143,14 @@ class Datagroups(object):
                 k: v
                 for k, v in dsets.items()
                 if not any([v["dataset"]["name"].startswith(x) for x in not_startswith])
+            }
+        if type(endswith) == str:
+            endswith = [endswith]
+        if len(endswith) > 0:
+            dsets = {
+                k: v
+                for k, v in dsets.items()
+                if any([v["dataset"]["name"].endswith(x) for x in endswith])
             }
         return dsets
 
@@ -2078,6 +2088,54 @@ class Datagroups(object):
             if phist.axes.name != self.fit_axes:
                 phist = phist.project(*self.fit_axes)
             self.writer.add_pseudodata(phist, p, self.channel)
+
+    def add_veto_group(self, procFilters=None, excludeProcs=None):
+        # add a group for data-driven veto muons background
+        logger.info("Add veto background")
+
+        # make set of veto histograms as separate group
+        original_groups = [k for k in self.results.keys() if k not in ["meta_info"]]
+        for k in original_groups:
+            for idx in (0, 1):
+                # make shallow copies
+                new_group = self.results[k].copy()
+                new_group["output"] = self.results[k]["output"].copy()
+                new_group["dataset"] = self.results[k]["dataset"].copy()
+
+                new_group["dataset"][
+                    "name"
+                ] = f"{new_group['dataset']['name']}_veto{idx}"
+
+                found_any = False
+                for name, histo in new_group["output"].items():
+                    if name.startswith(f"veto{idx}"):
+                        new_group["output"][
+                            name.replace(f"veto{idx}", "nominal")
+                        ] = histo
+                        found_any = True
+
+                if found_any:
+                    self.results[f"{k}_veto{idx}"] = new_group
+
+        members = self.get_members_from_results(endswith=[f"_veto0", "_veto1"])
+        members.update(
+            self.get_members_from_results(endswith=[f"_veto0", "_veto1"], is_data=True)
+        )
+
+        self.addGroup("Veto", members=members, scale=lambda x: 1 if x.is_data else -1)
+
+        self.setMemberOp("Veto", lambda h: h[{"mll": slice(0j, 10j, hist.sum)}])
+
+        for m in self.groups["Veto"].members:
+            m.is_veto = True
+
+        if procFilters:
+            self.filterGroups(procFilters)
+        if excludeProcs:
+            self.excludeGroups(excludeProcs)
+
+        if "Fake" in self.groups:
+            self.groups["Fake"].addMembers(self.groups["Veto"].members)
 
     @staticmethod
     def histName(baseName, procName="", syst=""):

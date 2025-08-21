@@ -664,25 +664,9 @@ smearing_weights_procs = []
 
 
 # for data-driven veto contribution
-import h5py
-
-from utilities.io_tools import input_tools
-from wremnants.correctionsTensor_helper import makeCorrectionsTensor
-from wums import boostHistHelpers as hh
-
-filename = "/home/submit/david_w/ceph/Unfolding/results_histmaker/250808_test_DDveto/mw_with_mu_eta_pt_VETOEFFI_scetlib_dyturboCorr_MCeff_v2.hdf5"
-h5file = h5py.File(filename, "r")
-results = input_tools.load_results_h5py(h5file)
-hp = results["ZmumuPostVFP"]["output"]["nominal_plus"].get()
-hm = results["ZmumuPostVFP"]["output"]["nominal_minus"].get()
-h1 = hh.addHists(hp, hm)
-# veto efficiency and transfer factor 1-eff = f/(p+f)
-veto_tf = (
-    h1.values(flow=True) / h1[{"passVeto": hist.sum}].values(flow=True)[..., np.newaxis]
+veto_helper_mc, veto_helper_data, veto_helper_data_err = (
+    muon_efficiencies_veto.make_muon_efficiency_binned_helpers_veto()
 )
-h_veto_tf = hist.Hist(*h1.axes, storage=hist.storage.Double())
-h_veto_tf.values(flow=True)[...] = veto_tf
-veto_helper = makeCorrectionsTensor(h_veto_tf)
 
 
 def build_graph(df, dataset):
@@ -935,19 +919,17 @@ def build_graph(df, dataset):
 
     # ---
     # select events with 2 veto muons of which at least one is a good muon
-    df_dimuon = muon_selections.select_veto_muons(
+    df = muon_selections.select_veto_muons(
         df,
-        nMuons=2,
+        nMuons=1,
+        condition=">=",
         ptCut=args.vetoRecoPt,
         useGlobalOrTrackerVeto=useGlobalOrTrackerVeto,
     )
-    # opposite charge
-    df_dimuon = df_dimuon.Filter(
-        "Muon_charge[vetoMuons][0] + Muon_charge[vetoMuons][1] == 0"
-    )
+
     # at least one good muon
-    df_dimuon = muon_selections.select_good_muons(
-        df_dimuon,
+    df = muon_selections.select_good_muons(
+        df,
         template_minpt,
         template_maxpt,
         dataset.group,
@@ -960,15 +942,30 @@ def build_graph(df, dataset):
         requirePixelHits=args.requirePixelHits,
     )
 
-    df_dimuon = df_dimuon.Define("plusMuons", "vetoMuons && Muon_charge == 1")
-    df_dimuon = df_dimuon.Define("minusMuons", "vetoMuons && Muon_charge == -1")
+    # df_dimuon = df_dimuon.Define("plusMuons", "vetoMuons && Muon_charge == 1")
+    # df_dimuon = df_dimuon.Define("minusMuons", "vetoMuons && Muon_charge == -1")
 
+    df_dimuon = df.Filter("Sum(vetoMuons) == 2")
     df_dimuon = muon_calibration.define_corrected_reco_muon_kinematics(
-        df_dimuon, muons="plusMuons", index=0
+        df_dimuon, muons="vetoMuons", index=0
     )
     df_dimuon = muon_calibration.define_corrected_reco_muon_kinematics(
-        df_dimuon, muons="minusMuons", index=0
+        df_dimuon, muons="vetoMuons", index=1
     )
+
+    df_dimuon = df_dimuon.Define(
+        f"vetoMuons_mom40",
+        f"ROOT::Math::PtEtaPhiMVector(vetoMuons_pt0, vetoMuons_eta0, vetoMuons_phi0, wrem::muon_mass)",
+    )
+    df_dimuon = df_dimuon.Define(
+        f"vetoMuons_mom41",
+        f"ROOT::Math::PtEtaPhiMVector(vetoMuons_pt1, vetoMuons_eta1, vetoMuons_phi1, wrem::muon_mass)",
+    )
+    df_dimuon = df_dimuon.Define(
+        "ll_mom4",
+        f"ROOT::Math::PxPyPzEVector(vetoMuons_mom40)+ROOT::Math::PxPyPzEVector(vetoMuons_mom41)",
+    )
+    df_dimuon = df_dimuon.Define("mll", "ll_mom4.mass()")
 
     # postFSRmuonDef = f"GenPart_status == 1 && (GenPart_statusFlags & 1 || GenPart_statusFlags & (1 << 5)) && abs(GenPart_pdgId) == 13 && GenPart_pt > {args.vetoGenPartPt}"
 
@@ -976,68 +973,83 @@ def build_graph(df, dataset):
         "goodTrigObjs",
         f"wrem::goodMuonTriggerCandidate<wrem::Era::Era_{era}>(TrigObj_id,TrigObj_filterBits)",
     )
-    for sign, veto_sign in (
-        ("plus", "minus"),
-        ("minus", "plus"),
+
+    if dataset.is_data:
+        veto_helper = veto_helper_data
+    else:
+        veto_helper = veto_helper_mc
+
+    for idx, odx in (
+        (0, 1),
+        (1, 0),
     ):
-        # df_signed = df_dimuon.Define("postFSRmuons", f"{postFSRmuonDef} && GenPart_pdgId=={'13' if sign == 'plus' else '-13'}")
 
-        # events where positive (negative) muon is a good muon and passes the trigger, the negative (positive) muon is the veto muon
-        df_signed = df_dimuon.Define(f"good{sign}Muons", f"{sign}Muons && goodMuons")
-        df_signed = df_signed.Filter(
-            f"Sum(good{sign}Muons) == 1 && wrem::hasTriggerMatch({sign}Muons_eta0, {sign}Muons_phi0, TrigObj_eta[goodTrigObjs], TrigObj_phi[goodTrigObjs])"
+        # check one veto muon if it's a good muon and matched to the trigger
+        df_muon = df_dimuon.Filter(
+            f"goodMuons[vetoMuons][{idx}] && wrem::hasTriggerMatch(vetoMuons_eta{idx}, vetoMuons_phi{idx}, TrigObj_eta[goodTrigObjs], TrigObj_phi[goodTrigObjs])"
+        )
+        if isQCDMC:
+            # we only want real nonprompt muons, i.e. not from a dimuon resonance (Y, J/Psi, ...)
+            postFSRmuonDef = (
+                f"GenPart_status == 1 && abs(GenPart_pdgId) == 13 && GenPart_pt > 10"
+            )
+            df_muon = df_muon.Define("postFSRQCDmuons", postFSRmuonDef)
+            df_muon = df_muon.Filter(
+                "Sum(postFSRQCDmuons) == 2 && (GenPart_pdgId[postFSRQCDmuons][0] + GenPart_pdgId[postFSRQCDmuons][1] == 0)"
+            )
+
+            df_muon = df_muon.Define(
+                "postFSRmuon_motherIdx0",
+                "wrem::get_mother_idx(GenPart_genPartIdxMother[postFSRQCDmuons][0], GenPart_pdgId[postFSRQCDmuons][0], GenPart_pdgId, GenPart_genPartIdxMother)",
+            )
+            df_muon = df_muon.Define(
+                "postFSRmuon_motherIdx1",
+                "wrem::get_mother_idx(GenPart_genPartIdxMother[postFSRQCDmuons][1], GenPart_pdgId[postFSRQCDmuons][1], GenPart_pdgId, GenPart_genPartIdxMother)",
+            )
+
+            df_muon = df_muon.Define(
+                "postFSRmuon_mother", "GenPart_pdgId[postFSRmuon_motherIdx0]"
+            )
+            df_muon = df_muon.Filter(
+                """
+                postFSRmuon_motherIdx0 != postFSRmuon_motherIdx1 
+                || postFSRmuon_motherIdx0 == -1 || postFSRmuon_motherIdx1 == -1 
+                || (
+                    (postFSRmuon_mother != 22) && (postFSRmuon_mother != 23) && (postFSRmuon_mother != 443) && (postFSRmuon_mother != 553) && (postFSRmuon_mother != 100553) && (postFSRmuon_mother != 200553)
+                )
+                """
+            )
+        elif not dataset.is_data:
+            df_muon = theory_tools.define_postfsr_vars(df_muon)
+
+            # df_muon = df_muon.Filter(
+            #     f"wrem::hasMatchDR2(vetoMuons_eta{idx},vetoMuons_eta{idx},GenPart_eta[postfsrMuons],GenPart_phi[postfsrMuons],0.09)"
+            # )
+            df_muon = df_muon.Filter(
+                f"wrem::hasMatchDR2(vetoMuons_eta{odx},vetoMuons_phi{odx},GenPart_eta[postfsrMuons],GenPart_phi[postfsrMuons],0.09)==0"
+            )
+
+        df_muon = df_muon.Define(
+            f"vetoMuons_relIso{idx}", f"{isoBranch}[vetoMuons][{idx}]"
         )
 
-        df_signed = df_signed.Alias("goodMuons_pt0", f"{sign}Muons_pt0")
-        df_signed = df_signed.Alias("goodMuons_eta0", f"{sign}Muons_eta0")
-        df_signed = df_signed.Alias("goodMuons_phi0", f"{sign}Muons_phi0")
-        df_signed = df_signed.Alias("goodMuons_charge0", f"{sign}Muons_charge0")
-
-        df_signed = df_signed.Define(
-            "goodMuons_relIso0", f"{isoBranch}[{sign}Muons][0]"
-        )
-
-        # transfer factor is 1-veto efficiency of veto muon
-        # df_signed = df_signed.Define("pt0", "static_cast<double>(GenPart_pt[postFSRmuons][0])")
-        # df_signed = df_signed.Define("eta0", "static_cast<double>(GenPart_eta[postFSRmuons][0])")
-        # df_signed = df_signed.Define("postFSRmuon_charge0", "1" if sign == 'plus' else "-1")
-
-        df_signed = df_signed.Define(
-            "eta0", f"static_cast<double>({veto_sign}Muons_eta0)"
-        )
-        df_signed = df_signed.Define(
-            "pt0", f"static_cast<double>({veto_sign}Muons_pt0)"
-        )
-        df_signed = df_signed.Define(
-            "veto_weight_tensor",
-            veto_helper,
-            [
-                *[
-                    f"eta0",
-                    f"pt0",
-                    # f"postFSRmuon_charge0"
-                    f"{veto_sign}Muons_charge0",
-                ],
-                "weight",
-            ],
-        )
-        df_signed = df_signed.Define("nominal_weight", "veto_weight_tensor[0]")
+        df_muon = df_muon.Define("nominal_weight", "weight")
 
         if not args.noRecoil:
             leps_uncorr = [
-                f"Muon_pt[{sign}Muons][0]",
-                f"Muon_eta[{sign}Muons][0]",
-                f"Muon_phi[{sign}Muons][0]",
-                f"Muon_charge[{sign}Muons][0]",
+                f"Muon_pt[vetoMuons][{idx}]",
+                f"Muon_eta[vetoMuons][{idx}]",
+                f"Muon_phi[vetoMuons][{idx}]",
+                f"Muon_charge[vetoMuons][{idx}]",
             ]
             leps_corr = [
-                "goodMuons_pt0",
-                "goodMuons_eta0",
-                "goodMuons_phi0",
-                "goodMuons_charge0",
+                f"vetoMuons_pt{idx}",
+                f"vetoMuons_eta{idx}",
+                f"vetoMuons_phi{idx}",
+                f"vetoMuons_charge{idx}",
             ]
-            df_signed = recoilHelper.recoil_W(
-                df_signed,
+            df_muon = recoilHelper.recoil_W(
+                df_muon,
                 results,
                 dataset,
                 common.wprocs_recoil,
@@ -1050,39 +1062,127 @@ def build_graph(df, dataset):
 
         else:
             met = "DeepMETResolutionTune" if args.met == "DeepMETReso" else args.met
-            df_signed = df_signed.Alias("MET_corr_rec_pt", f"{met}_pt")
-            df_signed = df_signed.Alias("MET_corr_rec_phi", f"{met}_phi")
+            df_muon = df_muon.Alias("MET_corr_rec_pt", f"{met}_pt")
+            df_muon = df_muon.Alias("MET_corr_rec_phi", f"{met}_phi")
 
-        df_signed = df_signed.Define(
+        df_muon = df_muon.Define(
             "transverseMass",
-            "wrem::mt_2(goodMuons_pt0, goodMuons_phi0, MET_corr_rec_pt, MET_corr_rec_phi)",
+            "wrem::mt_2(vetoMuons_pt0, vetoMuons_phi0, MET_corr_rec_pt, MET_corr_rec_phi)",
         )
 
+        axis_veto_charge = hist.axis.Regular(
+            2, -2.0, 2.0, underflow=False, overflow=False, name="veto_charge"
+        )
+        axis_veto_eta = hist.axis.Regular(
+            48, -2.4, 2.4, name="veto_eta", overflow=True, underflow=True
+        )
+        axis_veto_pt = hist.axis.Regular(
+            45, 15, 60, name="veto_pt", overflow=True, underflow=True
+        )
+        axis_dimuon_mass = hist.axis.Regular(
+            60, 0, 60, name="mll", overflow=True, underflow=True
+        )
+        cols_veto = [
+            c.replace("good", "veto")[:-1] + f"{idx}" if "good" in c else c
+            for c in cols
+        ]
         results.append(
-            df_signed.HistoBoost(f"dimuon_{sign}", axes, [*cols, "nominal_weight"])
+            df_muon.HistoBoost(
+                f"dimuon_{idx}",
+                [*axes, axis_veto_charge, axis_veto_eta, axis_veto_pt],
+                [
+                    *cols_veto,
+                    f"vetoMuons_charge{odx}",
+                    f"vetoMuons_eta{odx}",
+                    f"vetoMuons_pt{odx}",
+                    "nominal_weight",
+                ],
+            )
         )
-    # ---
+        results.append(
+            df_muon.HistoBoost(
+                f"dimuon_mass{idx}",
+                [*axes, axis_veto_charge, axis_dimuon_mass],
+                [*cols_veto, f"vetoMuons_charge{odx}", "mll", "nominal_weight"],
+            )
+        )
 
-    df = muon_selections.select_veto_muons(
-        df,
-        nMuons=1,
-        ptCut=args.vetoRecoPt,
-        useGlobalOrTrackerVeto=useGlobalOrTrackerVeto,
-    )
-    df = muon_selections.select_good_muons(
-        df,
-        template_minpt,
-        template_maxpt,
-        dataset.group,
-        nMuons=1,
-        use_trackerMuons=args.trackerMuons,
-        use_isolation=False,
-        nonPromptFromSV=args.selectNonPromptFromSV,
-        nonPromptFromLighMesonDecay=args.selectNonPromptFromLightMesonDecay,
-        requirePixelHits=args.requirePixelHits,
-    )
+        # transfer factor is 1-eff/eff of veto muon
+        df_muon = df_muon.Define(
+            f"trk_pt{odx}", f"static_cast<double>(Muon_pt[vetoMuons][{odx}])"
+        )
+        df_muon = df_muon.Define(
+            f"trk_eta{odx}", f"static_cast<double>(Muon_eta[vetoMuons][{odx}])"
+        )
+        df_muon = df_muon.Define(f"trk_charge{odx}", f"Muon_charge[{odx}]")
+
+        df_muon = df_muon.Define(
+            f"sa_pt{odx}", f"static_cast<double>(Muon_standalonePt[vetoMuons][{odx}])"
+        )
+        df_muon = df_muon.Define(
+            f"sa_eta{odx}", f"static_cast<double>(Muon_standaloneEta[vetoMuons][{odx}])"
+        )
+        df_muon = df_muon.Define(f"sa_charge{odx}", f"Muon_charge[vetoMuons][{odx}]")
+
+        df_muon = df_muon.Define(
+            f"eff_reco_weight{idx}_tensor",
+            veto_helper["reco"],
+            [
+                f"trk_charge{odx}",
+                f"trk_eta{odx}",
+                f"trk_pt{odx}",
+                "unity",
+            ],
+        )
+        df_muon = df_muon.Define(
+            f"eff_id_weight{idx}_tensor",
+            veto_helper["id"],
+            [
+                f"trk_charge{odx}",
+                f"trk_eta{odx}",
+                f"trk_pt{odx}",
+                "unity",
+            ],
+        )
+        df_muon = df_muon.Define(
+            f"eff_track_weight{idx}_tensor",
+            veto_helper["track"],
+            [
+                f"sa_charge{odx}",
+                f"sa_eta{odx}",
+                f"sa_pt{odx}",
+                "unity",
+            ],
+        )
+        df_muon = df_muon.Define(
+            f"eff_weight{idx}",
+            f"eff_reco_weight{idx}_tensor[0] * eff_id_weight{idx}_tensor[0] * eff_track_weight{idx}_tensor[0]",
+        )
+        df_muon = df_muon.Define(
+            f"anti_veto_weight{idx}", f"(1 - eff_weight{idx})/eff_weight{idx}"
+        )
+
+        axis_dimuon_mass = hist.axis.Variable(
+            np.array([0, 10, 50]), name="mll", overflow=True, underflow=False
+        )
+        results.append(
+            df_muon.HistoBoost(
+                f"veto{idx}",
+                [*axes, axis_dimuon_mass],
+                [
+                    f"vetoMuons_eta{idx}",
+                    f"vetoMuons_pt{idx}",
+                    f"vetoMuons_charge{idx}",
+                    "transverseMass",
+                    f"vetoMuons_relIso{idx}",
+                    "mll",
+                    f"anti_veto_weight{idx}",
+                ],
+            )
+        )
 
     # the corrected RECO muon kinematics, which is intended to be used as the nominal
+    df = df.Filter("Sum(vetoMuons) == 1")
     df = muon_calibration.define_corrected_reco_muon_kinematics(df)
 
     if args.makeMCefficiency:

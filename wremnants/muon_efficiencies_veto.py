@@ -1,10 +1,13 @@
 import boost_histogram as bh
 import hist
+import numpy as np
 import ROOT
 
 import narf
 from utilities import common
 from utilities.io_tools import input_tools
+from wremnants.correctionsTensor_helper import makeCorrectionsTensor
+from wums import boostHistHelpers as hh
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -15,6 +18,7 @@ data_dir = common.data_dir
 
 
 def make_muon_efficiency_helpers_veto(useGlobalOrTrackerVeto=False, era=None):
+    # helper for scale factors
 
     logger.debug("Make efficiency helper veto")
 
@@ -194,3 +198,93 @@ def make_muon_efficiency_helpers_veto(useGlobalOrTrackerVeto=False, era=None):
     helper_stat.tensor_axes = effStatTensorAxes
 
     return helper, helper_syst, helper_stat
+
+
+def make_muon_efficiency_binned_helpers_veto():
+    # helper for absolute efficiencies, binned
+
+    axis_dummy = hist.axis.Regular(1, 0, 2, underflow=False, overflow=False, name="var")
+    base_dir = f"{common.data_dir}/muonSF/efficiencies_GtoH/"
+
+    def make_efficiency_hist(eff):
+        infile_p = f"{base_dir}/mu_{eff}_plus.txt"
+        infile_m = f"{base_dir}/mu_{eff}_minus.txt"
+
+        import pandas as pd
+
+        def read_file(infile):
+            with open(infile) as f:
+                var1_name = f.readline().split(":")[1].strip()
+                var2_name = f.readline().split(":")[1].strip()
+
+            df = pd.read_csv(infile, sep="\t", skiprows=2, engine="python")
+            df.columns = df.columns.str.strip()
+            df = df.apply(pd.to_numeric, errors="raise")
+
+            var1_edges = np.array(sorted(set(df["var1min"]).union(df["var1max"])))
+            var2_edges = np.array(sorted(set(df["var2min"]).union(df["var2max"])))
+
+            def make_hist(colname):
+                h = hist.Hist(
+                    hist.axis.Variable(var1_edges, name=var1_name),
+                    hist.axis.Variable(var2_edges, name=var2_name),
+                    storage=hist.storage.Double(),
+                )
+                # Fill manually from bins
+                for _, row in df.iterrows():
+                    h.fill(
+                        **{
+                            var1_name: 0.5 * (row["var1min"] + row["var1max"]),
+                            var2_name: 0.5 * (row["var2min"] + row["var2max"]),
+                        },
+                        weight=row[colname],
+                    )
+                return h
+
+            h_eff_mc = make_hist("eff mc")
+            h_eff_data = make_hist("eff data")
+            h_err_data = make_hist("err data")
+
+            return h_eff_mc, h_eff_data, h_err_data
+
+        hp_mc, hp_data, hp_data_err = read_file(infile_p)
+        hm_mc, hm_data, hm_data_err = read_file(infile_m)
+
+        h_effs = {}
+        for key, hp, hm in (
+            ("mc", hp_mc, hm_mc),
+            ("data", hp_data, hm_data),
+            ("data_err", hp_data_err, hm_data_err),
+        ):
+
+            h_eff = hist.Hist(
+                common.axis_charge,
+                *hp.axes,
+                axis_dummy,
+                storage=hist.storage.Double(),
+                data=np.stack([hp.values(flow=True), hm.values(flow=True)], axis=0)[
+                    ..., np.newaxis
+                ],
+            )
+
+            # set flow bins to nearest bins
+            h_eff = hh.set_flow(h_eff)
+            h_effs[key] = h_eff
+
+        return h_effs
+
+    effs_id = make_efficiency_hist("newveto")
+    effs_reco = make_efficiency_hist("reco")
+    effs_track = make_efficiency_hist("tracking")
+
+    eff_helper = []
+    for key in ["mc", "data", "data_err"]:
+        eff_helper.append(
+            {
+                "id": makeCorrectionsTensor(effs_id[key]),
+                "reco": makeCorrectionsTensor(effs_reco[key]),
+                "track": makeCorrectionsTensor(effs_track[key]),
+            }
+        )
+    # return [helper_mc, helper_data, helper_data_stat]
+    return eff_helper

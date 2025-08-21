@@ -85,7 +85,7 @@ def make_datagroups_2016(
                 for sublist in [v.members for k, v in dg.groups.items() if k != "QCD"]
                 for member in sublist
             ],
-            scale=lambda x: 1.0 if x.is_data else -1,
+            scale=lambda x: (1 if x.is_data else -1) * (-1 if x.is_veto else 1),
         )
         dg.filterGroups(filterGroups)
         dg.excludeGroups(excludeGroups)

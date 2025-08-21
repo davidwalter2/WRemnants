@@ -35,7 +35,7 @@ process_colors = {
     "Z": "#5790FC",
     "Zll": "#5790FC",
     "Zee": "#5790FC",
-    "Ztautau": "#964a8b",
+    "Ztautau": "#6d115f",
     "Wmunu": "#E42536",
     "Wenu": "#E42536",
     "Wtaunu": "#F89C20",
@@ -50,6 +50,7 @@ process_colors = {
     "Fake_e": "#964A8B",
     "Fake_mu": "#964A8B",
     "Prompt": "#E42536",
+    "Veto": "#8F8F8F",
 }
 
 process_supergroups = {
@@ -73,6 +74,7 @@ process_supergroups = {
         "Z": ["Ztautau", "Zmumu", "DYlowMass"],
         "Fake": ["Fake"],
         "Rare": ["PhotonInduced", "Top", "Diboson"],
+        "Veto": ["Veto"],
     },
     "z_dilepton": {
         "Zmumu": ["Zmumu"],
@@ -106,6 +108,7 @@ process_labels = {
     "Fake_e": "Nonprompt (e)",
     "Fake_mu": r"Nonprompt ($\mu$)",
     "Prompt": "Prompt",
+    "Veto": "Veto",
 }
 
 axis_labels = {
@@ -725,6 +728,7 @@ def get_labels_colors_procs_sorted(procs):
         "PhotonInduced",
         "Prompt",
         "Rare",
+        "Veto",
     ][::-1]
 
     cmap = cm.get_cmap("tab10")
