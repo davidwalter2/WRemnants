@@ -109,6 +109,38 @@ prefsrLeptons(const ROOT::VecOps::RVec<int> &status,
   return out;
 }
 
+// Find the mother of a gen particle that has a different PDG ID than the
+// initial one
+int get_mother_idx(const int mother_idx, const int pdgId,
+                   const ROOT::VecOps::RVec<int> &pdgIds,
+                   const ROOT::VecOps::RVec<int> &motherIdxs) {
+
+  if (mother_idx == -1) {
+    // No mother
+    // std::cout<<"No mother found!"<<std::endl;
+    return -1;
+  }
+  const int new_mother_idx = motherIdxs[mother_idx];
+
+  if (mother_idx == new_mother_idx) {
+    // Same index, this should not happen
+    std::cout << "WARNING! Idx and mother idx are the same, return -1!"
+              << std::endl;
+    return -1;
+  }
+
+  if (pdgIds[mother_idx] != pdgId) {
+    // Found the mother
+    // std::cout<<"Found mother, idx="<<mother_idx<<"|
+    // pdgId="<<pdgIds[mother_idx]<<std::endl;
+    return mother_idx;
+  } else {
+    // The mother is the same particle, go read up the tree
+    return get_mother_idx(motherIdxs[mother_idx], pdgIds[mother_idx], pdgIds,
+                          motherIdxs);
+  }
+}
+
 constexpr size_t NHELICITY = 9;
 using helicity_tensor = Eigen::TensorFixedSize<double, Eigen::Sizes<NHELICITY>>;
 
