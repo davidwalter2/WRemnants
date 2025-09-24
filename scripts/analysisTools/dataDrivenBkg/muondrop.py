@@ -193,47 +193,63 @@ def plot(ho, hp, hprob=None, name="", xlabel=None):
 # hpred = [hpred0, hpred1]
 
 
-def loadHist(sample, name):
+def loadHist(sample, name, pdgId=None):
     lumi = 16.8 * 1000
     h = results[sample]["output"][name].get()
     scale = results[sample]["dataset"]["xsec"] * lumi / results[sample]["weight_sum"]
     h = hh.scaleHist(h, scale)
+    if pdgId is not None:
+        h = h[{"pdgid": complex(0, pdgId)}]
     return h
 
 
+# import pdb
+# pdb.set_trace()
+
 # get histograms for muon anti-veto method
 for sample in [
-    "ZmumuPostVFP",
+    ("QCDmuEnrichPt15PostVFP", 22),
+    ("QCDmuEnrichPt15PostVFP", 23),
+    ("QCDmuEnrichPt15PostVFP", 443),
+    ("QCDmuEnrichPt15PostVFP", 553),
     "DYJetsToMuMuMass10to50PostVFP",
-    "QCDmuEnrichPt15PostVFP",
+    "ZmumuPostVFP",
 ]:
-    ho = loadHist(sample, "veto_met")
-    hp = loadHist(sample, "pred_veto_met0")
-    hm = loadHist(sample, "pred_veto_met1")
+    if not isinstance(sample, str):
+        pdgId = sample[1]
+        sample = sample[0]
+        suffix = f"_pdg{pdgId}"
+    else:
+        pdgd = None
+        suffix = ""
+
+    ho = loadHist(sample, "veto_met", pdgId)
+    hp = loadHist(sample, "pred_veto_met0", pdgId)
+    hm = loadHist(sample, "pred_veto_met1", pdgId)
 
     plot(
         ho[{"charge": 1}].project("pt"),
         hp.project("pt"),
-        name=f"{sample}_veto_pt_plus",
+        name=f"{sample}{suffix}_veto_pt_plus",
         xlabel="pt",
     )
     plot(
         ho[{"charge": 0}].project("pt"),
         hm.project("pt"),
-        name=f"{sample}_veto_pt_minus",
+        name=f"{sample}{suffix}_veto_pt_minus",
         xlabel="pt",
     )
 
     plot(
         ho[{"charge": 1}].project("eta"),
         hp.project("eta"),
-        name=f"{sample}_veto_eta_plus",
+        name=f"{sample}{suffix}_veto_eta_plus",
         xlabel="eta",
     )
     plot(
         ho[{"charge": 0}].project("eta"),
         hm.project("eta"),
-        name=f"{sample}_veto_eta_minus",
+        name=f"{sample}{suffix}_veto_eta_minus",
         xlabel="eta",
     )
 
@@ -254,8 +270,8 @@ for sample in [
         binwnorm=1.0,
     )
 
-    plot(h1op, h1p, name=f"{sample}_veto_plus")
-    plot(h1om, h1m, name=f"{sample}_veto_minus")
+    plot(h1op, h1p, name=f"{sample}{suffix}_veto_plus")
+    plot(h1om, h1m, name=f"{sample}{suffix}_veto_minus")
 
 
 # get histograms for muon drop method
