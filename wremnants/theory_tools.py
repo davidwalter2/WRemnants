@@ -55,7 +55,7 @@ pdfMap = {
         "entries": 101,
         "alphas": ["LHEPdfWeight[0]", "LHEPdfWeight[101]", "LHEPdfWeight[102]"],
         "alphasRange": "002",
-        "inflation_factor_wmass": 2.5,
+        "inflation_factor_wmass": 3.0,
         "inflation_factor_alphaS": 3.5,
     },
     "ct18": {
@@ -98,7 +98,7 @@ pdfMap = {
             "LHEPdfWeightAltSet3[52]",
         ],
         "alphasRange": "001",
-        "inflation_factor_wmass": 4.0,
+        "inflation_factor_wmass": 5.0,
         "inflation_factor_alphaS": 5.0,
     },
     "pdf4lhc21": {

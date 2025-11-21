@@ -301,6 +301,8 @@ class Datagroups(object):
                 fakeselector = sel.FakeSelectorSimultaneousABCD
             else:
                 fakeselector = sel.FakeSelectorSimpleABCD
+        elif mode == "mc":
+            pass
         else:
             raise RuntimeError(f"Unknown mode {mode} for fakerate estimation")
         if forceGlobalScaleFakes is not None:
@@ -312,7 +314,7 @@ class Datagroups(object):
                 raise RuntimeError(f"No member found for group {g}")
             base_member = members[0].name
             h = self.results[base_member]["output"][histToRead].get()
-            if g in fake_processes:
+            if g in fake_processes and mode.lower() != "mc":
                 self.groups[g].histselector = fakeselector(
                     h,
                     global_scalefactor=scale,
@@ -762,6 +764,7 @@ class Datagroups(object):
             self.loadHistsForDatagroups(
                 refname,
                 syst=name,
+                label=rename,
                 excludeProcs=exclude,
                 procsToRead=procsToRead,
                 **kwargs,
@@ -769,6 +772,7 @@ class Datagroups(object):
 
         if not rename:
             rename = name
+
         self.addGroup(
             rename,
             label=label,
@@ -778,7 +782,7 @@ class Datagroups(object):
         tosum = []
         procs = procsToRead if procsToRead else self.groups.keys()
         for proc in filter(lambda x: x not in exclude + [rename], procs):
-            h = self.groups[proc].hists[name]
+            h = self.groups[proc].hists[rename if reload else name]
             if not h:
                 raise ValueError(
                     f"Failed to find hist for proc {proc}, histname {name}"

@@ -66,6 +66,11 @@ parser.add_argument(
     help="Remove auxiliary histograms to save memory (removed by default with --unfolding or --theoryAgnostic)",
 )
 parser.add_argument(
+    "--fineMtBinning",
+    action="store_true",
+    help="Use finer binning for the transverse mass axis of the nominal histogram",
+)
+parser.add_argument(
     "--mtCut",
     type=int,
     default=common.get_default_mtcut(analysis_label),
@@ -293,7 +298,9 @@ axis_fakes_pt = hist.axis.Variable(
 )
 
 axis_mtCat = hist.axis.Variable(
-    common.get_binning_fakes_mt(mtw_min, high_mt_bins=False),
+    common.get_binning_fakes_mt(
+        mtw_min, high_mt_bins=False, fine_mt_binning=args.fineMtBinning
+    ),
     name="mt",
     underflow=False,
     overflow=True,
@@ -305,6 +312,7 @@ axis_isoCat = hist.axis.Variable(
     overflow=True,
 )
 axes_abcd = [axis_mtCat, axis_isoCat]
+
 axis_ut_analysis = hist.axis.Regular(
     2, -2, 2, underflow=False, overflow=False, name="utAngleSign"
 )  # used only to separate positive/negative uT for now

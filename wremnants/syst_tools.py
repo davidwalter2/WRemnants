@@ -61,6 +61,14 @@ def syst_transform_map(base_hist, hist_name):
             for pdf in pdfNames
         }
     )
+    transforms["nonpromptQCDNormUp"] = {
+        "action": lambda h: h.copy() * 1.11,
+        "procs": ["QCDmuEnrichPt15PostVFP"],
+    }
+    transforms["nonpromptQCDNormDown"] = {
+        "action": lambda h: h.copy() * 0.89,
+        "procs": ["QCDmuEnrichPt15PostVFP"],
+    }
     transforms["scetlib_dyturboMSHT20Up"] = {
         "action": lambda h: pdfUnc(h, "pdfMSHT20", "vars")[0],
         "procs": common.vprocs_all,

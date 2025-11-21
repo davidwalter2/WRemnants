@@ -43,13 +43,6 @@ class TheoryHelper(object):
         corr_hists = self.datagroups.args_from_metadata("theoryCorr")
         self.corr_hist_name = (corr_hists[0] + "Corr") if corr_hists else None
 
-        # Special case for dataPtll corr
-        if "data" in self.corr_hist_name and "scetlib_dyturbo" in corr_hists:
-            logger.warning(
-                f"Using uncertainties from scetlib_dyturboCorr for corr {self.corr_hist_name}"
-            )
-            self.corr_hist_name = "scetlib_dyturboCorr"
-
         self.syst_ax = "vars"
         self.corr_hist = None
         self.resumUnc = None
@@ -61,6 +54,8 @@ class TheoryHelper(object):
         self.helicity_fit_unc = False
         self.args = args
         self.label = label
+        # self.correlate_fo_scale = False
+        self.correlate_fo_scale = False
 
     def sample_label(self, sample_group):
         if sample_group not in self.datagroups.procGroups:
@@ -87,8 +82,9 @@ class TheoryHelper(object):
         scale_pdf_unc=-1.0,
         minnlo_unc="byHelicityPt",
         minnlo_scale=1.0,
-        minnlo_symmetrize="quadratic",
         from_hels=False,
+        theory_symmetrize="quadratic",
+        pdf_symmetrize="quadratic",
     ):
 
         self.set_resum_unc_type(resumUnc)
@@ -106,10 +102,11 @@ class TheoryHelper(object):
         self.samples = samples
         self.helicity_fit_unc = False
         self.minnlo_scale = minnlo_scale
-        self.minnlo_symmetrize = (
-            None if minnlo_symmetrize.lower() == "none" else minnlo_symmetrize
-        )
         self.from_hels = from_hels
+
+        convert_none = lambda x: x if x.lower() != "none" else None
+        self.theory_symmetrize = convert_none(theory_symmetrize)
+        self.pdf_symmetrize = convert_none(pdf_symmetrize)
 
     def add_all_theory_unc(self, helicity_fit_unc=False):
         self.helicity_fit_unc = helicity_fit_unc
@@ -145,10 +142,14 @@ class TheoryHelper(object):
                 "Cannot add resummation uncertainties. No theory correction was applied!"
             )
 
-        if self.datagroups.args_from_metadata("theoryCorrAltOnly"):
-            raise ValueError(
-                "The theory correction was only applied as an alternate hist. Using it for systs isn't well defined!"
-            )
+        # For backwards compatibility with some unblinding files that didn't have this option
+        try:
+            if self.datagroups.args_from_metadata("theoryCorrAltOnly"):
+                raise ValueError(
+                    "The theory correction was only applied as an alternate hist. Using it for systs isn't well defined!"
+                )
+        except IOError as e:
+            logger.warning(e)
 
         signal_samples = self.datagroups.procGroups["signal_samples"]
         self.corr_hist = self.datagroups.getHistsForProcAndSyst(
@@ -204,7 +205,7 @@ class TheoryHelper(object):
                             helicities_to_exclude=range(0, 8),
                             pt_min=27.0,
                             scale=self.minnlo_scale,
-                            symmetrize=self.minnlo_symmetrize,
+                            symmetrize=self.theory_symmetrize,
                         )
         elif "scale" in self.resumUnc:
             self.add_scetlib_dyturbo_scale_uncertainty(
@@ -244,7 +245,7 @@ class TheoryHelper(object):
                             rebin_pt=fine_pt_binning,
                             helicities_to_exclude=helicities_to_exclude,
                             scale=self.minnlo_scale,
-                            symmetrize=self.minnlo_symmetrize,
+                            symmetrize=self.theory_symmetrize,
                         )
 
                     self.add_minnlo_scale_uncertainty(
@@ -253,7 +254,7 @@ class TheoryHelper(object):
                         rebin_pt=[common.ptV_binning[0], common.ptV_binning[-1]],
                         helicities_to_exclude=helicities_to_exclude,
                         scale=scale_inclusive * self.minnlo_scale,
-                        symmetrize=self.minnlo_symmetrize,
+                        symmetrize=self.theory_symmetrize,
                     )
 
     def add_minnlo_scale_uncertainty(
@@ -491,7 +492,7 @@ class TheoryHelper(object):
                     "theory_qcd",
                 ],
                 systAxes=[pt_ax, "vars"],
-                symmetrize="quadratic",
+                symmetrize=self.theory_symmetrize,
                 passToFakes=self.propagate_to_fakes,
                 preOp=preop_func,
                 preOpArgs=preop_args,
@@ -919,7 +920,6 @@ class TheoryHelper(object):
             pdf_corr_hist = (
                 f"scetlib_dyturbo{pdf.upper().replace('AN3LO', 'an3lo')}VarsCorr"
             )
-        symmetrize = "quadratic"
 
         if self.pdf_from_corr:
             theory_unc = self.datagroups.args_from_metadata("theoryCorr")
@@ -947,7 +947,7 @@ class TheoryHelper(object):
             passToFakes=self.propagate_to_fakes,
             preOpMap=operation,
             scale=pdfInfo.get("scale", 1) * scale,
-            symmetrize=symmetrize,
+            symmetrize=self.pdf_symmetrize,
             systAxes=[pdf_ax],
         )
         if self.pdf_from_corr:
@@ -998,8 +998,16 @@ class TheoryHelper(object):
             if self.corr_hist_name == "scetlib_dyturboCorr"
             else self.corr_hist_name.replace("Corr", "VarsCorr")
         )
-        symmetrize = "average" if noi else "quadratic"
         asRange = pdfInfo["alphasRange"]
+        if self.as_from_corr:
+            asname = pdf_corr_hist.replace("Vars", "_pdfas")
+            # alphaS from correction histograms only available for these sets,
+            # so fall back to CT18Z for other sets
+            if not ("MSHT20" in asname or "CT18Z" in asname or "MSHT20an3lo" in asname):
+                asname = "scetlib_dyturboCT18Z_pdfasCorr"
+                asRange = "002"
+        else:
+            asname = f"{pdfName}alphaS{asRange}"
         as_replace = (
             [("as", "pdfAlphaS")] + [("0116", "Down"), ("0120", "Up")]
             if asRange == "002"
@@ -1022,7 +1030,7 @@ class TheoryHelper(object):
             groups=[pdfName],
             systAxes=["vars" if self.as_from_corr else "alphasVar"],
             scale=(0.75 if asRange == "002" else 1.5) * scale,
-            symmetrize=symmetrize,
+            symmetrize="average" if noi else self.pdf_symmetrize,
             passToFakes=self.propagate_to_fakes,
         )
         if not noi:
@@ -1059,9 +1067,10 @@ class TheoryHelper(object):
                 sel_vars.extend(
                     ["renorm_scale_pt20_envelope_Down", "renorm_scale_pt20_envelope_Up"]
                 )
-                outNames.extend(
-                    [f"resumFOScale{name_append}Down", f"resumFOScale{name_append}Up"]
-                )
+                resum_fo_name = "resumFOScale"
+                if not self.correlate_fo_scale:
+                    resum_fo_name += name_append
+                outNames.extend([f"{resum_fo_name}Down", f"{resum_fo_name}Up"])
 
             if not sel_vars:
                 # nothing to do
@@ -1078,7 +1087,7 @@ class TheoryHelper(object):
                     "theory_qcd",
                 ],
                 systAxes=["vars"],
-                symmetrize="quadratic",
+                symmetrize=self.theory_symmetrize,
                 passToFakes=self.propagate_to_fakes,
                 preOp=lambda h: h[{"vars": sel_vars}],
                 outNames=outNames,
@@ -1132,7 +1141,7 @@ class TheoryHelper(object):
             bhist,
             processes=self.samples,
             systAxes=[syst_ax],
-            symmetrize="quadratic",
+            symmetrize=self.pdf_symmetrize,
             groups=["bcQuarkMass", "pTModeling", "theory", "theory_qcd"],
             passToFakes=self.propagate_to_fakes,
             outNames=[
@@ -1147,7 +1156,7 @@ class TheoryHelper(object):
             bhist.replace("brange", "crange"),
             processes=self.samples,
             systAxes=[syst_ax],
-            symmetrize="quadratic",
+            symmetrize=self.pdf_symmetrize,
             groups=["bcQuarkMass", "pTModeling", "theory", "theory_qcd"],
             passToFakes=self.propagate_to_fakes,
             outNames=[

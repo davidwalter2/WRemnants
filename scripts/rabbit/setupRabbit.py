@@ -413,7 +413,7 @@ def make_parser(parser=None):
         type=str,
         help="Set the mode for the fake estimation",
         default="extended1D",
-        choices=["closure", "simple", "extrapolate", "extended1D", "extended2D"],
+        choices=["mc", "closure", "simple", "extrapolate", "extended1D", "extended2D"],
     )
     parser.add_argument(
         "--forceGlobalScaleFakes",
@@ -556,10 +556,16 @@ def make_parser(parser=None):
         help="Scale the minnlo qcd scale uncertainties by this factor",
     )
     parser.add_argument(
-        "--symmetrizeMinnloScale",
+        "--symmetrizeTheoryUnc",
         default="quadratic",
         type=str,
         help="Symmetrization type for minnlo scale variations",
+    )
+    parser.add_argument(
+        "--symmetrizePdfUnc",
+        default="quadratic",
+        type=str,
+        help="Symmetrization type for PDF (and alphas) variations",
     )
     parser.add_argument(
         "--massVariation", type=float, default=100, help="Variation of boson mass"
@@ -1671,8 +1677,9 @@ def setup(
             samples=theorySystSamples,
             minnlo_unc=args.minnloScaleUnc,
             minnlo_scale=args.scaleMinnloScale,
-            minnlo_symmetrize=args.symmetrizeMinnloScale,
             from_hels=not args.noTheoryCorrsViaHelicities,
+            theory_symmetrize=args.symmetrizeTheoryUnc,
+            pdf_symmetrize=args.symmetrizePdfUnc,
         )
 
         theory_helper.add_pdf_alphas_variation(
@@ -1923,7 +1930,7 @@ def setup(
         )
 
     if (
-        (datagroups.fakeName != "QCD" or args.qcdProcessName == "QCD")
+        (datagroups.fakeName != "QCD" and args.qcdProcessName != "QCD")
         and datagroups.fakeName in datagroups.groups.keys()
         and not datagroups.xnorm
         and (

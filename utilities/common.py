@@ -313,12 +313,18 @@ def get_binning_fakes_pt(min_pt, max_pt):
     return edges
 
 
-def get_binning_fakes_mt(mt_cut=40, high_mt_bins=False):
+def get_binning_fakes_mt(mt_cut=40, high_mt_bins=False, fine_mt_binning=False):
     edges = np.array([0, int(mt_cut / 2.0), mt_cut])
     if high_mt_bins:
         # needed for extended 2D method
         edges = np.append(
             edges, [e for e in [30, 32, 34, 36, 38, 40, 44, 49, 55, 62] if e > mt_cut]
+        )
+    if fine_mt_binning:
+        end = 120
+        step = 2
+        edges = np.append(
+            edges, np.linspace(mt_cut + step, end, int((end - mt_cut) / step))
         )
     return edges
 
