@@ -194,6 +194,13 @@ dataDictV9 = {
         "xsec": 9.448e02,
         "group": "PhotonInduced",
     },
+    "GGToMuMuMass5to50PostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/GGToMuMu_M-5To50_TuneCP5_13TeV-pythia8/NanoV9MCPostVFP_{NANO_PROD_TAG}",
+        ],
+        "xsec": common.xsec_GGToMuMu5to50,
+        "group": "PhotonInduced",
+    },
     "GGToLLPostVFP": {
         "filepaths": [
             "{BASE_PATH}/GGToLL_TuneCP5_13TeV-pythia8/NanoV9MCPostVFP_{NANO_PROD_TAG}",

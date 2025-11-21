@@ -239,4 +239,11 @@ dataDictV9_2018 = {
         "group": "QCD",
         "das_name": "/QCD_Pt-20_MuEnrichedPt15_TuneCP5_13TeV-pythia8/RunIISummer20UL18NanoAODv9-106X_upgrade2018_realistic_v16_L1v1-v2/NANOAODSIM",
     },
+    "GGToMuMuMass5to50PostVFP": {
+        "filepaths": [
+            "{BASE_PATH}/GGToMuMu_M-5To50_TuneCP5_13TeV-pythia8/NanoV9MC2018_{NANO_PROD_TAG}",
+        ],
+        "xsec": common.xsec_GGToMuMu5to50,
+        "group": "PhotonInduced",
+    },
 }

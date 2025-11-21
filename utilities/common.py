@@ -15,6 +15,7 @@ xsec_DYJetsToMuMu = 2001.9
 xsec_WplusJetsToMuNu = 11765.9
 xsec_WminusJetsToMuNu = 8703.87
 xsec_DYJetsToMuMuMass10to50 = 6997.0
+xsec_GGToMuMu5to50 = 365.1  # +- 0.1288
 Z_TAU_TO_LEP_RATIO = 1.0 - (1.0 - BR_TAUToMU - BR_TAUToE) ** 2
 # BSM heavy neutrino samples
 xsec_WtoNMu = 100
