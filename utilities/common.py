@@ -33,9 +33,17 @@ xsec_WtoNMu = 100
 
 wprocs = [
     "WplusmunuPostVFP",
+    "Wplusmunu2017",
+    "Wplusmunu2018",
     "WminusmunuPostVFP",
-    "WminustaunuPostVFP",
+    "Wminusmunu2017",
+    "Wminusmunu2018",
     "WplustaunuPostVFP",
+    "Wplustaunu2017",
+    "Wplustaunu2018",
+    "WminustaunuPostVFP",
+    "Wminustaunu2017",
+    "Wminustaunu2018",
     "Wplusmunu_MiNNLO-noqedisr",
     "Wminusmunu_MiNNLO-noqedisr",
     "Wplusmunu_horace-lo-photos",
@@ -63,7 +71,14 @@ wprocs = [
 ]
 zprocs = [
     "ZmumuPostVFP",
+    "Zmumu2017",
+    "Zmumu2018",
+    "Zmumu10to50GeVPostVFP",
+    "Zmumu10to50GeV2017",
+    "Zmumu10to50GeV2018",
     "ZtautauPostVFP",
+    "Ztautau2017",
+    "Ztautau2018",
     "ZmumuMiNLO",
     "ZmumuNNLOPS",
     "Zmumu_MiNNLO-noqedisr",

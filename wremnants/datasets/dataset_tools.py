@@ -256,26 +256,36 @@ def getDatasets(
         elif era == "2017G":
             dataDict = dataDictV9_2017G
             logger.info("Using NanoAOD V9 for 2017G")
+        elif era == "2017H":
+            dataDict = dataDictLowPU
+            logger.info("Using NanoAOD V9 for 2017H")
         elif era == "2018":
             dataDict = dataDictV9_2018
             logger.info("Using NanoAOD V9 for 2018")
+        elif era == "gen":
+            dataDict = dataDictV9extended if extended else genDataDict
+            dataDict.update(
+                {
+                    **{k: v for k, v in dataDictV9.items() if v["group"] != "Data"},
+                    **{
+                        k: v for k, v in dataDictV9_2017.items() if v["group"] != "Data"
+                    },
+                    **{
+                        k: v for k, v in dataDictV9_2018.items() if v["group"] != "Data"
+                    },
+                }
+            )
+            logger.info("Using NanoAOD V9 for all eras")
         else:
             raise ValueError(f"Unsupported era {era}")
     elif nanoVersion == "v12":  # 2022/2023
-        pass
+        if "2023_PUAVE" in era:
+            dataDict = dataDictLowPU2023
+            logger.info("Using NanoAOD V9 for 2018")
+        else:
+            raise ValueError(f"Unsupported era {era}")
     else:
         raise ValueError("Only NanoAODv9/v12 is supported")
-
-    if mode:
-        if "gen" in mode:
-            dataDict.update(genDataDict)
-        elif "lowpu" in mode:
-            if era == "2017H":
-                dataDict = dataDictLowPU
-            elif "2023_PUAVE" in era:
-                dataDict = dataDictLowPU2023
-            else:
-                raise ValueError(f"Low pileup era {era} not supported")
 
     narf_datasets = []
     for sample, info in dataDict.items():

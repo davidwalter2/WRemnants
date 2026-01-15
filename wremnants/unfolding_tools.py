@@ -311,6 +311,17 @@ def reweight_to_fitresult(
     return corr_helper
 
 
+def rebin_pt(edges):
+    # function to create gen binning from specified reco binning
+    # use 2 ptll bin for each ptVGen bin, except first and last
+    # first gen bin same size as reco bin, then 1 gen bin for 2 reco bins
+    new_edges = np.array([*edges[:2], *edges[3::2]])
+    if len(new_edges) % 2:
+        # in case it's an odd number of edges, last two bins are overflow
+        edges = edges[:-1]
+    return new_edges
+
+
 class UnfolderZ:
     """
     To be used in histmakers to define columns and add histograms for unfolding of Z dilepton kinematics
@@ -343,15 +354,6 @@ class UnfolderZ:
 
         self.poi_as_noi = poi_as_noi
         self.unfolding_levels = unfolding_levels
-
-        def rebin_pt(edges):
-            # use 2 ptll bin for each ptVGen bin, except first and last
-            # first gen bin same size as reco bin, then 1 gen bin for 2 reco bins
-            new_edges = np.array([*edges[:2], *edges[3::2]])
-            if len(new_edges) % 2:
-                # in case it's an odd number of edges, last two bins are overflow
-                edges = edges[:-1]
-            return new_edges
 
         self.weightsByHelicity_helper_unfolding = None
 

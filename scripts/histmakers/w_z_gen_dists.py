@@ -130,7 +130,7 @@ datasets = getDatasets(
     era=args.era,
 )
 
-logger.debug(f"Will process samples {[d.name for d in datasets]}")
+logger.info(f"Will process samples {[d.name for d in datasets]}")
 
 axis_ygen = hist.axis.Regular(10, -5.0, 5.0, name="y")
 col_rapidity = "yVgen" if args.signedY else "absYVgen"
@@ -164,11 +164,17 @@ axis_chargel_gen = hist.axis.Regular(
 )
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
-corr_helpers = theory_corrections.load_corr_helpers(common.vprocs, theory_corrs)
+procsWithTheoryCorr = [d.name for d in datasets if d.name in common.vprocs]
+if len(procsWithTheoryCorr) and len(theory_corrs):
+    corr_helpers = theory_corrections.load_corr_helpers(
+        procsWithTheoryCorr, theory_corrs
+    )
+else:
+    corr_helpers = {}
 
 corrs = []
-if args.helicity and args.propagatePDFstoHelicity:
-    corrs.append("qcdScale")
+# if args.helicity and args.propagatePDFstoHelicity:
+#     corrs.append("qcdScale")
 if args.centralBosonPDFWeight:
     corrs.append("pdf_central")
 theory_helpers_procs = theory_corrections.make_theory_helpers(
@@ -225,7 +231,7 @@ def build_graph(df, dataset):
                 },
                 "prefsr",
                 add_out_of_acceptance_axis=False,
-                rebin_pt=not args.genPtBinningAsReco,
+                rebin_pt=None if args.genPtBinningAsReco else unfolding_tools.rebin_pt,
             )
         )
         axis_absYVgen = hist.axis.Variable(
