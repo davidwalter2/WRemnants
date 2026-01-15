@@ -108,8 +108,8 @@ parser.add_argument(
     help="Apply PDF reweighting using boson parameterized corrections",
 )
 
-
 parser = parsing.set_parser_default(parser, "filterProcs", common.vprocs)
+parser = parsing.set_parser_default(parser, "era", "gen")
 args = parser.parse_args()
 
 if not args.theoryCorrections:
@@ -127,6 +127,7 @@ datasets = getDatasets(
     nanoVersion="v9",
     base_path=args.dataPath,
     mode=analysis_label,
+    era=args.era,
 )
 
 logger.debug(f"Will process samples {[d.name for d in datasets]}")
@@ -220,7 +221,7 @@ def build_graph(df, dataset):
                 ["ptVGen", "absYVGen"],
                 {
                     "ptll": common.get_dilepton_ptV_binning(fine=False),
-                    "yll": (common.yll_10quantiles_binning),
+                    "yll": (common.yll_20quantiles_binning),
                 },
                 "prefsr",
                 add_out_of_acceptance_axis=False,
