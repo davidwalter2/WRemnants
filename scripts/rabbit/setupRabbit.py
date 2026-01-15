@@ -1437,19 +1437,40 @@ def setup(
 
     decorwidth = args.decorMassWidth or ("wwidth" in args.noi)
     if not (stat_only and constrainMass) and args.massVariation != 0:
-        massVariation = 2.1 if (not wmass and constrainMass) else args.massVariation
+        if not wmass and constrainMass:
+            massVariation = 2.1
+        else:
+            massVariation = args.massVariation
+
+        massVariations = np.array([-massVariation, massVariation])
+        if datagroups.args_from_metadata("reweightMassW") and wmass:
+            massVariations = massVariations - 30
+            if any(abs(massVariations) > 100):
+                raise RuntimeError(f"Mass variations {massVariations} does not exist")
+            diff = int(np.diff(massVariations) / 2)
+            systNameReplace = [
+                [f"{int(abs(massVariations[0]))}MeVDown", f"{diff}MeVDown"],
+                [f"{int(massVariations[0])}MeVUp", f"{diff}MeVDown"],
+                [f"{int(abs(massVariations[1]))}MeVDown", f"{diff}MeVUp"],
+                [f"{int(massVariations[1])}MeVUp", f"{diff}MeVUp"],
+            ]
+        else:
+            systNameReplace = None
+
         massWeightName = (
             f"massWeight_widthdecor{label}" if decorwidth else f"massWeight{label}"
         )
+
         mass_info = dict(
             processes=signal_samples_forMass,
             group=f"massShift",
             noi=not constrainMass,
-            skipEntries=massWeightNames(proc=label, exclude=massVariation),
+            skipEntries=massWeightNames(proc=label, exclude=massVariations),
             mirror=False,
             noConstraint=not constrainMass,
             systAxes=["massShift"],
             passToFakes=passSystToFakes,
+            systNameReplace=systNameReplace,
         )
 
         if args.breitwignerWMassWeights and label == "W":
@@ -1488,7 +1509,10 @@ def setup(
                     # systNameReplace=[("Shift",f"Diff{suffix}")],
                     skipEntries=[
                         (x, *[-1] * len(args.fitMassDecorr))
-                        for x in massWeightNames(proc=label, exclude=args.massVariation)
+                        for x in massWeightNames(
+                            proc=label,
+                            exclude=[-args.massVariation, args.massVariation],
+                        )
                     ],
                     noi=not constrainMass,
                     noConstraint=not constrainMass,
@@ -1741,7 +1765,9 @@ def setup(
                 f"massWeightZ",
                 processes=["single_v_nonsig_samples"],
                 groups=["ZmassAndWidth", "theory"],
-                skipEntries=massWeightNames(proc="Z", exclude=massVariationZ),
+                skipEntries=massWeightNames(
+                    proc="Z", exclude=[-massVariationZ, massVariationZ]
+                ),
                 mirror=False,
                 noi=not constrainMassZ,
                 noConstraint=not constrainMassZ,

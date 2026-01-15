@@ -1292,10 +1292,17 @@ def define_mass_width_sin2theta_weights(df, proc):
             "massWeight_tensor",
             f"wrem::vec_to_tensor_t<double, {nweights_mass}>(massWeight_col)",
         )
-        df = df.Define(
-            "massWeight_tensor_wnom",
-            "auto res = massWeight_tensor; res = nominal_weight*res; return res;",
-        )
+
+        if "mass_weight_central" in df.GetColumnNames():
+            df = df.Define(
+                "massWeight_tensor_wnom",
+                "auto res = massWeight_tensor; res = nominal_weight/mass_weight_central*res; return res;",
+            )
+        else:
+            df = df.Define(
+                "massWeight_tensor_wnom",
+                "auto res = massWeight_tensor; res = nominal_weight*res; return res;",
+            )
 
         # compute modified weights which remove the width variation from the mass weights by using the width weights to compensate
         # TODO we should pass this in from outside so that we can re-use it, but it's lightweight enough that it shouldn't matter much
@@ -1392,7 +1399,7 @@ def massWeightNames(matches=None, proc="", exclude=[]):
     names = [
         f"massShift{proc[0] if len(proc) else proc}{int(abs(central-i)*10)}MeV{'' if i == central else ('Down' if i < central else 'Up')}"
         for i in range(nweights)
-        if int(abs(central - i) * 10) not in exclude
+        if int((i - central) * 10) not in exclude
     ]
     if proc and (proc in common.zprocs_all or proc == "Z") and 2.1 not in exclude:
         # This is the PDG uncertainty (turned off for now since it doesn't seem to have been read into the nano)

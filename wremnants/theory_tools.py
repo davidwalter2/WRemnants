@@ -986,6 +986,10 @@ def define_theory_weights_and_corrs(df, dataset_name, helpers, args, theory_help
 
     if args.highptscales:
         df = df.Define("extra_weight", "MEParamWeightAltSet3[0]")
+    elif args.reweightMassW and dataset_name in common.wprocs:
+        # difference w.r.t. MC mass i.e. 80353 - 80379, closest index (should be 7)
+        df = df.Define("mass_weight_central", f"MEParamWeight[7]")
+
     df = define_nominal_weight(df)
     df = define_pdf_columns(df, dataset_name, args.pdfs, args.altPdfOnlyCentral)
     df = define_breit_wigner_weights(df, dataset_name)
@@ -1012,13 +1016,10 @@ def build_weight_expr(df, exclude_weights=[]):
         else:
             found_weights.append(weight)
 
-    if "extra_weight" in valid_cols:
-        logger.info("Adding additional weight '{extra_weight}'")
-        found_weights.append("extra_weight")
-
-    if "central_weight" in valid_cols:
-        logger.info("Adding additional central weight 'central_weight'")
-        found_weights.append("central_weight")
+    for weight in ["extra_weight", "central_weight", "mass_weight_central"]:
+        if weight in valid_cols:
+            logger.info(f"Adding additional weight '{weight}'")
+            found_weights.append(weight)
 
     weight_expr = "*".join(found_weights)
 

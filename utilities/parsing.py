@@ -383,6 +383,11 @@ def common_parser(analysis_label=""):
     parser.add_argument(
         "--randomSeedForToys", type=int, default=0, help="random seed for toys"
     )
+    parser.add_argument(
+        "--reweightMassW",
+        action="store_true",
+        help="Rweight central W mass to EW fit",
+    )
 
     if for_reco_highPU:
         # additional arguments specific for histmaker of reconstructed objects at high pileup (mw, mz_wlike, and mz_dilepton)
