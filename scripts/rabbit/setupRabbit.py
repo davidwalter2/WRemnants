@@ -1396,9 +1396,9 @@ def setup(
     else:
         datagroups.addNominalHistograms(
             real_data=args.realData,
-            exclude_bin_by_bin_stat=(
-                "signal_samples" if args.correlateSignalMCstat else None
-            ),
+            # exclude_bin_by_bin_stat=(
+            #     "signal_samples" if args.correlateSignalMCstat else None
+            # ),
             bin_by_bin_stat_scale=(
                 args.binByBinStatScaleForMW
                 if wmass
@@ -1564,23 +1564,19 @@ def setup(
         )
         muRmuFPolVar_helper.add_theoryAgnostic_uncertainty()
 
-    if args.correlateSignalMCstat:
-        if datagroups.xnorm and args.fitresult is None:
-            # use variations from reco histogram and apply them to xnorm
-            source = ("nominal", f"{inputBaseName}_yieldsUnfolding_theory_weight")
-            # need to find the reco variables that correspond to the reco fit, reco fit must be done with variables in same order as gen bins
-            gen2reco = {
-                "qGen": "charge",
-                "ptGen": "pt",
-                "absEtaGen": "eta",
-                "qVGen": "charge",
-                "ptVGen": "ptll",
-                "absYVGen": "yll",
-            }
-            recovar = [gen2reco[v] for v in fitvar]
-        else:
-            recovar = fitvar
-            source = None
+    if args.correlateSignalMCstat and datagroups.xnorm and args.fitresult is None:
+        # use variations from reco histogram and apply them to xnorm
+        source = ("nominal", f"{inputBaseName}_yieldsUnfolding_theory_weight")
+        # need to find the reco variables that correspond to the reco fit, reco fit must be done with variables in same order as gen bins
+        gen2reco = {
+            "qGen": "charge",
+            "ptGen": "pt",
+            "absEtaGen": "eta",
+            "qVGen": "charge",
+            "ptVGen": "ptll",
+            "absYVGen": "yll",
+        }
+        recovar = [gen2reco[v] for v in fitvar]
 
         combine_helpers.add_explicit_BinByBinStat(
             datagroups,
