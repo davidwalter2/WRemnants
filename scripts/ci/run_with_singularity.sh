@@ -18,4 +18,4 @@ else
     echo "⚠️ Warning: Kerberos cache directory $KRB5CC_HOST_DIR does not exist!"
 fi
 
-singularity run $CONTAINER $@
+singularity run $CONTAINER "$@"
