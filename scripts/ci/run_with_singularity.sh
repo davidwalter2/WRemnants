@@ -3,7 +3,7 @@ export APPTAINER_BIND="/scratch,/cvmfs,/etc/pki/tls/certs,/etc/grid-security/cer
 if [[ -d $WREM_BASE ]]; then
     export APPTAINER_BIND="${APPTAINER_BIND},${WREM_BASE}/.."
 fi
-CONTAINER=/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:v44
+CONTAINER=/cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:v45
 
 # Kerberos cache setup
 # Assuming kinit was already done on the host!
