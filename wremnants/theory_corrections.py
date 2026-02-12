@@ -142,11 +142,7 @@ def make_corr_helper_fromnp(
 def load_corr_hist(filename, proc, histname):
     with lz4.frame.open(filename) as f:
         corr = pickle.load(f)
-        try:
-            corrh = corr[proc][histname]
-        except KeyError as e:
-            histname = histname.replace("N2LO", "N2L0")
-            corrh = corr[proc][histname]
+        corrh = corr[proc][histname]
     return corrh
 
 
