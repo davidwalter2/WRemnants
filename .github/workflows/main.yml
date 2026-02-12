@@ -216,7 +216,7 @@ jobs:
       - name: wmass analysis
         run: >-
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/histmakers/mw_with_mu_eta_pt.py --dataPath $DATAPATH 
-          -j $((NTHREADS)) --maxFiles $((MAX_FILES)) --forceDefaultName -o $WREMNANTS_OUTDIR --theoryAgnostic --unfolding --poiAsNoi
+          -j $((NTHREADS)) --maxFiles $((MAX_FILES)) --forceDefaultName -o $WREMNANTS_OUTDIR --theoryAgnostic --unfolding --poiAsNoi --auxiliaryProcs WtoNMuMass5_2016PostVFP
 
   w-fit:
     # The type of runner that the job will run on
