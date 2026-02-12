@@ -142,7 +142,11 @@ def make_corr_helper_fromnp(
 def load_corr_hist(filename, proc, histname):
     with lz4.frame.open(filename) as f:
         corr = pickle.load(f)
-        corrh = corr[proc][histname]
+        try:
+            corrh = corr[proc][histname]
+        except KeyError as e:
+            histname = histname.replace("N2LO", "N2L0")
+            corrh = corr[proc][histname]
     return corrh
 
 
@@ -319,9 +323,7 @@ def postprocess_corr_hist(corrh, numh=None):
     vars_out = list(corrh.axes["vars"]) + list(additional_var_hists.keys())
 
     vars_out_axis = hist.axis.StrCategory(vars_out, name="vars")
-    corrh_tmp = hist.Hist(
-        *corrh.axes[:-1], vars_out_axis, storage=corrh._storage_type()
-    )
+    corrh_tmp = hist.Hist(*corrh.axes[:-1], vars_out_axis, storage=corrh.storage_type())
 
     for i, var in enumerate(vars_out_axis):
         if var in corrh.axes["vars"]:
