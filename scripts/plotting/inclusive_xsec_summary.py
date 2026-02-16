@@ -10,6 +10,7 @@ import mplhep as hep
 import numpy as np
 import pandas as pd
 from matplotlib.patches import Ellipse, Polygon
+from scipy.stats import chi2
 
 import rabbit.io_tools
 from utilities import parsing
@@ -31,6 +32,9 @@ parser.add_argument(
     type=str,
     default=None,
     help="Path to config file for style formatting",
+)
+parser.add_argument(
+    "--full", action="store_true", default=False, help="full phase space results"
 )
 args = parser.parse_args()
 
@@ -73,24 +77,54 @@ pdf_colors = {
 }
 
 # mapping, channel, bin
+identifier = "_masked"
+if args.full:
+    identifier = f"_full{identifier}"
 xsec_keys = [
-    (r"$\mathrm{W}^{-}$", "Project ch1_masked qGen", "ch1_masked", {"qGen": 0}),
-    (r"$\mathrm{W}^{+}$", "Project ch1_masked qGen", "ch1_masked", {"qGen": 1}),
-    (r"$\mathrm{W}$", "Project ch1_masked", "ch1_masked", None),
-    (r"$\mathrm{Z}$", "Project ch0_masked", "ch0_masked", None),
+    (
+        r"$\mathrm{W}^{-}$",
+        f"Project ch1{identifier} qGen",
+        f"ch1{identifier}",
+        {"qGen": 0},
+    ),
+    (
+        r"$\mathrm{W}^{+}$",
+        f"Project ch1{identifier} qGen",
+        f"ch1{identifier}",
+        {"qGen": 1},
+    ),
+    (r"$\mathrm{W}$", f"Project ch1{identifier}", f"ch1{identifier}", None),
+    (r"$\mathrm{Z}$", f"Project ch0{identifier}", f"ch0{identifier}", None),
     (
         r"$\mathrm{W}^{+}/\mathrm{W}^{-}$",
-        "Ratio ch1_masked ch1_masked qGen:1,ptGen:sum,absEtaGen:sum qGen:0,ptGen:sum,absEtaGen:sum",
-        "ch1_masked",
+        (
+            f"Ratio ch1{identifier} ch1{identifier} qGen:1,ptGen:sum,absEtaGen:sum qGen:0,ptGen:sum,absEtaGen:sum",
+            f"Ratio ch1{identifier} ch1{identifier} qGen:1 qGen:0",
+        ),
+        f"ch1{identifier}",
         None,
     ),
     (
         r"$\mathrm{W/Z}$",
-        "Ratio ch1_masked ch0_masked qGen:sum,ptGen:sum,absEtaGen:sum ptVGen:sum,absYVGen:sum",
-        "ch1_masked_ch0_masked",
+        (
+            f"Ratio ch1{identifier} ch0{identifier} qGen:sum,ptGen:sum,absEtaGen:sum ptVGen:sum,absYVGen:sum",
+            f"Ratio ch1{identifier} ch0{identifier} qGen:sum count:sum",
+        ),
+        f"ch1{identifier}_ch0{identifier}",
         None,
     ),
 ]
+
+smp_20_004 = {
+    r"$\mathrm{W}^{-}$": [8670, 215.63858652847824],
+    r"$\mathrm{W}^{+}$": [11800, 288.09720581775866],
+    r"$\mathrm{W}$": [20480, 499.8999899979995],
+    r"$\mathrm{Z}$": [1952, 48.63126566315131],
+    r"$\mathrm{W}^{+}/\mathrm{W}^{-}$": [1.3615, 0.009570788891204319],
+    r"$\mathrm{W/Z}$": [10.491, 0.0864002314811714],
+}
+
+nMeas = 1
 
 lumi = meta["meta_info_input"]["channel_info"]["ch0"]["lumi"]
 
@@ -114,7 +148,12 @@ custom_order = [
 ]
 
 dfs = []
-for name, mapping, channel, selection in xsec_keys:
+for name, mappings, channel, selection in xsec_keys:
+    if len(mappings) == 2:
+        mapping = mappings[0]
+    else:
+        mapping = mappings
+
     hp = result[mapping]["channels"][channel]["hist_prefit_inclusive"].get()
     h1 = result[mapping]["channels"][channel]["hist_postfit_inclusive"].get()
     hi = result[mapping]["channels"][channel][
@@ -184,9 +223,16 @@ for name, mapping, channel, selection in xsec_keys:
     df["prefit_error"] = prefit_error
 
     for pdf_name, pdf_res in pdf_results.items():
-        channel_mappings = pdf_res[mapping.replace("_masked", "")]["channels"][
-            channel.replace("_masked", "")
-        ]
+        if len(mappings) == 2:
+            if mappings[0].replace(identifier, "") not in pdf_res.keys():
+                mapping = mappings[1]
+            else:
+                mapping = mappings[0]
+        else:
+            mapping = mappings
+
+        mapping = mapping.replace(identifier, "")
+        channel_mappings = pdf_res[mapping]["channels"][channel.replace(identifier, "")]
         hr = channel_mappings["hist_prefit_inclusive"].get()
         hr_impacts = channel_mappings[
             "hist_prefit_inclusive_global_impacts_grouped"
@@ -213,6 +259,8 @@ for name, mapping, channel, selection in xsec_keys:
     dfs.append(df)
 
 df = pd.concat(dfs)
+
+logger.debug(df)
 
 names = [k[0] for k in xsec_keys]
 
@@ -295,7 +343,7 @@ for i, name in enumerate(names[::-1]):
         pdf_error = df_g[f"{pdf_name}_error"].values[0] / norm
         ax.errorbar(
             [pdf_value],
-            [i + 1 - (j + 1) / (nPDFs + 1)],
+            [i + 1 - (j + 1) / (nPDFs + nMeas)],
             xerr=pdf_error,
             color=pdf_colors[pdf_name],
             marker="o",
@@ -312,6 +360,17 @@ for i, name in enumerate(names[::-1]):
         #     capthick=2,
         #     marker="o",
         # )
+
+    # cross sections from SMP-20-004
+    j = j + 1
+    ax.errorbar(
+        [smp_20_004[name][0]] / norm,
+        [i + 1 - (j + 1) / (nPDFs + nMeas)],
+        xerr=smp_20_004[name][1] / norm,
+        color="black",
+        marker="x",
+        label="JHEP04(2025)162" if i == 0 else None,
+    )
 
     # round to two significant digits in total uncertainty
     sig_digi = 2 - int(math.floor(math.log10(abs(total)))) - 1
@@ -375,7 +434,7 @@ extra_handles = [(p,)]
 
 extra_labels = ["Measurement"]
 
-plot_tools.addLegend(
+leg = plot_tools.addLegend(
     ax,
     ncols=args.legCols,
     text_size="small",
@@ -390,6 +449,13 @@ plot_tools.addLegend(
     custom_handlers=(["doubleband"]),
     padding_loc="auto",
 )
+
+# add a link to the legend entry
+for text in leg.get_texts():
+    if "JHEP04(2025)162" in text.get_text():
+        text.set_url("https://doi.org/10.1007/JHEP04(2025)162")
+        # Optional: Make it look like a link
+        # text.set_color("blue")
 
 ax.set_xlim([lo, hi])
 ax.set_ylim([0, len(norms) + 2])
@@ -406,6 +472,8 @@ plt.gca().set_yticks([])
 plot_tools.add_cms_decor(ax, args.cmsDecor, data=True, lumi=lumi, loc=args.logoPos)
 
 outname = "summary"
+if args.full:
+    outname = f"total_{outname}"
 if args.postfix:
     outname += f"_{args.postfix}"
 plot_tools.save_pdf_and_png(outdir, outname)
@@ -436,8 +504,11 @@ def plot_cov_ellipse(cov, pos, nstd=1, **kwargs):
     # Compute angle in degrees
     theta = np.degrees(np.arctan2(*eigvecs[:, 0][::-1]))
 
+    prob = chi2.cdf(nstd**2, df=1)  # Get the probability of the 1D n-sigma
+    scale = np.sqrt(chi2.ppf(prob, df=2))  # Find the 2D equivalent scale
+
     # Width and height are "2*nstd" standard deviations
-    width, height = 2 * nstd * np.sqrt(eigvals)
+    width, height = 2 * scale * np.sqrt(eigvals)
 
     # Create ellipse
     ellipse = Ellipse(xy=pos, width=width, height=height, angle=theta, **kwargs)
@@ -467,7 +538,7 @@ for name, channel0, channel1, unit in (
             if getattr(hi, "axes", False) and "yield" in hi.axes.name:
                 hi = hi[{"yield": hist.sum}]
 
-            if k == ckey0 or k == ckey0.replace("_masked", ""):
+            if k == ckey0 or k == ckey0.replace(identifier, ""):
                 sel = channel0[-1]
 
                 if sel is not None:
@@ -477,7 +548,7 @@ for name, channel0, channel1, unit in (
                     x = hi.value
                     ix = ibin
 
-            if k == ckey1 or k == ckey1.replace("_masked", ""):
+            if k == ckey1 or k == ckey1.replace(identifier, ""):
                 sel = channel1[-1]
                 if sel is not None:
                     y = hi[sel].value
@@ -554,6 +625,8 @@ for name, channel0, channel1, unit in (
     plot_tools.add_cms_decor(ax, args.cmsDecor, data=True, loc=args.logoPos)
 
     outname = f"summary_2D_{name}"
+    if args.full:
+        outname = f"total_{outname}"
     if args.postfix:
         outname += f"_{args.postfix}"
     plot_tools.save_pdf_and_png(outdir, outname)
