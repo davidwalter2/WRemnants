@@ -719,7 +719,7 @@ def safeGetRootObject(
     fileObject, objectName, quitOnFail=True, silent=False, detach=True
 ):
     obj = fileObject.Get(objectName)
-    if obj == None:
+    if obj is None:
         error_msg = f"Error getting {objectName} from file {fileObject.GetName()}"
         if not silent:
             logger.error(error_msg)

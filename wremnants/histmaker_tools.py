@@ -258,7 +258,7 @@ def make_quantile_helper(
         hConv = narf.hist_to_pyroot_boost(h, tensor_rank=0)
 
         tensor = getattr(ROOT.wrem, f"HistHelper{len(h.axes)}D", None)
-        if tensor == None:
+        if tensor is None:
             raise NotImplementedError(f"HistHelper{len(h.axes)}D not yet implemented")
 
         helper = tensor[type(hConv).__cpp_name__](ROOT.std.move(hConv))
