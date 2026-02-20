@@ -243,7 +243,7 @@ def getDatasets(
     for sample, info in dataDict.items():
         if excl not in [None, []] and (info["group"] in excl or sample in excl):
             continue
-        if filter not in [None, []]:
+        if filt not in [None, []]:
             # keep the sample if it is explicitly filtered
             if info["group"] not in filt and sample not in filt:
                 continue
