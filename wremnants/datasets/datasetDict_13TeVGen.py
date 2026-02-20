@@ -41,7 +41,7 @@ horace_v5 = False
 
 
 def merge_samples(
-    source_dict, suffix="MiNNLO", processes=["Zmumu", "Wplusmunu", "Wminusmunu"]
+    source_dict, suffix="13TeVGen", processes=["Zmumu", "Wplusmunu", "Wminusmunu"]
 ):
     # merge samples from different eras
     res_dict = {}
