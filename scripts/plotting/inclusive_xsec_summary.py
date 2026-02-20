@@ -36,6 +36,12 @@ parser.add_argument(
 parser.add_argument(
     "--full", action="store_true", default=False, help="full phase space results"
 )
+parser.add_argument(
+    "--scaleToNewLumi",
+    action="store_true",
+    default=False,
+    help="scale the results of SMP-20-004 to updated lumi",
+)
 args = parser.parse_args()
 
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
@@ -115,11 +121,17 @@ xsec_keys = [
     ),
 ]
 
+if args.scaleToNewLumi:
+    # old lumi / new lumi
+    scale = 0.199269742 / 0.204602332
+else:
+    scale = 1
+
 smp_20_004 = {
-    r"$\mathrm{W}^{-}$": [8670, 215.63858652847824],
-    r"$\mathrm{W}^{+}$": [11800, 288.09720581775866],
-    r"$\mathrm{W}$": [20480, 499.8999899979995],
-    r"$\mathrm{Z}$": [1952, 48.63126566315131],
+    r"$\mathrm{W}^{-}$": [8670 * scale, 215.63858652847824],
+    r"$\mathrm{W}^{+}$": [11800 * scale, 288.09720581775866],
+    r"$\mathrm{W}$": [20480 * scale, 499.8999899979995],
+    r"$\mathrm{Z}$": [1952 * scale, 48.63126566315131],
     r"$\mathrm{W}^{+}/\mathrm{W}^{-}$": [1.3615, 0.009570788891204319],
     r"$\mathrm{W/Z}$": [10.491, 0.0864002314811714],
 }
@@ -527,9 +539,26 @@ for name, channel0, channel1, unit in (
     ax = fig.add_subplot(111)
 
     for pdf_name, result in comp_result.items():
-        ckey0 = channel0[1] + " " + channel0[2]
-        ckey1 = channel1[1] + " " + channel1[2]
 
+        if len(channel0[1]) == 2:
+            mappings0 = channel0[1]
+            mappings1 = channel1[1]
+
+            if args.full and pdf_name != "TOTAL":
+                mapping0 = mappings0[1]
+                mapping1 = mappings1[1]
+            else:
+                mapping0 = mappings0[0]
+                mapping1 = mappings1[0]
+        else:
+            mapping0 = channel0[1]
+            mapping1 = channel1[1]
+
+        ckey0 = mapping0 + " " + channel0[2]
+        ckey1 = mapping1 + " " + channel1[2]
+
+        found_x = False
+        found_y = False
         ibin = 0
         for k, r in result["channels"].items():
             fittype = "postfit" if f"hist_postfit_inclusive" in r.keys() else "prefit"
@@ -540,7 +569,7 @@ for name, channel0, channel1, unit in (
 
             if k == ckey0 or k == ckey0.replace(identifier, ""):
                 sel = channel0[-1]
-
+                found_x = True
                 if sel is not None:
                     x = hi[sel].value
                     ix = ibin + [i for i in sel.values()][0]
@@ -550,6 +579,7 @@ for name, channel0, channel1, unit in (
 
             if k == ckey1 or k == ckey1.replace(identifier, ""):
                 sel = channel1[-1]
+                found_y = True
                 if sel is not None:
                     y = hi[sel].value
                     iy = ibin + [i for i in sel.values()][0]
@@ -558,6 +588,9 @@ for name, channel0, channel1, unit in (
                     iy = ibin
 
             ibin += hi.size if hasattr(hi, "size") else 1
+
+        if not found_x or not found_y:
+            raise RuntimeError(f"Not found x {found_x} or y {found_y}")
 
         cov = result[f"hist_{fittype}_inclusive_cov"].get().values()
         cov = cov[np.ix_([ix, iy], [ix, iy])]
@@ -587,6 +620,37 @@ for name, channel0, channel1, unit in (
             )
             ax.add_patch(ell)
             ax.plot(x, y, color=icol, marker="o", alpha=0)
+
+    # cross sections from SMP-20-004
+    x = smp_20_004[channel0[0]][0]
+    x_err = smp_20_004[channel0[0]][1]
+    y = smp_20_004[channel1[0]][0]
+    y_err = smp_20_004[channel1[0]][1]
+
+    plt.errorbar(
+        x,
+        y,
+        xerr=x_err,
+        yerr=y_err,
+        fmt="x",
+        color="black",
+        ecolor="black",
+        capsize=5,
+        label="JHEP04(2025)162",
+    )
+
+    # cov = np.array([[x_err**2, 0],[0, y_err**2]]) # dummy covariance
+    # ell = plot_cov_ellipse(
+    #     cov,
+    #     np.array([x, y]),
+    #     nstd=1,
+    #     edgecolor="black",
+    #     facecolor="none",
+    #     linewidth=2,
+    #     label="JHEP04(2025)162",
+    # )
+    # ax.add_patch(ell)
+    # ax.plot(x, y, color="black", marker="x")
 
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
