@@ -38,8 +38,6 @@ def define_gen_level(df, dataset_name, gen_levels=["prefsr", "postfsr"], mode="w
     singlelep = mode[0] == "w" or "wlike" in mode
 
     if "prefsr" in gen_levels:
-        df = theory_tools.define_prefsr_vars(df)
-
         # # needed for fiducial phase space definition
         df = df.Alias("prefsrV_mass", "massVgen")
         df = df.Alias("prefsrV_pt", "ptVgen")
@@ -434,6 +432,8 @@ class UnfolderZ:
     def add_gen_histograms(
         self, args, df, results, dataset, corr_helpers, theory_helpers={}
     ):
+        df = theory_tools.define_prefsr_vars(df)
+
         df = define_gen_level(
             df, dataset.name, self.unfolding_levels, mode=self.analysis_label
         )
@@ -450,10 +450,33 @@ class UnfolderZ:
             )
         else:
             for level in self.unfolding_levels:
+                df = select_fiducial_space(
+                    df,
+                    level,
+                    mode=self.analysis_label,
+                    selections=self.unfolding_selections[level],
+                    select=not self.poi_as_noi,
+                    accept=True,
+                    **self.cutsmap,
+                )
+
+            if self.unfolding_corr_helper:
+                logger.debug("Apply reweighting based on unfolded result")
+                df = df.Define(
+                    "unfoldingWeight_tensor",
+                    self.unfolding_corr_helper,
+                    [*self.unfolding_corr_helper.hist.axes.name[:-1], "unity"],
+                )
+                df = df.Define(
+                    "central_weight",
+                    f"{level}_acceptance ? unfoldingWeight_tensor(0) : unity",
+                )
+
+            for level in self.unfolding_levels:
                 # add full phase space histograms for inclusive cross section,
                 #   the mass cuts has to be preFSR to compare to SMP-20-004
-                df_full = df.Filter(f"massVgen > 60")
-                df_full = df_full.Filter(f"massVgen < 120")
+                df_full = df.Filter("massVgen > 60")
+                df_full = df_full.Filter("massVgen < 120")
                 add_xnorm_histograms(
                     results,
                     df_full,
@@ -470,32 +493,10 @@ class UnfolderZ:
                     base_name=f"{level}_full",
                 )
 
-                df_fid = select_fiducial_space(
-                    df,
-                    level,
-                    mode=self.analysis_label,
-                    selections=self.unfolding_selections[level],
-                    select=not self.poi_as_noi,
-                    accept=True,
-                    **self.cutsmap,
-                )
-
-                if self.unfolding_corr_helper:
-                    logger.debug("Apply reweighting based on unfolded result")
-                    df_fid = df_fid.Define(
-                        "unfoldingWeight_tensor",
-                        self.unfolding_corr_helper,
-                        [*self.unfolding_corr_helper.hist.axes.name[:-1], "unity"],
-                    )
-                    df_fid = df_fid.Define(
-                        "central_weight",
-                        f"{level}_acceptance ? unfoldingWeight_tensor(0) : unity",
-                    )
-
                 if self.poi_as_noi:
-                    df_xnorm = df_fid.Filter(f"{level}_acceptance")
+                    df_xnorm = df.Filter(f"{level}_acceptance")
                 else:
-                    df_xnorm = df_fid
+                    df_xnorm = df
 
                 add_xnorm_histograms(
                     results,
