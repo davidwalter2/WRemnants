@@ -315,7 +315,7 @@ jobs:
       - name: bsm rabbit setup
         run: >-
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run_python.sh scripts/rabbit/setupRabbit.py 
-          -i $HIST_FILE --lumiScale $LUMI_SCALE --addBSMMixing WtoNMuMass5 0.01 --breitwignerWMassWeights
+          -i $HIST_FILE --lumiScale $LUMI_SCALE --addBSMMixing WtoNMuMass5 0.001 --breitwignerWMassWeights
           --postfix bsm -o $WREMNANTS_OUTDIR
 
       - name: bsm rabbit fit
