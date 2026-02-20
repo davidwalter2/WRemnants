@@ -141,6 +141,7 @@ wprocs_alt = [
 ]
 zprocs_alt = [
     "Zmumu_MiNNLO",
+    "Zmumu_13TeVGen",
     "ZmumuMiNLO",
     "ZmumuNNLOPS",
     "Zmumu_MiNNLO-noqedisr",

@@ -49,7 +49,7 @@ def main():
 
         command = f"""
         python {os.environ['WREM_BASE']}/scripts/histmakers/w_z_gen_dists.py --theoryCorr {pred} \
-        --filterProcs 'Zmumu_MiNNLO' 'Wplusmunu_MiNNLO' 'Wminusmunu_MiNNLO' --aggregateGroups Zmumu Wmunu \
+        --filterProcs 'Zmumu_13TeVGen' 'Wplusmunu_13TeVGen' 'Wminusmunu_13TeVGen' --aggregateGroups Zmumu Wmunu \
         -o {args.outdir} --addHelicityAxis --pdf {THEORY_PREDS[pred]['pdf']} --maxFiles '-1' -j 300
         """
         print(f"Running command: {command}")
