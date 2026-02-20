@@ -63,7 +63,7 @@ def main():
 
         command = f"""
         python {os.environ['WREM_BASE']}/scripts/histmakers/w_z_gen_dists.py --pdf {pdf} -o {args.outdir} --maxFiles '-1' -j {args.njobs} \
-        --filterProcs 'Zmumu_MiNNLO' 'Wplusmunu_MiNNLO' 'Wminusmunu_MiNNLO' --aggregateGroups Zmumu Wmunu \
+        --filterProcs 'Zmumu_13TeVGen' 'Wplusmunu_13TeVGen' 'Wminusmunu_13TeVGen' --aggregateGroups Zmumu Wmunu \
         --addHelicityAxis --postfix pdfByHelicity
         """
         print(f"Running command: {command}")
