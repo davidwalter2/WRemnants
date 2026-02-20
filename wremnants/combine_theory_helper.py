@@ -614,10 +614,9 @@ class TheoryHelper(object):
         var_name = var_name.replace("binned_", "")
         var_name = var_name.replace("_Correlated", "")
 
-        if (
-            not any(var_name in x for x in self.np_hist.axes[self.syst_ax])
-            and model not in ["LatticeEigvars", "LatticeNoConstraints"]
-        ):
+        if not any(
+            var_name in x for x in self.np_hist.axes[self.syst_ax]
+        ) and model not in ["LatticeEigvars", "LatticeNoConstraints"]:
             raise ValueError(
                 f"NP model choice was '{model}' but did not find corresponding variations in the histogram"
             )
@@ -703,9 +702,9 @@ class TheoryHelper(object):
         processesW = ["single_v_samples"]
         processes = processesW if self.label == "W" else processesZ
 
-        scale = 1.
+        scale = 1.0
         if self.np_model == "LatticeNoConstraints":
-            scale = 10.
+            scale = 10.0
 
         self.datagroups.addSystematic(
             self.corr_hist_name,
@@ -817,7 +816,10 @@ class TheoryHelper(object):
                 "Delta_Omega": ["-0.02", "0.02"],
             }
 
-        if "Delta" not in self.np_model and self.np_model not in ["LatticeEigvars", "LatticeNoConstraints"]:
+        if "Delta" not in self.np_model and self.np_model not in [
+            "LatticeEigvars",
+            "LatticeNoConstraints",
+        ]:
             to_remove = list(filter(lambda x: "Delta" in x, np_map.keys())) + list(
                 filter(lambda x: "delta" in x, np_map.keys())
             )
@@ -868,7 +870,10 @@ class TheoryHelper(object):
                 "Delta_Omega": ["-0.02", "0.02"],
             }
 
-        if "Delta" not in self.np_model and self.np_model not in ["LatticeEigvars", "LatticeNoConstraints"]:
+        if "Delta" not in self.np_model and self.np_model not in [
+            "LatticeEigvars",
+            "LatticeNoConstraints",
+        ]:
             to_remove = list(filter(lambda x: "Delta" in x, np_map.keys())) + list(
                 filter(lambda x: "delta" in x, np_map.keys())
             )
