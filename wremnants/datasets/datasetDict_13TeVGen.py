@@ -10,8 +10,10 @@ from wremnants.datasets.datasetDict_2016PostVFP import (
     dataDict as dataDict_2016PostVFP_extended,
 )
 from wremnants.datasets.datasetDict_2017 import dataDict as dataDict_2017
+from wremnants.datasets.datasetDict_2017 import dataDict as dataDict_2017_extended
 from wremnants.datasets.datasetDict_2017H import dataDict as dataDict_2017H
 from wremnants.datasets.datasetDict_2018 import dataDict as dataDict_2018
+from wremnants.datasets.datasetDict_2018 import dataDict as dataDict_2018_extended
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -41,7 +43,7 @@ horace_v5 = False
 
 
 def merge_samples(
-    source_dict, suffix="MiNNLO", processes=["Zmumu", "Wplusmunu", "Wminusmunu"]
+    source_dict, suffix="13TeVGen", processes=["Zmumu", "Wplusmunu", "Wminusmunu"]
 ):
     # merge samples from different eras
     res_dict = {}
@@ -70,15 +72,13 @@ def merge_samples(
 
 
 # dict with NanoAOD samples
-dataDict = merge_samples(
-    {**dataDict_2016PostVFP, **dataDict_2017, **dataDict_2017H, **dataDict_2018}
-)
+dataDict = merge_samples({**dataDict_2016PostVFP, **dataDict_2017, **dataDict_2018})
 dataDict_extended = merge_samples(
     {
         **dataDict_2016PostVFP_extended,
-        **dataDict_2017,
+        **dataDict_2017_extended,
         **dataDict_2017H,
-        **dataDict_2018,
+        **dataDict_2018_extended,
     }
 )
 
