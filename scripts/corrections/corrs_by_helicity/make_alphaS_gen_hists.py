@@ -8,12 +8,16 @@ from datetime import datetime
 
 THEORY_PREDS = {
     "scetlib_dyturbo_CT18Z_N3p0LL_N2LO_pdfas": {"pdf": "ct18z"},
-    "scetlib_dyturbo_MSHT20_N3p0LL_N2LO_pdfas": {"pdf": "msht20"},
     "scetlib_dyturbo_CT18Z_N3p1LL_N2LO_pdfas": {"pdf": "ct18z"},
     "scetlib_dyturbo_CT18Z_N4p0LL_N2LO_pdfas": {"pdf": "ct18z"},
+    "scetlib_dyturbo_MSHT20_N3p0LL_N2LO_pdfas": {"pdf": "msht20"},
+    "scetlib_dyturbo_MSHT20an3lo_N3p0LL_N2LO_pdfas": {"pdf": "msht20an3lo"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N2p1LL_N2LO_pdfas": {"pdf": "ct18z"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N3p0LL_N2LO_pdfas": {"pdf": "ct18z"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N3p1LL_N2LO_pdfas": {"pdf": "ct18z"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N4p0LL_N2LO_pdfas": {"pdf": "ct18z"},
     "scetlib_nnlojet_CT18Z_N3p1LL_N3LO_pdfas": {"pdf": "ct18z"},
     "scetlib_nnlojet_CT18Z_N4p0LL_N3LO_pdfas": {"pdf": "ct18z"},
-    "scetlib_dyturbo_LatticeNP_CT18Z_N3p0LL_N2LO_pdfas": {"pdf": "ct18z"},
     "scetlib_nnlojet_MSHT20an3lo_N4p0LL_N3LO_pdfas": {"pdf": "msht20an3lo"},
 }
 
@@ -65,7 +69,10 @@ def main():
 
         if args.skim:
             pdf_replace = f"_{pdf}" if pdf != "ct18z" else ""
-            skim_command = f"python {os.environ['WREM_BASE']}/utilities/open_narf_h5py.py {args.outdir}/w_z_gen_dists_{pred + "_Corr"}_maxFiles_m1{pdf_replace}.hdf5 --filterHistsRegex '^(.*pdfas.*|nominal_gen_theory_uncorr)$' --outfile {args.outdir}/w_z_gen_dists_{pred + "_Corr"}_maxFiles_m1_skimmed.hdf5"
+            skim_command = f"""
+            python {os.environ['WREM_BASE']}/utilities/open_narf_h5py.py {args.outdir}/w_z_gen_dists_{pred + "_Corr"}_maxFiles_m1{pdf_replace}.hdf5 \
+            --filterHistsRegex '^(.*pdfas.*|nominal_gen_theory_uncorr)$' --outfile {args.outdir}/w_z_gen_dists_{pred + "_Corr"}_maxFiles_m1_skimmed.hdf5
+            """
             print(f"Running skimming command: {skim_command}")
             os.system(skim_command)
 
