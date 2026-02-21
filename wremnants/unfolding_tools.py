@@ -37,6 +37,9 @@ def define_gen_level(df, dataset_name, gen_levels=["prefsr", "postfsr"], mode="w
 
     singlelep = mode[0] == "w" or "wlike" in mode
 
+    # general preFSR definition is needed in any case
+    df = theory_tools.define_prefsr_vars(df)
+
     if "prefsr" in gen_levels:
         # # needed for fiducial phase space definition
         df = df.Alias("prefsrV_mass", "massVgen")
@@ -432,8 +435,6 @@ class UnfolderZ:
     def add_gen_histograms(
         self, args, df, results, dataset, corr_helpers, theory_helpers={}
     ):
-        df = theory_tools.define_prefsr_vars(df)
-
         df = define_gen_level(
             df, dataset.name, self.unfolding_levels, mode=self.analysis_label
         )

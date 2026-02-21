@@ -621,11 +621,15 @@ for name, channel0, channel1, unit in (
             ax.add_patch(ell)
             ax.plot(x, y, color=icol, marker="o", alpha=0)
 
+    # scale for 2D plot
+    prob = chi2.cdf(1, df=1)  # Get the probability of the 1D n-sigma
+    scale = np.sqrt(chi2.ppf(prob, df=2))  # Find the 2D equivalent scale
+
     # cross sections from SMP-20-004
     x = smp_20_004[channel0[0]][0]
-    x_err = smp_20_004[channel0[0]][1]
+    x_err = smp_20_004[channel0[0]][1] * scale
     y = smp_20_004[channel1[0]][0]
-    y_err = smp_20_004[channel1[0]][1]
+    y_err = smp_20_004[channel1[0]][1] * scale
 
     plt.errorbar(
         x,
