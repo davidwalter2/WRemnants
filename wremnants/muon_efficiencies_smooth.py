@@ -9,7 +9,7 @@ import ROOT
 
 import narf
 from utilities import common
-from utilities.io_tools import input_tools
+from utilities.io_tools import input_tools_root
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -115,7 +115,7 @@ def make_muon_efficiency_helpers_smooth(
     if era == "2017" or era == "2018":
         filename = data_dir + f"muonSF/{era}/allSmooth_GtoHout_vtxAgnIso.root"
 
-    fin = input_tools.safeOpenRootFile(filename)
+    fin = input_tools_root.safeOpenRootFile(filename)
     logger.info(f"Scale factors read from {filename}")
 
     dict_SF3D = None
@@ -178,7 +178,7 @@ def make_muon_efficiency_helpers_smooth(
                         logger.warning(
                             f"Substituting temporarily missing 2D histogram for 'isoantitrig' with 'isonotrig'"
                         )
-            hist_root = input_tools.safeGetRootObject(fin, hist_name)
+            hist_root = input_tools_root.safeGetRootObject(fin, hist_name)
             logger.debug(f"Syst: {eff_type} {chargeTag} -> {hist_name}")
 
             hist_hist = narf.root_to_hist(
@@ -572,7 +572,7 @@ def make_muon_efficiency_helpers_smooth(
                                 logger.warning(
                                     f"Substituting temporarily missing 2D histogram for 'isoantitrig' with 'isonotrig'"
                                 )
-                    hist_root = input_tools.safeGetRootObject(fin, hist_name)
+                    hist_root = input_tools_root.safeGetRootObject(fin, hist_name)
 
                     # logger.info(f"stat: {effStatKey}|{eff_type} -> {hist_name}")
                     # logger.info(ROOT.AddressOf(hist_root))
@@ -879,7 +879,7 @@ def make_muon_efficiency_helpers_smooth_altSyst(
     if era == "2017" or era == "2018":
         filename = data_dir + f"/muonSF/{era}/allSmooth_GtoHout_vtxAgnIso_altBkg.root"
 
-    fin = input_tools.safeOpenRootFile(filename)
+    fin = input_tools_root.safeOpenRootFile(filename)
     logger.info(f"Scale factors read from {filename}")
 
     ## start with NOMI and SYST
@@ -888,7 +888,7 @@ def make_muon_efficiency_helpers_smooth_altSyst(
         for eff_type in allEff_types:
             chargeTag = charge_tag if eff_type in chargeDependentSteps else "both"
             hist_name = f"SF_nomiAndAlt_{eratag}_{eff_type}_{chargeTag}_altBkg"
-            hist_root = input_tools.safeGetRootObject(fin, hist_name)
+            hist_root = input_tools_root.safeGetRootObject(fin, hist_name)
 
             hist_hist = narf.root_to_hist(
                 hist_root, axis_names=["SF eta", "SF pt", "nomi-statUpDown-syst"]

@@ -7,7 +7,6 @@ import h5py
 import hist
 import lz4.frame
 import numpy as np
-import ROOT
 import uproot
 
 from wums import boostHistHelpers as hh
@@ -713,45 +712,6 @@ def read_json(fIn):
         with open(fIn) as f:
             jsDict = json.load(f)
         return jsDict
-
-
-def safeGetRootObject(
-    fileObject, objectName, quitOnFail=True, silent=False, detach=True
-):
-    obj = fileObject.Get(objectName)
-    if obj is None:
-        error_msg = f"Error getting {objectName} from file {fileObject.GetName()}"
-        if not silent:
-            logger.error(error_msg)
-        if quitOnFail:
-            raise IOError(error_msg)
-        return None
-    else:
-        if detach:
-            obj.SetDirectory(0)
-        return obj
-
-
-def safeOpenRootFile(fileName, quitOnFail=True, silent=False, mode="READ"):
-    fileObject = ROOT.TFile.Open(fileName, mode)
-    if not fileObject or fileObject.IsZombie():
-        error_msg = f"Error when opening file {fileName}"
-        if not silent:
-            logger.error(error_msg)
-        if quitOnFail:
-            raise IOError(error_msg)
-        else:
-            return None
-    elif not fileObject.IsOpen():
-        error_msg = f"File {fileName} was not opened"
-        if not silent:
-            logger.error(error_msg)
-        if quitOnFail:
-            raise IOError(error_msg)
-        else:
-            return None
-    else:
-        return fileObject
 
 
 def get_metadata(infile):

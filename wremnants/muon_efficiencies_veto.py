@@ -4,7 +4,7 @@ import ROOT
 
 import narf
 from utilities import common
-from utilities.io_tools import input_tools
+from utilities.io_tools import input_tools_root
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -38,13 +38,13 @@ def make_muon_efficiency_helpers_veto(useGlobalOrTrackerVeto=False, era=None):
     else:
         Steps = 5  # we decided to compute the syst variations on the veto SFs independently for each of the tnp fits (for global-or-tracker in the muon definition we fit reco, "tracking", P(tracker-seeded track|standalone), P(tracker muon and not global|tracker-seeded track), looseID + dxybs)
 
-    file_plus = input_tools.safeOpenRootFile(f"{filename_plus}")
-    plus_histo = input_tools.safeGetRootObject(
+    file_plus = input_tools_root.safeOpenRootFile(f"{filename_plus}")
+    plus_histo = input_tools_root.safeGetRootObject(
         file_plus, "SF_nomiAndAlt_GtoH_newveto_plus"
     )
     file_plus.Close()
-    file_minus = input_tools.safeOpenRootFile(f"{filename_minus}")
-    minus_histo = input_tools.safeGetRootObject(
+    file_minus = input_tools_root.safeOpenRootFile(f"{filename_minus}")
+    minus_histo = input_tools_root.safeGetRootObject(
         file_minus, "SF_nomiAndAlt_GtoH_newveto_minus"
     )
     file_minus.Close()

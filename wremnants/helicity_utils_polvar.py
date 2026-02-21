@@ -4,7 +4,7 @@ import ROOT
 import narf
 import narf.clingutils
 from utilities import common
-from utilities.io_tools import input_tools
+from utilities.io_tools import input_tools_root
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -56,12 +56,12 @@ def makehelicityWeightHelper_polvar(
     hsys_hist_full = {fld: None for fld in folders}
 
     filename = filenames[genVcharge]
-    fin = input_tools.safeOpenRootFile(filename)
+    fin = input_tools_root.safeOpenRootFile(filename)
     nSysts_coeff = {}
     for ifld, fld in enumerate(folders):
         f = fin.GetDirectory(fld)
         # start with nominal
-        hnom = input_tools.safeGetRootObject(f, f"h_pdf_{fld}")
+        hnom = input_tools_root.safeGetRootObject(f, f"h_pdf_{fld}")
         hnom_hist = narf.root_to_hist(hnom, axis_names=["qtOverQ", "absY"])
         # create and fill boost histogram
         if hnom_hist_full is None:
@@ -109,12 +109,14 @@ def makehelicityWeightHelper_polvar(
 
         nSysts_coeff[ifld] = nSysts
         for isys in range(nSysts):
-            hsysDown = input_tools.safeGetRootObject(f, f"h_pdf_{fld}_syst{isys}Down")
+            hsysDown = input_tools_root.safeGetRootObject(
+                f, f"h_pdf_{fld}_syst{isys}Down"
+            )
             hsysDown_hist = narf.root_to_hist(hsysDown, axis_names=["qtOverQ", "absY"])
             hsys_hist_full[fld].values(flow=False)[:, :, isys, 0] = (
                 hsysDown_hist.values(flow=False)[:, :]
             )
-            hsysUp = input_tools.safeGetRootObject(f, f"h_pdf_{fld}_syst{isys}Up")
+            hsysUp = input_tools_root.safeGetRootObject(f, f"h_pdf_{fld}_syst{isys}Up")
             hsysUp_hist = narf.root_to_hist(hsysUp, axis_names=["qtOverQ", "absY"])
             hsys_hist_full[fld].values(flow=False)[:, :, isys, 1] = hsysUp_hist.values(
                 flow=False
