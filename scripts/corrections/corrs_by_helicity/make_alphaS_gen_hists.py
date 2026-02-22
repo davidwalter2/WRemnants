@@ -15,6 +15,9 @@ THEORY_PREDS = {
     "scetlib_nnlojet_CT18Z_N4p0LL_N3LO_pdfas": {"pdf": "ct18z"},
     "scetlib_dyturbo_LatticeNP_CT18Z_N3p0LL_N2LO_pdfas": {"pdf": "ct18z"},
     "scetlib_nnlojet_MSHT20an3lo_N4p0LL_N3LO_pdfas": {"pdf": "msht20an3lo"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N2p1LL_N2L0_pdfas": {"pdf": "ct18z"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N3p1LL_N2L0_pdfas": {"pdf": "ct18z"},
+    "scetlib_dyturbo_LatticeNP_CT18Z_N4p0LL_N2L0_pdfas": {"pdf": "ct18z"}
 }
 
 
@@ -38,6 +41,13 @@ def parse_arguments():
         action="store_true",
         help="If set, will run a skimming step to only keep the PDF histograms in the file, saving a new output file.",
     )
+    parser.add_argument(
+        "--bosons",
+        nargs="+",
+        choices=["W", "Z"],
+        default=["W", "Z"],
+        help="Bosons to process. Choose one or both of: W Z (default: %(default)s)",
+    )
 
     return parser.parse_args()
 
@@ -48,8 +58,22 @@ def main():
 
     print("Generating histograms by helicity for the following theory preds:")
     print(args.preds)
+    print("Processing bosons:")
+    print(args.bosons)
     print("Will output to directory:")
     print(args.outdir)
+
+    filter_procs = []
+    aggregate_groups = []
+    if "Z" in args.bosons:
+        filter_procs.append("Zmumu_13TeVGen")
+        aggregate_groups.append("Zmumu")
+    if "W" in args.bosons:
+        filter_procs.extend(["Wplusmunu_13TeVGen", "Wminusmunu_13TeVGen"])
+        aggregate_groups.append("Wmunu")
+
+    filter_procs_arg = " ".join(f"'{proc}'" for proc in filter_procs)
+    aggregate_groups_arg = " ".join(aggregate_groups)
 
     for pred in args.preds:
 
@@ -57,7 +81,7 @@ def main():
 
         command = f"""
             python {os.environ['WREM_BASE']}/scripts/histmakers/w_z_gen_dists.py --theoryCorr {pred} \
-            --filterProcs 'Zmumu_13TeVGen' 'Wplusmunu_13TeVGen' 'Wminusmunu_13TeVGen' --aggregateGroups Zmumu Wmunu \
+            --filterProcs {filter_procs_arg} --aggregateGroups {aggregate_groups_arg} \
             -o {args.outdir} --maxFiles -1 -j 300 --addHelicityAxis --pdf {pdf}
             """
         print(f"Running command: {command}")
