@@ -19,9 +19,12 @@ THEORY_PREDS = {
     "scetlib_nnlojet_CT18Z_N3p1LL_N3LO_pdfas": {"pdf": "ct18z"},
     "scetlib_nnlojet_CT18Z_N4p0LL_N3LO_pdfas": {"pdf": "ct18z"},
     "scetlib_nnlojet_MSHT20an3lo_N4p0LL_N3LO_pdfas": {"pdf": "msht20an3lo"},
-    "scetlib_dyturbo_LatticeNP_CT18Z_N2p1LL_N2L0_pdfas": {"pdf": "ct18z"},
-    "scetlib_dyturbo_LatticeNP_CT18Z_N3p1LL_N2L0_pdfas": {"pdf": "ct18z"},
-    "scetlib_dyturbo_LatticeNP_CT18Z_N4p0LL_N2L0_pdfas": {"pdf": "ct18z"}
+    "scetlib_dyturbo_LatticeNP_CT18_N3p0LL_N2LO_pdfas": {"pdf": "ct18"},
+    "scetlib_dyturbo_LatticeNP_HERAPDF20_N3p0LL_N2LO_pdfas": {"pdf": "herapdf20 herapdf20ext"},
+    "scetlib_dyturbo_LatticeNP_MSHT20_N3p0LL_N2LO_pdfas": {"pdf": "msht20"},
+    "scetlib_dyturbo_LatticeNP_MSHT20aN3LO_N3p0LL_N2LO_pdfas": {"pdf": "msht20an3lo"},
+    "scetlib_dyturbo_LatticeNP_NNPDF40_N3p0LL_N2LO_pdfas": {"pdf": "nnpdf40"},
+    "scetlib_dyturbo_LatticeNP_PDF4LHC21_N3p0LL_N2LO_pdfas": {"pdf": "pdf4lhc21"},
 }
 
 
@@ -92,10 +95,13 @@ def main():
         os.system(command)
 
         if args.skim:
-            pdf_replace = f"_{pdf}" if pdf != "ct18z" else ""
+            pred_corr = f"{pred}_Corr"
+            pdf_replace = f"_{pdf.split(' ')[0]}" if pdf != "ct18z" else ""
+            input_file = f"{args.outdir}/w_z_gen_dists_{pred_corr}_maxFiles_m1{pdf_replace}.hdf5"
+            output_file = input_file.replace(".hdf5", "_skimmed.hdf5")
             skim_command = f"""
-            python {os.environ['WREM_BASE']}/utilities/open_narf_h5py.py {args.outdir}/w_z_gen_dists_{pred + "_Corr"}_maxFiles_m1{pdf_replace}.hdf5 \
-            --filterHistsRegex '^(.*pdfas.*|nominal_gen_theory_uncorr)$' --outfile {args.outdir}/w_z_gen_dists_{pred + "_Corr"}_maxFiles_m1_skimmed.hdf5
+            python {os.environ['WREM_BASE']}/utilities/open_narf_h5py.py {input_file} \
+            --filterHistsRegex '^(.*pdfas.*|nominal_gen_theory_uncorr)$' --outfile {output_file}
             """
             print(f"Running skimming command: {skim_command}")
             os.system(skim_command)
