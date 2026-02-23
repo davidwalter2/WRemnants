@@ -7,7 +7,6 @@ import numpy as np
 import ROOT
 
 import narf
-import narf.histutils
 from utilities import common
 from utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
