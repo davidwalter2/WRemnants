@@ -25,6 +25,7 @@ THEORY_PREDS = {
     "scetlib_dyturbo_LatticeNP_MSHT20aN3LO_N3p0LL_N2LO_pdfas": {"pdf": "msht20an3lo"},
     "scetlib_dyturbo_LatticeNP_NNPDF40_N3p0LL_N2LO_pdfas": {"pdf": "nnpdf40"},
     "scetlib_dyturbo_LatticeNP_PDF4LHC21_N3p0LL_N2LO_pdfas": {"pdf": "pdf4lhc21"},
+    "scetlib_dyturbo_LatticeNP_NNPDF31_N3p0LL_N2LO_pdfas": {"pdf": "nnpdf31"},
 }
 
 
