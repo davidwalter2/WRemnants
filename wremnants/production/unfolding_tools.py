@@ -3,8 +3,12 @@ from copy import deepcopy
 import hist
 import numpy as np
 
-from wremnants.postprocessing import syst_tools
-from wremnants.production import helicity_utils, theory_tools
+from wremnants.production import (
+    generator_level_definitions,
+    helicity_utils,
+    systematics,
+    theory_corrections,
+)
 from wremnants.utilities import common, differential
 from wums import logging
 
@@ -38,7 +42,7 @@ def define_gen_level(df, dataset_name, gen_levels=["prefsr", "postfsr"], mode="w
     singlelep = mode[0] == "w" or "wlike" in mode
 
     if "prefsr" in gen_levels:
-        df = theory_tools.define_prefsr_vars(df)
+        df = generator_level_definitions.define_prefsr_vars(df)
 
         # # needed for fiducial phase space definition
         df = df.Alias("prefsrV_mass", "massVgen")
@@ -73,7 +77,7 @@ def define_gen_level(df, dataset_name, gen_levels=["prefsr", "postfsr"], mode="w
                 df = df.Define("prefsrLep_charge", "event % 2 == 0 ? -1 : 1")
 
     if "postfsr" in gen_levels:
-        df = theory_tools.define_postfsr_vars(df, mode=mode)
+        df = generator_level_definitions.define_postfsr_vars(df, mode=mode)
 
         if singlelep:
             df = df.Alias("postfsrV_mT", "postfsrMT")
@@ -188,7 +192,7 @@ def add_xnorm_histograms(
     df_xnorm = df
     df_xnorm = df_xnorm.DefinePerSample("exp_weight", "1.0")
 
-    df_xnorm = theory_tools.define_theory_weights_and_corrs(
+    df_xnorm = theory_corrections.define_theory_weights_and_corrs(
         df_xnorm, dataset_name, corr_helpers, args, theory_helpers=theory_helpers
     )
 
@@ -202,8 +206,6 @@ def add_xnorm_histograms(
     xnorm_cols = ["xnorm", *unfolding_cols]
 
     if add_helicity_axis:
-        from wremnants.production.helicity_utils import axis_helicity_multidim
-
         df_xnorm = df_xnorm.Define(
             "helicity_moments_tensor",
             "wrem::csAngularMoments(csSineCosThetaPhigen)",
@@ -214,7 +216,7 @@ def add_xnorm_histograms(
                 base_name,
                 xnorm_axes,
                 [*xnorm_cols, "helicity_moments_tensor", "nominal_weight"],
-                tensor_axes=[axis_helicity_multidim],
+                tensor_axes=[common.axis_helicity_multidim],
                 storage=hist.storage.Weight(),
             )
         )
@@ -223,7 +225,7 @@ def add_xnorm_histograms(
             df_xnorm.HistoBoost(base_name, xnorm_axes, [*xnorm_cols, "nominal_weight"])
         )
 
-    syst_tools.add_theory_hists(
+    systematics.add_theory_hists(
         results,
         df_xnorm,
         args,
@@ -532,16 +534,12 @@ class UnfolderZ:
             yield_axes = [*nominal_axes, *self.unfolding_axes[level]]
             yield_cols = [*nominal_cols, *self.unfolding_cols[level]]
             if self.add_helicity_axis:
-                from wremnants.production.helicity_utils import (
-                    axis_helicity_multidim,
-                )
-
                 results.append(
                     df.HistoBoost(
                         noiAsPoiHistName,
                         yield_axes,
                         [*yield_cols, "nominal_weight_helicity"],
-                        tensor_axes=[axis_helicity_multidim],
+                        tensor_axes=[common.axis_helicity_multidim],
                     )
                 )
             else:
@@ -554,7 +552,7 @@ class UnfolderZ:
                 )
 
                 # create corresponding histogram without experimental weights, to correlate stat between gen and reco
-                weight_expr = theory_tools.build_weight_expr(
+                weight_expr = theory_corrections.build_weight_expr(
                     df,
                     exclude_weights=[
                         "exp_weight",

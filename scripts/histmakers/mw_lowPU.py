@@ -25,15 +25,13 @@ import math
 import hist
 
 import narf
-from wremnants import (
-    muon_selections,
-    unfolding_tools,
-)
 from wremnants.production import (
+    generator_level_definitions,
     lowpu,
+    muon_selections,
     systematics,
     theory_corrections,
-    theory_tools,
+    unfolding_tools,
 )
 from wremnants.production.datasets.dataset_tools import getDatasets
 from wremnants.production.histmaker_tools import (
@@ -417,7 +415,7 @@ def build_graph(df, dataset):
             df = df.Define("SFMC", "lepSF_IDISO*lepSF_HLT*prefireCorr")
 
         df = df.Define("exp_weight", "SFMC")
-        df = theory_tools.define_theory_weights_and_corrs(
+        df = theory_corrections.define_theory_weights_and_corrs(
             df, dataset.name, corr_helpers, args, theory_helpers=theory_helpers
         )
     else:
@@ -425,7 +423,7 @@ def build_graph(df, dataset):
 
     # gen match to bare muons to select only prompt muons from MC processes, but also including tau decays
     if not dataset.is_data and not isQCDMC and not args.noGenMatchMC:
-        df = theory_tools.define_postfsr_vars(df)
+        df = generator_level_definitions.define_postfsr_vars(df)
         postFSRLeps = "postfsrMuons" if flavor == "mu" else "postfsrElectrons"
         df = df.Filter(
             f"wrem::hasMatchDR2(lep_eta,lep_phi,GenPart_eta[{postFSRLeps}],GenPart_phi[{postFSRLeps}],0.09)"

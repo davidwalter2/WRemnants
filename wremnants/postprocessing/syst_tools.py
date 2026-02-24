@@ -7,7 +7,7 @@ import lz4.frame
 import numpy as np
 
 from wremnants.postprocessing import theory_tools
-from wremnants.utilities import common
+from wremnants.utilities import common, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -15,7 +15,7 @@ logger = logging.child_logger(__name__)
 
 
 def syst_transform_map(base_hist, hist_name):
-    pdfInfo = theory_tools.pdfMap
+    pdfInfo = theory_utils.pdfMap
     pdfNames = [pdfInfo[k]["name"] for k in pdfInfo.keys()]
 
     def pdfUnc(h, pdfName, axis_name="pdfVar"):
@@ -930,55 +930,6 @@ def hist_to_variations(
     )
 
     return variation_hist
-
-
-# def uncertainty_hist_from_envelope(h, proj_ax, entries):
-#     hdown = hh.syst_min_or_max_env_hist(
-#         h, proj_ax, "vars", entries, no_flow=["ptVgen"], do_min=True
-#     )
-#     hup = hh.syst_min_or_max_env_hist(
-#         h, proj_ax, "vars", entries, no_flow=["ptVgen"], do_min=False
-#     )
-#     hnew = hist.Hist(*h.axes[:-1], common.down_up_axis, storage=h.storage_type())
-#     hnew[..., 0] = hdown.view(flow=True)
-#     hnew[..., 1] = hup.view(flow=True)
-#     return hnew
-
-
-def scetlib_scale_unc_hist(h, obs, syst_ax="vars"):
-    scetlib_scale_vars = None
-    hnew = hist.Hist(
-        *h.axes[:-1],
-        hist.axis.StrCategory(["central"] + scetlib_scale_vars(), name=syst_ax),
-        storage=h.storage_type(),
-    )
-
-    hnew[..., "central"] = h[..., "central"].view(flow=True)
-    hnew[..., "resumFOScaleUp"] = h[..., "kappaFO2."].view(flow=True)
-    hnew[..., "resumFOScaleDown"] = h[..., "kappaFO0.5"].view(flow=True)
-    hnew[..., "resumLambdaUp"] = h[..., "lambda0.8"].view(flow=True)
-    hnew[..., "resumLambdaDown"] = h[..., "lambda1.5"].view(flow=True)
-
-    transition_names = [x for x in h.axes[syst_ax] if "transition" in x]
-    hnew[..., "resumTransitionUp"] = hh.syst_min_or_max_env_hist(
-        h, obs, syst_ax, h.axes[syst_ax].index(transition_names), do_min=False
-    ).view(flow=True)
-    hnew[..., "resumTransitionDown"] = hh.syst_min_or_max_env_hist(
-        h, obs, syst_ax, h.axes[syst_ax].index(transition_names), do_min=True
-    ).view(flow=True)
-
-    resum_names = [
-        x
-        for x in h.axes[syst_ax]
-        if not any(i in x for i in ["lambda", "kappa", "transition"])
-    ]
-    hnew[..., "resumScaleUp"] = hh.syst_min_or_max_env_hist(
-        h, obs, syst_ax, h.axes[syst_ax].index(resum_names), do_min=False
-    ).view(flow=True)
-    hnew[..., "resumScaleDown"] = hh.syst_min_or_max_env_hist(
-        h, obs, syst_ax, h.axes[syst_ax].index(resum_names), do_min=True
-    ).view(flow=True)
-    return hnew
 
 
 def scale_hist_up_down(h, scale):

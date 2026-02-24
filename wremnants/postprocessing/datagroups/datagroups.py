@@ -45,11 +45,11 @@ class Datagroups(object):
 
         if mode is None:
             analysis_script = os.path.basename(self.getScriptCommand().split()[0])
-            self.mode = Datagroups.analysisLabel(analysis_script)
+            self.mode = common.analysis_label(analysis_script)
         else:
-            if mode not in Datagroups.mode_map.values():
+            if mode not in common.mode_map.values():
                 raise ValueError(
-                    f"Unrecognized mode '{mode}.' Must be one of {set(Datagroups.mode_map.values())}"
+                    f"Unrecognized mode '{mode}.' Must be one of {set(common.mode_map.values())}"
                 )
             self.mode = mode
         logger.info(f"Set mode to {self.mode}")
@@ -1052,7 +1052,7 @@ class Datagroups(object):
 
     def readHist(self, baseName, proc, syst):
         output = self.results[proc.name]["output"]
-        histname = self.histName(baseName, proc.name, syst)
+        histname = common.hist_name(baseName, syst)
         logger.debug(
             f"Reading hist {histname} for proc/group {proc.name} and syst '{syst}'"
         )
@@ -1114,9 +1114,6 @@ class Datagroups(object):
 
     def predictedProcesses(self):
         return self.filteredProcesses(lambda x: x != self.dataName)
-
-    def histName(self, baseName, procName="", syst=""):
-        return common.hist_name(baseName, procName, syst, nominalName=self.nominalName)
 
     ## Functions to customize systs to be added in card, mainly for tests
     def setCustomSystForCard(self, exclude=None, keep=None, absorb=None, explicit=None):

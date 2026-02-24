@@ -1,6 +1,6 @@
 import os
 
-from wremnants.utilities import common, differential, parsing, theory_corrections
+from wremnants.utilities import common, differential, parsing
 
 analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
@@ -13,6 +13,7 @@ import ROOT
 import narf
 import wremnants
 from wremnants.production import (
+    generator_level_definitions,
     muon_calibration,
     muon_efficiencies_binned,
     muon_efficiencies_smooth,
@@ -20,6 +21,7 @@ from wremnants.production import (
     muon_selections,
     pileup,
     systematics,
+    theory_corrections,
     theory_tools,
     theoryAgnostic_tools,
     unfolding_tools,
@@ -585,7 +587,7 @@ def build_graph(df, dataset):
                     break
 
     if isZ:
-        df = theory_tools.define_prefsr_vars(df)
+        df = generator_level_definitions.define_prefsr_vars(df)
         df = df.Define(
             "qtOverQ", "ptVgen/massVgen"
         )  # FIXME: should there be a protection against mass=0 and what value to use?

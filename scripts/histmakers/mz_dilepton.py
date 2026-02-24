@@ -21,7 +21,6 @@ from wremnants.production import (
     pileup,
     systematics,
     theory_corrections,
-    theory_tools,
     theoryAgnostic_tools,
     unfolding_tools,
     vertex,
@@ -144,7 +143,9 @@ datasets = getDatasets(
 # dilepton invariant mass cuts
 mass_min, mass_max = common.get_default_mz_window()
 
-ewMassBins = theory_tools.make_bw_binning(mass=91.1535, width=2.4932, initialStep=0.010)
+ewMassBins = theory_corrections.make_bw_binning(
+    mass=91.1535, width=2.4932, initialStep=0.010
+)
 
 if args.useTheoryAgnosticBinning:
     theoryAgnostic_axes, _ = differential.get_theoryAgnostic_axes(
@@ -576,7 +577,7 @@ def build_graph(df, dataset):
         # gen level variables before selection
         df_gen = df
         df_gen = df_gen.DefinePerSample("exp_weight", "1.0")
-        df_gen = theory_tools.define_theory_weights_and_corrs(
+        df_gen = theory_corrections.define_theory_weights_and_corrs(
             df_gen, dataset.name, corr_helpers, args, theory_helpers=theory_helpers
         )
 
@@ -899,7 +900,7 @@ def build_graph(df, dataset):
 
         logger.debug(f"Experimental weight defined: {weight_expr}")
         df = df.Define("exp_weight", weight_expr)
-        df = theory_tools.define_theory_weights_and_corrs(
+        df = theory_corrections.define_theory_weights_and_corrs(
             df, dataset.name, corr_helpers, args, theory_helpers=theory_helpers
         )
 

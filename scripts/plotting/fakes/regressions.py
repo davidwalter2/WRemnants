@@ -4,8 +4,8 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import nnls
 
-from wremnants import plot_tools
 from wremnants.postprocessing import histselections as sel
+from wremnants.postprocessing import plot_tools
 from wremnants.postprocessing import regression as reg
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.utilities import parsing

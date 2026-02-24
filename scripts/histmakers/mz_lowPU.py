@@ -30,7 +30,6 @@ from wremnants.production import (
     muon_selections,
     systematics,
     theory_corrections,
-    theory_tools,
     unfolding_tools,
 )
 from wremnants.production.datasets.dataset_tools import getDatasets
@@ -356,7 +355,7 @@ def build_graph(df, dataset):
             df = df.Define("SFMC", "lepSF_IDISO*lepSF_HLT*prefireCorr")
 
         df = df.Define("exp_weight", "SFMC")
-        df = theory_tools.define_theory_weights_and_corrs(
+        df = theory_corrections.define_theory_weights_and_corrs(
             df, dataset.name, corr_helpers, args, theory_helpers=theory_helpers
         )
     else:

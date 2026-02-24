@@ -5,7 +5,6 @@ import math
 import hist
 import numpy as np
 
-import rabbit.debugdata
 import rabbit.io_tools
 from rabbit import tensorwriter
 from wremnants.postprocessing import (
@@ -19,12 +18,10 @@ from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.postprocessing.histselections import FakeSelectorSimpleABCD
 from wremnants.postprocessing.regression import Regressor
 from wremnants.postprocessing.syst_tools import (
-    massWeightNames,
     scale_hist_up_down,
     scale_hist_up_down_corr_from_file,
-    widthWeightNames,
 )
-from wremnants.utilities import common, parsing, theory_corrections
+from wremnants.utilities import common, parsing, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools
 
@@ -608,7 +605,7 @@ def make_parser(parser=None):
         help="Include EW uncertainty (other than pure ISR or FSR)",
         choices=[
             x
-            for x in theory_corrections.valid_theory_corrections()
+            for x in theory_utils.valid_theory_corrections()
             if ("ew" in x or "EW" in x) and "ISR" not in x and "FSR" not in x
         ],
     )
@@ -622,7 +619,7 @@ def make_parser(parser=None):
         help="Include ISR uncertainty",
         choices=[
             x
-            for x in theory_corrections.valid_theory_corrections()
+            for x in theory_utils.valid_theory_corrections()
             if "ew" in x and "ISR" in x
         ],
     )
@@ -634,7 +631,7 @@ def make_parser(parser=None):
         help="Include FSR uncertainty",
         choices=[
             x
-            for x in theory_corrections.valid_theory_corrections()
+            for x in theory_utils.valid_theory_corrections()
             if "ew" in x and "FSR" in x
         ],
     )
@@ -1355,6 +1352,8 @@ def setup(
         datagroups.addPseudodataHistogramFakes(pseudodata, pseudodataGroups)
     if args.pseudoData and not datagroups.xnorm:
         if args.pseudoDataFitInputFile:
+            import rabbit.debugdata
+
             indata = rabbit.debugdata.FitInputData(args.pseudoDataFitInputFile)
             debugdata = rabbit.debugdata.FitDebugData(indata)
             datagroups.addPseudodataHistogramsFitInput(
@@ -1452,7 +1451,7 @@ def setup(
             processes=signal_samples_forMass,
             group=f"massShift",
             noi=not constrainMass,
-            skipEntries=massWeightNames(proc=label, exclude=massVariation),
+            skipEntries=common.massWeightNames(proc=label, exclude=massVariation),
             mirror=False,
             noConstraint=not constrainMass,
             systAxes=["massShift"],
@@ -1495,7 +1494,9 @@ def setup(
                     # systNameReplace=[("Shift",f"Diff{suffix}")],
                     skipEntries=[
                         (x, *[-1] * len(args.fitMassDecorr))
-                        for x in massWeightNames(proc=label, exclude=args.massVariation)
+                        for x in common.massWeightNames(
+                            proc=label, exclude=args.massVariation
+                        )
                     ],
                     noi=not constrainMass,
                     noConstraint=not constrainMass,
@@ -1615,7 +1616,7 @@ def setup(
             "widthWeightZ",
             name="WidthZ0p8MeV",
             processes=["single_v_nonsig_samples"] if wmass else signal_samples_forMass,
-            skipEntries=widthWeightNames(proc="Z", exclude=(2.49333, 2.49493)),
+            skipEntries=common.widthWeightNames(proc="Z", exclude=(2.49333, 2.49493)),
             groups=["ZmassAndWidth" if wmass else "widthZ", "theory"],
             mirror=False,
             noi="wwidth" in args.noi if not wmass else False,
@@ -1633,7 +1634,7 @@ def setup(
             mirror=False,
             noi="wwidth" in args.noi,
             noConstraint="wwidth" in args.noi,
-            skipEntries=widthWeightNames(proc="W", exclude=(2.09053, 2.09173)),
+            skipEntries=common.widthWeightNames(proc="W", exclude=(2.09053, 2.09173)),
             systAxes=["width"],
             systNameReplace=[["2p09053GeV", "Down"], ["2p09173GeV", "Up"]],
             passToFakes=passSystToFakes,
@@ -1745,7 +1746,7 @@ def setup(
                 f"massWeightZ",
                 processes=["single_v_nonsig_samples"],
                 groups=["ZmassAndWidth", "theory"],
-                skipEntries=massWeightNames(proc="Z", exclude=massVariationZ),
+                skipEntries=common.massWeightNames(proc="Z", exclude=massVariationZ),
                 mirror=False,
                 noi=not constrainMassZ,
                 noConstraint=not constrainMassZ,

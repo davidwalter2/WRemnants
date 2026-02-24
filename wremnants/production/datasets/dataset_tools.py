@@ -227,7 +227,7 @@ def getDatasets(
         base_path = getDataPath()
     logger.info(f"Loading samples from {base_path}.")
 
-    module = importlib.import_module(f"wremnants.datasets.datasetDict_{era}")
+    module = importlib.import_module(f"wremnants.production.datasets.datasetDict_{era}")
     if extended:
         dataDict = getattr(module, "dataDict_extended", {})
         if len(dataDict) == 0:

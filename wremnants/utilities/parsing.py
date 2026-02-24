@@ -105,8 +105,8 @@ def common_parser(analysis_label=""):
         ROOT.ROOT.DisableImplicitMT()
     else:
         ROOT.ROOT.EnableImplicitMT(max(0, initargs.nThreads))
-    from wremnants.postprocessing import theory_tools
-    from wremnants.utilities import theory_corrections
+
+    from wremnants.utilities import theory_utils
 
     class PDFFilterAction(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
@@ -129,7 +129,7 @@ def common_parser(analysis_label=""):
         type=str,
         nargs="*",
         default=["ct18z", "msht20mcrange_renorm", "msht20mbrange_renorm"],
-        choices=theory_tools.pdfMap.keys(),
+        choices=theory_utils.pdfMap.keys(),
         help="PDF sets to produce error hists for. If empty, use PDF set used in production (weight=1).",
         action=PDFFilterAction,
     )
@@ -180,7 +180,7 @@ def common_parser(analysis_label=""):
             "scetlib_dyturbo_CT18Z_N3p0LL_N2LO_pdfvars",
             "scetlib_dyturbo_CT18Z_N3p0LL_N2LO_pdfas",
         ],
-        choices=theory_corrections.valid_theory_corrections(),
+        choices=theory_utils.valid_theory_corrections(),
         help="Apply corrections from indicated generator. First will be nominal correction.",
     )
     parser.add_argument(
@@ -193,7 +193,7 @@ def common_parser(analysis_label=""):
         nargs="*",
         type=str,
         action=NoneFilterAction,
-        choices=theory_corrections.valid_ew_theory_corrections(),
+        choices=theory_utils.valid_ew_theory_corrections(),
         default=[
             "renesanceEW",
             "powhegFOEW",

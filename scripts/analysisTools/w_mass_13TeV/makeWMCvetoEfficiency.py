@@ -21,7 +21,7 @@ import wums.ioutils
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.utilities import common
 
-# from wremnants import plot_tools,theory_tools,syst_tools
+# from wremnants.postprocessing import plot_tools,theory_tools,syst_tools
 from wums import boostHistHelpers as hh
 from wums import logging
 

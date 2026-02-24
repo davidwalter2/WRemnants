@@ -187,6 +187,50 @@ pdfMap = {
 }
 
 
+only_central_pdf_datasets = [
+    "Wplusmunu_bugfix",
+    "Wminusmunu_bugfix",
+    "Zmumu_bugfix",
+    "Zmumu_bugfix_slc7",
+]
+
+
+def pdf_info_map(dataset, pdfset):
+    infoMap = pdfMap
+
+    # Just ignore PDF variations for non W/Z samples
+    if (
+        pdfset is None
+        or not (dataset[0] in ["W", "Z"] and dataset[1] not in ["W", "Z"])
+        or "horace" in dataset
+        or (pdfset != "nnpdf31" and dataset in only_central_pdf_datasets)
+        or pdfset not in infoMap
+    ):
+        raise ValueError(f"Skipping PDF {pdfset} for dataset {dataset}")
+    return infoMap[pdfset]
+
+
+def pdfNamesSymHessian(entries, pdfset=""):
+    return [f"pdf{i+1}{pdfset.replace('pdf', '')}" for i in range(entries)]
+
+
+def pdfNamesAsymHessian(entries, pdfset=""):
+    pdfNames = ["pdf0" + pdfset.replace("pdf", "")]
+    if pdfset == "pdfHERAPDF20ext":
+        entries -= 3
+    pdfNames.extend(
+        [
+            f"pdf{int((j+2)/2)}{pdfset.replace('pdf', '')}{'Up' if j % 2 else 'Down'}"
+            for j in range(entries - 1)
+        ]
+    )
+    if pdfset == "pdfHERAPDF20ext":
+        pdfNames.extend(
+            [f"pdf{entries//2 + j}{pdfset.replace('pdf', '')}" for j in range(1, 4)]
+        )
+    return pdfNames
+
+
 def valid_theory_corrections():
     corr_files = glob.glob(common.data_dir + "TheoryCorrections/*Corr*.pkl.lz4")
     matches = [

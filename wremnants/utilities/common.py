@@ -8,9 +8,9 @@ from wums import logging
 
 logger = logging.child_logger(__name__)
 
-base_dir = f"{pathlib.Path(__file__).parent}/../"
-wremnants_dir = f"{pathlib.Path(__file__).parent}/../wremnants"
-data_dir = f"{pathlib.Path(__file__).parent}/../wremnants-data/data/"
+base_dir = pathlib.Path(__file__).parent.joinpath("..", "..").resolve()
+wremnants_dir = f"{base_dir}/wremnants/"
+data_dir = f"{base_dir}/wremnants-data/data/"
 
 BR_Z_LEP = 3 * 0.0336  # PDG
 BR_Z_Nu = 3 * 0.067

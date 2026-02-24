@@ -1,6 +1,6 @@
 import os
 
-from wremnants.utilities import common, parsing, theory_corrections
+from wremnants.utilities import common, parsing
 from wums import logging
 
 analysis_label = common.analysis_label(
@@ -14,13 +14,13 @@ import hist
 import ROOT
 
 import narf
-from wremnants import (
+from wremnants.production import (
     muon_calibration,
     muon_selections,
     pileup,
+    theory_corrections,
     vertex,
 )
-from wremnants.production import theory_tools
 from wremnants.production.datasets.dataset_tools import getDatasets
 from wremnants.production.histmaker_tools import (
     aggregate_groups,
@@ -186,7 +186,7 @@ def build_graph(df, dataset):
 
     logger.debug(f"Exp weight defined: {weight_expr}")
     df = df.Define("exp_weight", weight_expr)
-    df = theory_tools.define_theory_weights_and_corrs(
+    df = theory_corrections.define_theory_weights_and_corrs(
         df, dataset.name, corr_helpers, args
     )
 

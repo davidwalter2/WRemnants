@@ -7,13 +7,13 @@ import hist
 import numpy as np
 from matplotlib import cm
 
-import wums.ioutils
-from wremnants import plot_tools
 from wremnants.postprocessing import theory_tools
+from wremnants.utilities import theory_utils
 from wremnants.utilities.common import axis_helicity_multidim
 from wremnants.utilities.differential import get_theoryAgnostic_axes
 from wremnants.utilities.io_tools import input_tools, output_tools
 from wums import boostHistHelpers as hh
+from wums import ioutils, plot_tools
 
 xlabels = {
     "pt": r"p$_{T}^{\ell}$ (GeV)",
@@ -37,7 +37,7 @@ parser.add_argument(
     type=str,
     nargs="+",
     help="List of histograms to plot",
-    choices=theory_tools.pdfMap.keys(),
+    choices=theory_utils.pdfMap.keys(),
     required=True,
 )
 parser.add_argument(
@@ -87,9 +87,9 @@ parser.add_argument(
 args = parser.parse_args()
 
 for pdf in args.pdfs:
-    if pdf not in theory_tools.pdfMap:
+    if pdf not in theory_utils.pdfMap:
         raise ValueError(
-            f"pdf {pdf} is not a valid hist (not defined in theory_tools.pdfMap)"
+            f"pdf {pdf} is not a valid hist (not defined in theory_utils.pdfMap)"
         )
     print(pdf)
 # args.pdf.append("herapdf20ext")
@@ -102,7 +102,7 @@ for dataset in args.datasets:
         xlabels["unrolled_gen"] = xlabels["unrolled_gen"].replace("Z", "W")
         xlabels["unrolled_gen_hel"] = xlabels["unrolled_gen_hel"].replace("Z", "W")
 
-    pdfInfo = theory_tools.pdfMap
+    pdfInfo = theory_utils.pdfMap
     pdfNames = [pdfInfo[pdf]["name"] for pdf in args.pdfs]
 
     axis_label = "pdfVar"
@@ -418,4 +418,4 @@ for dataset in args.datasets:
 
 outfile = "theoryband_variations_corr.hdf5"
 with h5py.File(outfile, "w") as f:
-    wums.ioutils.pickle_dump_h5py("theorybands", band_hists, f)
+    ioutils.pickle_dump_h5py("theorybands", band_hists, f)

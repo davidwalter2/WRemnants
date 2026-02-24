@@ -9,7 +9,7 @@ import numpy as np
 import uproot
 from scipy.stats import chi2
 
-from wremnants import plot_tools
+from wremnants.postprocessing import plot_tools
 from wremnants.utilities import parsing
 from wums import logging, output_tools
 

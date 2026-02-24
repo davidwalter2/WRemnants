@@ -9,8 +9,8 @@ import numpy as np
 import rabbit
 import rabbit.io_tools
 from rabbit.tensorwriter import TensorWriter
-from wremnants.postprocessing import theory_tools
-from wremnants.utilities import common, parsing, theory_corrections
+from wremnants.production import theory_corrections
+from wremnants.utilities import common, parsing, theory_utils
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -744,7 +744,7 @@ if not args.noFitSigmaUL:
 logger.info("Now at variations for AlphaS")
 symmetrize = "quadratic" if "alphaS" not in args.nois else "average"
 if not args.noFitSigmaUL:
-    pdf_name = theory_tools.pdfMap[args.pdfs[0]]["name"]
+    pdf_name = theory_utils.pdfMap[args.pdfs[0]]["name"]
     alphas_var_name = f"{args.predGenerator}{args.pdfs[0].upper()}_pdfas"
     alphas_vars = theory_corrections.load_corr_helpers(
         bosons,

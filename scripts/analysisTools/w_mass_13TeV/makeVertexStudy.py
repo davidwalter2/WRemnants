@@ -22,7 +22,7 @@ import hist
 import narf
 from wremnants.utilities.io_tools import input_tools
 
-# from wremnants import plot_tools,theory_tools,syst_tools
+# from wremnants.postprocessing import plot_tools,theory_tools,syst_tools
 from wums import ioutils, logging
 
 args = sys.argv[:]

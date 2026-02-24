@@ -1,7 +1,6 @@
 import os
 
-from wremnants.utilities import common, differential, parsing, theory_corrections
-from wremnants.utilities.common import data_dir
+from wremnants.utilities import common, differential, parsing
 from wums import logging
 
 analysis_label = common.analysis_label(os.path.basename(__file__))
@@ -15,6 +14,7 @@ import ROOT
 
 import narf
 from wremnants.production import (
+    generator_level_definitions,
     muon_calibration,
     muon_efficiencies_binned,
     muon_efficiencies_newVeto,
@@ -26,7 +26,6 @@ from wremnants.production import (
     pileup,
     systematics,
     theory_corrections,
-    theory_tools,
     theoryAgnostic_tools,
     unfolding_tools,
     vertex,
@@ -504,7 +503,7 @@ elif args.binnedScaleFactors:
     # add usePseudoSmoothing=True for tests with Asimov
     muon_efficiency_helper, muon_efficiency_helper_syst, muon_efficiency_helper_stat = (
         muon_efficiencies_binned.make_muon_efficiency_helpers_binned(
-            filename=data_dir + "/muonSF/allSmooth_GtoH3D.root",
+            filename=common.data_dir + "/muonSF/allSmooth_GtoH3D.root",
             era=era,
             max_pt=axis_pt.edges[-1],
             usePseudoSmoothing=True,
@@ -907,7 +906,7 @@ def build_graph(df, dataset):
                     ]
 
     if isWorZ:
-        df = theory_tools.define_prefsr_vars(df)
+        df = generator_level_definitions.define_prefsr_vars(df)
         df = df.Define(
             "qtOverQ", "ptVgen/massVgen"
         )  # FIXME: should there be a protection against mass=0 and what value to use?
@@ -1070,7 +1069,7 @@ def build_graph(df, dataset):
     ########################################################################
     # gen match to bare muons to select only prompt muons from MC processes, but also including tau decays (defined here because needed for veto SF)
     if not dataset.is_data and not isQCDMC and not args.noGenMatchMC:
-        df = theory_tools.define_postfsr_vars(df)
+        df = generator_level_definitions.define_postfsr_vars(df)
         df = df.Filter(
             "wrem::hasMatchDR2(goodMuons_eta0,goodMuons_phi0,GenPart_eta[postfsrMuons],GenPart_phi[postfsrMuons],0.09)"
         )
@@ -1103,7 +1102,7 @@ def build_graph(df, dataset):
                 "wrem::unmatched_postfsrMuon_var(GenPart_charge, GenPart_pt[postfsrMuons_inAcc], hasMatchDR2idx)",
             )
     if isQCDMC:
-        df = theory_tools.define_postfsr_vars(df)
+        df = generator_level_definitions.define_postfsr_vars(df)
         df = df.Filter(
             "wrem::hasMatchDR2(goodMuons_eta0,goodMuons_phi0,GenPart_eta[postfsrMuons],GenPart_phi[postfsrMuons],0.09) == 0"
         )
@@ -1300,7 +1299,7 @@ def build_graph(df, dataset):
 
         logger.debug(f"Exp weight defined: {weight_expr}")
         df = df.Define("exp_weight", weight_expr)
-        df = theory_tools.define_theory_weights_and_corrs(
+        df = theory_corrections.define_theory_weights_and_corrs(
             df, dataset.name, corr_helpers, args, theory_helpers=theory_helpers
         )
 
@@ -1808,7 +1807,7 @@ def build_graph(df, dataset):
                         )
                     )
                     # create corresponding histogram without experimental weights, to correlate stat between gen and reco
-                    weight_expr = theory_tools.build_weight_expr(
+                    weight_expr = theory_corrections.build_weight_expr(
                         df,
                         exclude_weights=[
                             "exp_weight",

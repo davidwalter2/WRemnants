@@ -1,9 +1,9 @@
 import hist
 from matplotlib import colormaps
 
-from wremnants import syst_tools
+from wremnants.postprocessing import syst_tools
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
-from wremnants.postprocessing.postprocessing.histselections import (
+from wremnants.postprocessing.histselections import (
     FakeSelectorSimpleABCD,
 )
 from wremnants.postprocessing.regression import Regressor

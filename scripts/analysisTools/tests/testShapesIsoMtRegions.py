@@ -9,7 +9,7 @@ import narf
 from wremnants.postprocessing import histselections as sel
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 
-# from wremnants import plot_tools,theory_tools,syst_tools
+# from wremnants.postprocessing import plot_tools,theory_tools,syst_tools
 from wremnants.utilities import common
 from wums import logging
 

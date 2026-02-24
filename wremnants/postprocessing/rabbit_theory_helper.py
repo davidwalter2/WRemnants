@@ -4,7 +4,7 @@ import hist
 import numpy as np
 
 from wremnants.postprocessing import syst_tools, theory_tools
-from wremnants.utilities import common
+from wremnants.utilities import common, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -942,13 +942,9 @@ class TheoryHelper(object):
 
     def add_pdf_uncertainty(self, operation=None, scale=-1.0):
         pdf = self.datagroups.args_from_metadata("pdfs")[0]
-        pdfInfo = theory_tools.pdf_info_map("Zmumu_2016PostVFP", pdf)
+        pdfInfo = theory_utils.pdf_info_map("Zmumu_2016PostVFP", pdf)
         pdfName = pdfInfo["name"]
-        scale = (
-            scale
-            if scale != -1.0
-            else theory_tools.pdf_inflation_factor(pdfInfo, self.args.noi)
-        )
+        scale = scale if scale != -1.0 else self.pdf_inflation_factor(pdfInfo)
         pdf_hist = pdfName
 
         if self.pdf_from_corr:
@@ -986,7 +982,7 @@ class TheoryHelper(object):
             self.datagroups.addSystematic(
                 pdf_hist,
                 outNames=[""]
-                + theory_tools.pdfNamesAsymHessian(pdfInfo["entries"], pdfset=pdfName)[
+                + theory_utils.pdfNamesAsymHessian(pdfInfo["entries"], pdfset=pdfName)[
                     1:
                 ],
                 **pdf_args,
@@ -1017,7 +1013,7 @@ class TheoryHelper(object):
 
     def add_pdf_alphas_variation(self, noi=False):
         pdf = self.datagroups.args_from_metadata("pdfs")[0]
-        pdfInfo = theory_tools.pdf_info_map("Zmumu_2016PostVFP", pdf)
+        pdfInfo = theory_utils.pdf_info_map("Zmumu_2016PostVFP", pdf)
         pdfName = pdfInfo["name"]
         as_range = pdfInfo["alphasRange"]
 
@@ -1037,7 +1033,7 @@ class TheoryHelper(object):
                         "Falling back to default alphaS corrections scetlib_dyturbo_CT18Z_N3p0LL_N2LO_pdfasCorr."
                     )
                     pdf = "ct18z"
-                    pdfInfo = theory_tools.pdf_info_map("Zmumu_2016PostVFP", pdf)
+                    pdfInfo = theory_utils.pdf_info_map("Zmumu_2016PostVFP", pdf)
                     pdfName = pdfInfo["name"]
                     as_range = pdfInfo["alphasRange"]
                     as_range = theory_tools.pdfMap[pdf]["alphasRange"]

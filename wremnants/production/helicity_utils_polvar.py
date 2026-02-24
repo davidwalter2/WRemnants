@@ -3,7 +3,8 @@ import ROOT
 
 import narf
 import narf.clingutils
-from wremnants.utilities import common, root_io
+from wremnants.utilities import common
+from wremnants.utilities.io_tools import root_io
 from wums import logging
 
 logger = logging.child_logger(__name__)

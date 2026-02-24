@@ -1,4 +1,4 @@
-from wremnants.production import muon_calibration, theory_tools
+from wremnants.production import generator_level_definitions, muon_calibration
 from wremnants.utilities import common
 from wums import logging
 
@@ -209,7 +209,7 @@ def define_muon_uT_variable(
     # TODO: possibily specifying the target variable name (_uT0 or _tnpUT0) and the input variables
     if smooth3dsf:
         if isWorZ:
-            df = theory_tools.define_prefsr_vars(df)
+            df = generator_level_definitions.define_prefsr_vars(df)
             df = df.Define(
                 f"{colNamePrefix}_uT0",
                 f"wrem::zqtproj0_boson({colNamePrefix}_pt0, {colNamePrefix}_phi0, ptVgen, phiVgen)",

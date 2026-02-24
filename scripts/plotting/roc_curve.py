@@ -2,7 +2,7 @@ import hist
 import matplotlib as mpl
 import numpy as np
 
-from wremnants import plot_tools
+from wremnants.postprocessing import plot_tools
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.utilities import parsing
 from wremnants.utilities.styles import styles

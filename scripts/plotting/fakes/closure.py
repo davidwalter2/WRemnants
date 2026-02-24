@@ -3,8 +3,8 @@ import matplotlib as mpl
 import mplhep as hep
 import numpy as np
 
-from wremnants import plot_tools
 from wremnants.postprocessing import histselections as sel
+from wremnants.postprocessing import plot_tools
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.utilities import parsing
 from wremnants.utilities.styles import styles

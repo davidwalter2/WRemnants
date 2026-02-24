@@ -1,7 +1,6 @@
 import hist
 
-from wremnants import syst_tools
-from wremnants.postprocessing.production import helicity_utils, theory_tools
+from wremnants.production import helicity_utils, systematics, theory_corrections
 from wremnants.utilities import common
 from wums import logging
 
@@ -54,13 +53,13 @@ def add_xnorm_histograms(
     theoryAgnostic_cols,
 ):
     # add histograms before any selection
-    axis_helicity = helicity_utils.axis_helicity_multidim
+    axis_helicity = common.axis_helicity_multidim
     df_xnorm = df
     df_xnorm = df_xnorm.DefinePerSample("exp_weight", "1.0")
-    df_xnorm = theory_tools.define_theory_weights_and_corrs(
+    df_xnorm = theory_corrections.define_theory_weights_and_corrs(
         df_xnorm, dataset_name, corr_helpers, args
     )
-    # define the helicity tensor, here nominal_weight will only have theory weights, no experimental pieces, it is defined in theory_tools.define_theory_weights_and_corrs
+    # define the helicity tensor, here nominal_weight will only have theory weights, no experimental pieces, it is defined in theory_corrections.define_theory_weights_and_corrs
     # TODO: this does not look correct since theoryAgnostic_axes only contain only polarization independent observables (pTV, YV, mV, qV)
     #   and the helicity weights are only nonzero for polarization dependent variables (cos(theta*), phi*, lepton eta, ...)
 
@@ -81,7 +80,7 @@ def add_xnorm_histograms(
     )
     results.append(xnormByHelicity)
     if not args.onlyMainHistograms:
-        syst_tools.add_theory_hists(
+        systematics.add_theory_hists(
             results,
             df_xnorm,
             args,
@@ -96,8 +95,8 @@ def add_xnorm_histograms(
         )
     else:
         # FIXME: hardcoded to keep mass weights (this would be done in add_theory_hists) but removing all other theory systs
-        df_xnorm = syst_tools.define_mass_weights(df_xnorm, dataset_name)
-        syst_tools.add_massweights_hist(
+        df_xnorm = systematics.define_mass_weights(df_xnorm, dataset_name)
+        systematics.add_massweights_hist(
             results,
             df_xnorm,
             xnorm_axes,

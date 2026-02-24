@@ -4,19 +4,19 @@ import hist
 import numpy as np
 
 import narf
-from wremnants import (
+from wremnants.production import (
     helicity_utils,
+    systematics,
+    theory_corrections,
     unfolding_tools,
 )
-from wremnants.datasets.dataset_tools import getDatasets
-from wremnants.postprocessing import syst_tools
-from wremnants.production import theory_tools
+from wremnants.production.datasets.dataset_tools import getDatasets
 from wremnants.production.histmaker_tools import (
     aggregate_groups,
     scale_to_data,
     write_analysis_output,
 )
-from wremnants.utilities import common, differential, parsing, theory_corrections
+from wremnants.utilities import common, differential, parsing
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -291,7 +291,7 @@ def build_graph(df, dataset):
     weightsum = df.SumAndCount("weight")
     df = df.Define("isEvenEvent", "event % 2 == 0")
 
-    df = theory_tools.define_theory_weights_and_corrs(
+    df = theory_corrections.define_theory_weights_and_corrs(
         df, dataset.name, corr_helpers, args, theory_helpers
     )
 
@@ -407,7 +407,7 @@ def build_graph(df, dataset):
             )
 
         # LHE level
-        df = syst_tools.define_weak_weights(df, dataset.name)
+        df = systematics.define_weak_weights(df, dataset.name)
         axis_lheMV = hist.axis.Variable(massBins, name="massVlhe", underflow=False)
         axis_lhePtV = hist.axis.Variable(
             common.ptV_binning, underflow=False, name="ptVlhe"
@@ -425,7 +425,7 @@ def build_graph(df, dataset):
         axis_lhePhiStar = hist.axis.Regular(
             8, -np.pi, np.pi, circular=True, name="phiStarlhe"
         )
-        axis_weak = hist.axis.StrCategory(syst_tools.weakWeightNames(), name="weak")
+        axis_weak = hist.axis.StrCategory(systematics.weakWeightNames(), name="weak")
         axis_helicity = helicity_utils.axis_helicity
 
         results.append(
@@ -460,7 +460,7 @@ def build_graph(df, dataset):
                 storage=hist.storage.Weight(),
             )
         )
-        syst_tools.add_weakweights_hist(
+        systematics.add_weakweights_hist(
             results,
             df,
             [axis_lheMV, axis_lheCosThetaStar],
@@ -641,7 +641,7 @@ def build_graph(df, dataset):
             common.ptV_binning, underflow=False, name="ewPTll"
         )
         axis_ewAbsYll = hist.axis.Regular(50, 0, 5, name="ewAbsYll")
-        df = theory_tools.define_dressed_vars(df, mode=mode)
+        df = theory_corrections.define_dressed_vars(df, mode=mode)
         results.append(
             df.HistoBoost(
                 "dressed_MllPTll",
@@ -884,7 +884,7 @@ def build_graph(df, dataset):
         and "LHEPdfWeight" in df.GetColumnNames()
         and not args.onlyMainHistograms
     ):
-        df = syst_tools.add_theory_hists(
+        df = systematics.add_theory_hists(
             results,
             df,
             args,
@@ -905,7 +905,7 @@ def build_graph(df, dataset):
                 helicity_axes = helicity_axes[:-1]
                 helicity_cols = helicity_cols[:-1]
 
-            df = syst_tools.add_helicity_hists(
+            df = systematics.add_helicity_hists(
                 results,
                 df,
                 dataset.name,
