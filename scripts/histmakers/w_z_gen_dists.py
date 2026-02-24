@@ -5,6 +5,7 @@ import numpy as np
 
 import narf
 from wremnants.production import (
+    generator_level_definitions,
     helicity_utils,
     systematics,
     theory_corrections,
@@ -641,7 +642,7 @@ def build_graph(df, dataset):
             common.ptV_binning, underflow=False, name="ewPTll"
         )
         axis_ewAbsYll = hist.axis.Regular(50, 0, 5, name="ewAbsYll")
-        df = theory_corrections.define_dressed_vars(df, mode=mode)
+        df = generator_level_definitions.define_dressed_vars(df, mode=mode)
         results.append(
             df.HistoBoost(
                 "dressed_MllPTll",

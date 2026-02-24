@@ -253,7 +253,7 @@ def getDatasets(
             # skip if it is not explicitly filtered, auxiliary, and not specified by aux
             continue
 
-        if sample in dataDict_NanoGen:
+        if sample in dataDict_NanoGen.keys():
             base_path_sample = base_path.replace("NanoAOD", "NanoGen")
         else:
             base_path_sample = base_path

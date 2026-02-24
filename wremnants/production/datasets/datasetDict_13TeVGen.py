@@ -1,14 +1,20 @@
 import copy
 
-from wremnants.datasets.datasetDict_2016PostVFP import dataDict as dataDict_2016PostVFP
-from wremnants.datasets.datasetDict_2016PostVFP import (
+from wremnants.production.datasets.datasetDict_2016PostVFP import (
+    dataDict as dataDict_2016PostVFP,
+)
+from wremnants.production.datasets.datasetDict_2016PostVFP import (
     dataDict as dataDict_2016PostVFP_extended,
 )
-from wremnants.datasets.datasetDict_2017 import dataDict as dataDict_2017
-from wremnants.datasets.datasetDict_2017 import dataDict as dataDict_2017_extended
-from wremnants.datasets.datasetDict_2017H import dataDict as dataDict_2017H
-from wremnants.datasets.datasetDict_2018 import dataDict as dataDict_2018
-from wremnants.datasets.datasetDict_2018 import dataDict as dataDict_2018_extended
+from wremnants.production.datasets.datasetDict_2017 import dataDict as dataDict_2017
+from wremnants.production.datasets.datasetDict_2017 import (
+    dataDict as dataDict_2017_extended,
+)
+from wremnants.production.datasets.datasetDict_2017H import dataDict as dataDict_2017H
+from wremnants.production.datasets.datasetDict_2018 import dataDict as dataDict_2018
+from wremnants.production.datasets.datasetDict_2018 import (
+    dataDict as dataDict_2018_extended,
+)
 from wremnants.utilities.common import (
     xsec_DYJetsToLL,
     xsec_WminusJetsToLNu,
@@ -43,7 +49,16 @@ horace_v5 = False
 
 
 def merge_samples(
-    source_dict, suffix="13TeVGen", processes=["Zmumu", "Wplusmunu", "Wminusmunu"]
+    source_dict,
+    suffix="13TeVGen",
+    processes=[
+        "Zmumu",
+        "Wplusmunu",
+        "Wminusmunu",
+        "Ztautau",
+        "Wplustaunu",
+        "Wminustaunu",
+    ],
 ):
     # merge samples from different eras
     res_dict = {}

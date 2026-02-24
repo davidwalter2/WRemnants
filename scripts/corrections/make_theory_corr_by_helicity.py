@@ -2,7 +2,8 @@ import argparse
 
 import numpy as np
 
-from wremnants.utilities import common, theory_corrections
+from wremnants.production import theory_corrections
+from wremnants.utilities import common
 from wremnants.utilities.io_tools import input_tools, output_tools
 from wums import boostHistHelpers as hh
 from wums import logging

@@ -5,13 +5,12 @@ from scipy import stats
 from scipy.optimize import nnls
 
 from wremnants.postprocessing import histselections as sel
-from wremnants.postprocessing import plot_tools
 from wremnants.postprocessing import regression as reg
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.utilities import parsing
 from wremnants.utilities.styles import styles
 from wums import boostHistHelpers as hh
-from wums import logging, output_tools
+from wums import logging, output_tools, plot_tools
 
 
 def plot_chi2(chi2, ndf, suffix=""):

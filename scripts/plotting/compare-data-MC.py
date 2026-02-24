@@ -1,9 +1,9 @@
 import argparse
 import os
 
-from wremnants.postprocessing import plot_tools
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wums import boostHistHelpers as hh
+from wums import plot_tools
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

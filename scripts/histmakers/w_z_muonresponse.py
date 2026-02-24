@@ -9,13 +9,14 @@ import hist
 import ROOT
 
 import narf
-from wremnants.datasets.dataset_tools import getDatasets, write_analysis_output
 from wremnants.production import (
     muon_calibration,
     muon_selections,
     pileup,
     vertex,
 )
+from wremnants.production.datasets.dataset_tools import getDatasets
+from wremnants.production.histmaker_tools import write_analysis_output
 
 parser.add_argument(
     "--testHelpers", action="store_true", help="Test the smearing weights helper"

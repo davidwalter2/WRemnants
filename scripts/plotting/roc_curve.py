@@ -2,12 +2,11 @@ import hist
 import matplotlib as mpl
 import numpy as np
 
-from wremnants.postprocessing import plot_tools
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wremnants.utilities import parsing
 from wremnants.utilities.styles import styles
 from wums import boostHistHelpers as hh
-from wums import logging, output_tools
+from wums import logging, output_tools, plot_tools
 
 # from matplotlib import pyplot as plt
 # import mplhep as hep

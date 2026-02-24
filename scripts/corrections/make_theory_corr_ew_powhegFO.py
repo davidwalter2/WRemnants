@@ -48,7 +48,7 @@ s = hist.tag.Slicer()
 if args.debug:
     import matplotlib.pyplot as plt
 
-    from wremnants.postprocessing import plot_tools
+    from wums import plot_tools
 
     hnum = h[{"weak": "weak_default"}].project("massVlhe")
     hden = h[{"weak": "weak_no_ew"}].project("massVlhe")

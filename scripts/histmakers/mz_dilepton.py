@@ -143,9 +143,7 @@ datasets = getDatasets(
 # dilepton invariant mass cuts
 mass_min, mass_max = common.get_default_mz_window()
 
-ewMassBins = theory_corrections.make_bw_binning(
-    mass=91.1535, width=2.4932, initialStep=0.010
-)
+ewMassBins = common.make_bw_binning(mass=91.1535, width=2.4932, initialStep=0.010)
 
 if args.useTheoryAgnosticBinning:
     theoryAgnostic_axes, _ = differential.get_theoryAgnostic_axes(
