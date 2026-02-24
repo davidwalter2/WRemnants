@@ -1,10 +1,9 @@
 import os
 
-from utilities import common, parsing
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.utilities import common, parsing, theory_corrections
 from wums import logging
 
-analysis_label = Datagroups.analysisLabel(
+analysis_label = common.analysis_label(
     os.path.basename(__file__).replace("_VETOEFFI", "")
 )
 parser, initargs = parsing.common_parser(analysis_label)
@@ -19,12 +18,11 @@ from wremnants import (
     muon_calibration,
     muon_selections,
     pileup,
-    theory_corrections,
-    theory_tools,
     vertex,
 )
-from wremnants.datasets.dataset_tools import getDatasets
-from wremnants.histmaker_tools import (
+from wremnants.production import theory_tools
+from wremnants.production.datasets.dataset_tools import getDatasets
+from wremnants.production.histmaker_tools import (
     aggregate_groups,
     scale_to_data,
     write_analysis_output,

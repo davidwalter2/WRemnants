@@ -1,4 +1,4 @@
-from utilities import common, parsing
+from wremnants.utilities import common, parsing
 from wums import output_tools
 
 parser, initargs = parsing.common_parser()

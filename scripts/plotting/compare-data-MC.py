@@ -2,7 +2,7 @@ import argparse
 import os
 
 from wremnants import plot_tools
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.postprocessing.datagroups.datagroups import Datagroups
 from wums import boostHistHelpers as hh
 
 parser = argparse.ArgumentParser()

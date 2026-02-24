@@ -6,9 +6,8 @@ import numpy as np
 from matplotlib import cm
 from matplotlib.colors import LogNorm
 
-from utilities import common, parsing
-from utilities.styles import styles
-from wremnants import theory_corrections
+from wremnants.utilities import common, parsing, theory_corrections
+from wremnants.utilities.styles import styles
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools, plot_tools
 

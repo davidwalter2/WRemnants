@@ -5,9 +5,10 @@ import hist
 import lz4.frame
 from matplotlib import cm
 
-from utilities import parsing
-from utilities.io_tools import input_tools
-from wremnants import plot_tools, theory_tools
+from wremnants import plot_tools
+from wremnants.postprocessing import theory_tools
+from wremnants.utilities import parsing
+from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
 

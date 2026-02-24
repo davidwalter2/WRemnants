@@ -1,6 +1,6 @@
 import argparse
 
-from utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import input_tools
 
 parser = argparse.ArgumentParser()
 parser.add_argument("infile", type=str, help="Input hdf5 file")

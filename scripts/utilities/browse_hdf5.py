@@ -4,7 +4,7 @@ import argparse
 
 import h5py
 
-from utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import input_tools
 from wums import ioutils, logging
 
 # import wremnants

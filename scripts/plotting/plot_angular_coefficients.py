@@ -5,9 +5,9 @@ import mplhep as hep
 import numpy as np
 from scipy.stats import chi2
 
-from utilities import parsing
-from utilities.io_tools import input_tools
-from wremnants import theory_tools
+from wremnants.postprocessing import theory_tools
+from wremnants.utilities import parsing
+from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools, plot_tools
 

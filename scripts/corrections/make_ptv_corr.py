@@ -1,9 +1,9 @@
 import hist
 import numpy as np
 
-from utilities import common, parsing
-from utilities.io_tools import input_tools, output_tools
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.postprocessing.datagroups.datagroups import Datagroups
+from wremnants.utilities import common, parsing
+from wremnants.utilities.io_tools import input_tools, output_tools
 from wums import boostHistHelpers as hh
 from wums import logging
 

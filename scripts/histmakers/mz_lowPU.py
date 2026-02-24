@@ -1,10 +1,9 @@
 import os
 
-from utilities import common, parsing
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.utilities import common, parsing
 from wums import logging
 
-analysis_label = Datagroups.analysisLabel(os.path.basename(__file__))
+analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
 parser.add_argument(
     "--flavor",
@@ -26,16 +25,16 @@ logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 import hist
 
 import narf
-import wremnants.lowpu as lowpu
-from wremnants import (
+from wremnants.production import (
+    lowpu,
     muon_selections,
-    syst_tools,
+    systematics,
     theory_corrections,
     theory_tools,
     unfolding_tools,
 )
-from wremnants.datasets.dataset_tools import getDatasets
-from wremnants.histmaker_tools import (
+from wremnants.production.datasets.dataset_tools import getDatasets
+from wremnants.production.histmaker_tools import (
     aggregate_groups,
     scale_to_data,
     write_analysis_output,
@@ -143,7 +142,7 @@ corr_helpers = theory_corrections.load_corr_helpers(
 
 # recoil initialization
 if not args.noRecoil:
-    from wremnants import recoil_tools
+    from wremnants.production import recoil_tools
 
     recoilHelper = recoil_tools.Recoil("lowPU", args, flavor)
 
@@ -535,7 +534,7 @@ def build_graph(df, dataset):
             )
 
             if dataset.name in common.vprocs:
-                df = syst_tools.add_theory_hists(
+                df = systematics.add_theory_hists(
                     results,
                     df,
                     args,

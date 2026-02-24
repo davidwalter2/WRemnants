@@ -5,9 +5,8 @@ import hist
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utilities import common, parsing
-from utilities.io_tools import input_tools
-from wremnants import theory_corrections
+from wremnants.utilities import common, parsing, theory_corrections
+from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools, plot_tools
 

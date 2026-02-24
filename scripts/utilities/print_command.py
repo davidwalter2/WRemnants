@@ -2,8 +2,7 @@ import argparse
 import os
 import pathlib
 
-from utilities.io_tools import input_tools
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.utilities.io_tools import input_tools
 from wums import logging
 
 parser = argparse.ArgumentParser()
@@ -63,6 +62,8 @@ def print_command_from_dict(infile):
                 else:
                     logger.info(f"{k}: {v}")
     else:
+        from wremnants.postprocessing.datagroups.datagroups import Datagroups
+
         dg = Datagroups(args.infile)
         logger.info(dg.getScriptCommand())
 

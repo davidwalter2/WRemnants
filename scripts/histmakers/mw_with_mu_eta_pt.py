@@ -1,11 +1,10 @@
 import os
 
-from utilities import common, differential, parsing
-from utilities.common import data_dir
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.utilities import common, differential, parsing, theory_corrections
+from wremnants.utilities.common import data_dir
 from wums import logging
 
-analysis_label = Datagroups.analysisLabel(os.path.basename(__file__))
+analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
 
 import math
@@ -15,9 +14,7 @@ import numpy as np
 import ROOT
 
 import narf
-from utilities import common
-from wremnants import (
-    helicity_utils,
+from wremnants.production import (
     muon_calibration,
     muon_efficiencies_binned,
     muon_efficiencies_newVeto,
@@ -27,16 +24,18 @@ from wremnants import (
     muon_selections,
     muon_validation,
     pileup,
-    syst_tools,
+    systematics,
     theory_corrections,
     theory_tools,
     theoryAgnostic_tools,
     unfolding_tools,
     vertex,
 )
-from wremnants.datasets.dataset_tools import getDatasets
-from wremnants.helicity_utils_polvar import makehelicityWeightHelper_polvar
-from wremnants.histmaker_tools import (
+from wremnants.production.datasets.dataset_tools import getDatasets
+from wremnants.production.helicity_utils_polvar import (
+    makehelicityWeightHelper_polvar,
+)
+from wremnants.production.histmaker_tools import (
     aggregate_groups,
     define_norm_weight_nRecoVtx,
     get_run_lumi_edges,
@@ -44,6 +43,7 @@ from wremnants.histmaker_tools import (
     scale_to_data,
     write_analysis_output,
 )
+from wremnants.utilities import common
 
 parser.add_argument(
     "--noGenMatchMC",
@@ -456,7 +456,7 @@ if args.theoryAgnostic:
         ptV_flow=args.poiAsNoi,
         absYV_flow=args.poiAsNoi,
     )
-    axis_helicity = helicity_utils.axis_helicity_multidim
+    axis_helicity = common.axis_helicity_multidim
     # the following just prepares the existence of the group for out-of-acceptance signal, but doesn't create or define the histogram yet
     if not args.poiAsNoi or (
         args.theoryAgnosticPolVar and args.theoryAgnosticSplitOOA
@@ -660,7 +660,7 @@ muRmuFPolVar_helpers_Z = makehelicityWeightHelper_polvar(
 
 # recoil initialization
 if not args.noRecoil:
-    from wremnants import recoil_tools
+    from wremnants.production import recoil_tools
 
     recoilHelper = recoil_tools.Recoil("highPU", args, flavor="mu")
 
@@ -1738,9 +1738,7 @@ def build_graph(df, dataset):
             and isWmunu
             and not hasattr(dataset, "out_of_acceptance")
         ):  # TODO: might add Wtaunu at some point, not yet
-            noiAsPoiHistName = Datagroups.histName(
-                "nominal", syst="yieldsTheoryAgnostic"
-            )
+            noiAsPoiHistName = common.hist_name("nominal", syst="yieldsTheoryAgnostic")
             logger.debug(
                 f"Creating special histogram '{noiAsPoiHistName}' for theory agnostic to treat POIs as NOIs"
             )
@@ -1776,7 +1774,7 @@ def build_graph(df, dataset):
                             helperQ,
                             theoryAgnostic_helpers_cols,
                         )
-                        noiAsPoiWithPolHistName = Datagroups.histName(
+                        noiAsPoiWithPolHistName = common.hist_name(
                             "nominal",
                             syst=f"theoryAgnosticWithPol_{coeffKey}_{genVcharge}",
                         )
@@ -1796,7 +1794,7 @@ def build_graph(df, dataset):
         if args.unfolding:
             if isWmunu:
                 for level in args.unfoldingLevels:
-                    noiAsPoiHistName = Datagroups.histName(
+                    noiAsPoiHistName = common.hist_name(
                         "nominal", syst=f"{level}_yieldsUnfolding"
                     )
                     logger.debug(
@@ -1868,7 +1866,7 @@ def build_graph(df, dataset):
             df = df.Define(
                 f"muRmuFPolVar_{coeffKey}_tensor", helperQ, theoryAgnostic_helpers_cols
             )
-            muRmuFWithPolHistName = Datagroups.histName(
+            muRmuFWithPolHistName = common.hist_name(
                 "nominal", syst=f"muRmuFPolVar{process_name}_{coeffKey}"
             )
             results.append(
@@ -1882,7 +1880,7 @@ def build_graph(df, dataset):
             )
 
     if not args.onlyMainHistograms:
-        syst_tools.add_QCDbkg_jetPt_hist(
+        systematics.add_QCDbkg_jetPt_hist(
             results, df, axes, cols, jet_pt=30, storage_type=storage_type
         )
 
@@ -1980,7 +1978,7 @@ def build_graph(df, dataset):
                 df, results, dataset, cols, axes, "nominal", storage_type=storage_type
             )
         if apply_theory_corr:
-            syst_tools.add_theory_corr_hists(
+            systematics.add_theory_corr_hists(
                 results,
                 df,
                 axes,
@@ -2003,7 +2001,7 @@ def build_graph(df, dataset):
 
         if not args.onlyTheorySyst:
             if not isQCDMC and not args.noScaleFactors:
-                df = syst_tools.add_muon_efficiency_unc_hists(
+                df = systematics.add_muon_efficiency_unc_hists(
                     results,
                     df,
                     muon_efficiency_helper_stat,
@@ -2015,7 +2013,7 @@ def build_graph(df, dataset):
                     storage_type=storage_type,
                 )
                 for es in common.muonEfficiency_altBkgSyst_effSteps:
-                    df = syst_tools.add_muon_efficiency_unc_hists_altBkg(
+                    df = systematics.add_muon_efficiency_unc_hists_altBkg(
                         results,
                         df,
                         muon_efficiency_helper_syst_altBkg[es],
@@ -2026,7 +2024,7 @@ def build_graph(df, dataset):
                         storage_type=storage_type,
                     )
                 if isZveto and not args.noGenMatchMC and not args.noVetoSF:
-                    df = syst_tools.add_muon_efficiency_veto_unc_hists(
+                    df = systematics.add_muon_efficiency_veto_unc_hists(
                         results,
                         df,
                         muon_efficiency_veto_helper_stat,
@@ -2037,7 +2035,7 @@ def build_graph(df, dataset):
                     )
             if era == "2016PostVFP" and args.addRunAxis and not args.randomizeDataByRun:
                 # to simplify the code, use helper with largest uncertainty for all eras when splitting data
-                df = syst_tools.add_L1Prefire_unc_hists(
+                df = systematics.add_L1Prefire_unc_hists(
                     results,
                     df,
                     axes,
@@ -2047,7 +2045,7 @@ def build_graph(df, dataset):
                     storage_type=storage_type,
                 )
             else:
-                df = syst_tools.add_L1Prefire_unc_hists(
+                df = systematics.add_L1Prefire_unc_hists(
                     results,
                     df,
                     axes,
@@ -2062,7 +2060,7 @@ def build_graph(df, dataset):
 
         if isWorZ:
 
-            df = syst_tools.add_theory_hists(
+            df = systematics.add_theory_hists(
                 results,
                 df,
                 args,
@@ -2081,7 +2079,7 @@ def build_graph(df, dataset):
                 and not args.onlyTheorySyst
                 and not "tau" in dataset.name
             ):
-                df = syst_tools.add_muonscale_hist(
+                df = systematics.add_muonscale_hist(
                     results,
                     df,
                     args.muonCorrEtaBins,
@@ -2092,7 +2090,7 @@ def build_graph(df, dataset):
                     storage_type=storage_type,
                 )
                 if args.muonScaleVariation == "smearingWeightsGaus":
-                    df = syst_tools.add_muonscale_smeared_hist(
+                    df = systematics.add_muonscale_smeared_hist(
                         results,
                         df,
                         args.muonCorrEtaBins,

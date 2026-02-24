@@ -8,10 +8,11 @@ import numpy as np
 from matplotlib import cm
 
 import wums.ioutils
-from utilities.differential import get_theoryAgnostic_axes
-from utilities.io_tools import input_tools, output_tools
-from wremnants import plot_tools, theory_tools
-from wremnants.helicity_utils import axis_helicity_multidim
+from wremnants import plot_tools
+from wremnants.postprocessing import theory_tools
+from wremnants.utilities.common import axis_helicity_multidim
+from wremnants.utilities.differential import get_theoryAgnostic_axes
+from wremnants.utilities.io_tools import input_tools, output_tools
 from wums import boostHistHelpers as hh
 
 xlabels = {

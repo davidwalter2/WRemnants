@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 import rabbit.io_tools
-from utilities import parsing
 from wremnants import plot_tools
+from wremnants.utilities import parsing
 from wums import logging, output_tools
 
 

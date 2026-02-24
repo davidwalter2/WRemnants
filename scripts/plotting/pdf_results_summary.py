@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
 
-from utilities import parsing
-from utilities.io_tools import hepdata_tools, rabbit_input
-from wremnants import theory_tools
+from wremnants.postprocessing import theory_tools
+from wremnants.utilities import parsing
+from wremnants.utilities.io_tools import hepdata_tools, rabbit_input
 from wums import output_tools, plot_tools
 
 parser = parsing.plot_parser()

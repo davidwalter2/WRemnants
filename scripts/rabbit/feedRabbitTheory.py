@@ -9,10 +9,9 @@ import numpy as np
 import rabbit
 import rabbit.io_tools
 from rabbit.tensorwriter import TensorWriter
-from utilities import common, parsing
-from utilities.io_tools import input_tools
-from wremnants import theory_corrections, theory_tools
-from wremnants.datasets.datagroups import Datagroups
+from wremnants.postprocessing import theory_tools
+from wremnants.utilities import common, parsing, theory_corrections
+from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -466,7 +465,7 @@ def apply_coarse_correction(fine_hist, coarse_corr, check_align=True):
     return corrected
 
 
-analysis_label = Datagroups.analysisLabel(os.path.basename(__file__))
+analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
 
 parser.add_argument(
@@ -1407,7 +1406,7 @@ if args.fitW:
     logger.info("Now at QCD scales (W)")
 
     # prepare fine binning hists
-    from utilities import common
+    from wremnants.utilities import common
 
     fine_pt_binning = common.ptV_binning[::2]
     inclusive_pt_binning = [
@@ -1417,7 +1416,7 @@ if args.fitW:
     nptfine = len(fine_pt_binning) - 1
     scale_inclusive = np.sqrt((nptfine - 1) / nptfine)
 
-    from wremnants import syst_tools
+    from wremnants.postprocessing import syst_tools
 
     h_W_new = syst_tools.hist_to_variations(
         copy.deepcopy(h_W),

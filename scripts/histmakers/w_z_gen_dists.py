@@ -4,25 +4,23 @@ import hist
 import numpy as np
 
 import narf
-from utilities import common, differential, parsing
 from wremnants import (
     helicity_utils,
-    syst_tools,
-    theory_corrections,
-    theory_tools,
     unfolding_tools,
 )
-from wremnants.datasets.datagroups import Datagroups
 from wremnants.datasets.dataset_tools import getDatasets
-from wremnants.histmaker_tools import (
+from wremnants.postprocessing import syst_tools
+from wremnants.production import theory_tools
+from wremnants.production.histmaker_tools import (
     aggregate_groups,
     scale_to_data,
     write_analysis_output,
 )
+from wremnants.utilities import common, differential, parsing, theory_corrections
 from wums import boostHistHelpers as hh
 from wums import logging
 
-analysis_label = Datagroups.analysisLabel(os.path.basename(__file__))
+analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
 
 parser.add_argument(
@@ -396,7 +394,7 @@ def build_graph(df, dataset):
 
     if not args.skipEWHists and (isW or isZ) and "Zmumu_powheg-weak" in dataset.name:
         if isZ:
-            massBins = theory_tools.make_ew_binning(
+            massBins = common.make_bw_binning(
                 mass=91.1535,
                 width=2.4932,
                 initialStep=0.10,
@@ -404,7 +402,7 @@ def build_graph(df, dataset):
                 bin_edges_high=[100, 110, 120, 140, 160, 200],
             )
         else:
-            massBins = theory_tools.make_ew_binning(
+            massBins = common.make_bw_binning(
                 mass=80.3815, width=2.0904, initialStep=0.010
             )
 
@@ -563,7 +561,7 @@ def build_graph(df, dataset):
         and "GenPart_status" in df.GetColumnNames()
     ):
         if isZ:
-            massBins = theory_tools.make_ew_binning(
+            massBins = common.make_bw_binning(
                 mass=91.1535,
                 width=2.4932,
                 initialStep=0.010,
@@ -571,7 +569,7 @@ def build_graph(df, dataset):
                 bin_edges_high=[120],
             )
         else:
-            massBins = theory_tools.make_ew_binning(
+            massBins = common.make_bw_binning(
                 mass=80.3815, width=2.0904, initialStep=0.010
             )
 
