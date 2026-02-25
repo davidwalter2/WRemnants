@@ -218,7 +218,7 @@ def read_dyturbo_vars_hist(base_name, var_axis=None, axes=("Y", "qT"), charge=No
         dyturbo_name = base_name.format(i=pdf_member, scale=dyturbo_scale)
         h = read_dyturbo_hist([dyturbo_name], axes=axes, charge=charge)
         if not var_hist:
-            var_hist = hist.Hist(*h.axes, var_axis, storage=h._storage_type())
+            var_hist = hist.Hist(*h.axes, var_axis, storage=h.storage_type())
         var_hist[..., i] = h.view()
 
     return var_hist
@@ -339,7 +339,7 @@ def read_dyturbo_hist(filenames, path="", axes=("y", "pt"), charge=None, coeff=N
     if charge is not None and "charge" not in h.axes.name:
         charge_args = (2, -2.0, 2.0) if charge != 0 else (1, 0, 1)
         charge_axis = hist.axis.Regular(*charge_args, flow=False, name="charge")
-        hnew = hist.Hist(*h.axes, charge_axis, storage=h._storage_type())
+        hnew = hist.Hist(*h.axes, charge_axis, storage=h.storage_type())
         hnew[..., charge_axis.index(charge)] = h.view(flow=True)
         return hnew
     else:
@@ -382,7 +382,7 @@ def read_dyturbo_variations(
     central_files = expand_dyturbo_filenames(path, basename, "", pieces, append)
     centralh = read_dyturbo_hist(central_files, axes=axes, charge=charge)
     var_ax = hist.axis.Integer(0, len(varnames) + 1, name="vars")
-    varh = hist.Hist(*centralh.axes, var_ax, storage=centralh._storage_type())
+    varh = hist.Hist(*centralh.axes, var_ax, storage=centralh.storage_type())
     varh[..., 0] = centralh.view(flow=True)
     for i, var in enumerate(varnames):
         filenames = expand_dyturbo_filenames(path, basename, var, pieces, append)
@@ -483,7 +483,7 @@ def add_charge_axis(h, charge):
         if not has_vars
         else (*h.axes[:-1], charge_axis, h.axes[-1])
     )
-    hnew = hist.Hist(*new_axes, storage=h._storage_type())
+    hnew = hist.Hist(*new_axes, storage=h.storage_type())
     if has_vars:
         hnew[..., charge_axis.index(charge), :] = h.view(flow=True)
     else:
@@ -676,7 +676,7 @@ def read_matched_scetlib_hist(
             htmp_nonsing = hist.Hist(
                 *hnonsing.axes[:-1],
                 hresum.axes["vars"],
-                storage=hnonsing._storage_type(),
+                storage=hnonsing.storage_type(),
             )
 
             for i, var in enumerate(hresum.axes["vars"]):
