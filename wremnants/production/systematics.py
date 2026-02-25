@@ -3,7 +3,7 @@ import ROOT
 
 import narf
 from wremnants.production import helicity_utils
-from wremnants.utilities import common, differential, theory_utils
+from wremnants.utilities import binning, common, samples, theory_utils
 from wums import logging
 
 narf.clingutils.Declare('#include "histoScaling.hpp"')
@@ -65,7 +65,7 @@ def add_syst_hist(
                         name,
                         axes,
                         [*cols, helicity_tensor_name],
-                        tensor_axes=[common.axis_helicity_multidim],
+                        tensor_axes=[binning.axis_helicity_multidim],
                         storage=storage_type,
                     )
                 )
@@ -80,7 +80,7 @@ def add_syst_hist(
                         name,
                         axes,
                         [*cols, f"{tensor_name}_helicity"],
-                        tensor_axes=[common.axis_helicity_multidim],
+                        tensor_axes=[binning.axis_helicity_multidim],
                         storage=storage_type,
                     )
                 )
@@ -127,7 +127,7 @@ def add_syst_hist(
 def define_mass_width_sin2theta_weights(df, proc):
 
     # TODO can these be parsed more automatically?
-    if proc in common.zprocs:
+    if proc in samples.zprocs:
         m0 = 91.1876
         gamma0 = 2.4941343245745466
         massvals = [
@@ -258,7 +258,7 @@ def define_mass_width_sin2theta_weights(df, proc):
             "auto res = widthWeight_tensor; res = nominal_weight*res; return res;",
         )
 
-        if proc in common.zprocs:
+        if proc in samples.zprocs:
             if df.HasColumn("MEParamWeightAltSet4"):
                 df = df.Alias("sin2thetaWeight_col", "MEParamWeightAltSet4")
             elif df.HasColumn("LHEReweightingWeight"):
@@ -292,7 +292,7 @@ def add_massweights_hist(
         base_name, syst="massWeight_widthdecor" + (proc[0] if len(proc) else proc)
     )
     mass_axis = hist.axis.StrCategory(
-        common.massWeightNames(proc=proc), name="massShift"
+        theory_utils.massWeightNames(proc=proc), name="massShift"
     )
     add_syst_hist(
         results, df, name, axes, cols, "massWeight_tensor_wnom", mass_axis, **kwargs
@@ -316,7 +316,9 @@ def add_widthweights_hist(
     name = common.hist_name(
         base_name, syst="widthWeight" + (proc[0] if len(proc) else proc)
     )
-    axis_width = hist.axis.StrCategory(common.widthWeightNames(proc=proc), name="width")
+    axis_width = hist.axis.StrCategory(
+        theory_utils.widthWeightNames(proc=proc), name="width"
+    )
     add_syst_hist(
         results, df, name, axes, cols, "widthWeight_tensor_wnom", axis_width, **kwargs
     )
@@ -329,7 +331,7 @@ def add_sin2thetaweights_hist(
         base_name, syst="sin2thetaWeight" + (proc[0] if len(proc) else proc)
     )
     axis_sin2theta = hist.axis.StrCategory(
-        common.sin2thetaWeightNames(proc=proc), name="sin2theta"
+        theory_utils.sin2thetaWeightNames(proc=proc), name="sin2theta"
     )
     add_syst_hist(
         results,
@@ -530,7 +532,7 @@ def add_pdf_hists(
                 f"nominal_gen_helicity_{pdfName}",
                 axes,
                 [*cols, f"helicity_moments_{tensorName}_tensor"],
-                tensor_axes=[common.axis_helicity, pdf_ax],
+                tensor_axes=[binning.axis_helicity, pdf_ax],
                 storage=storage_type,
             )
             if "alphasRange" in pdfInfo:
@@ -538,10 +540,10 @@ def add_pdf_hists(
                     f"nominal_gen_helicity_{alphaSHistName}",
                     axes,
                     [*cols, f"helicity_moments_{tensorASName}_tensor"],
-                    tensor_axes=[common.axis_helicity, as_ax],
+                    tensor_axes=[binning.axis_helicity, as_ax],
                     storage=storage_type,
                 )
-            # alphaSHist_hel = df.HistoBoost(f"nominal_gen_helicity_AS{pdfName}", axes, [*cols, f"helicity_moments_{tensorASName}_tensor"], tensor_axes=[common.axis_helicity,as_ax], storage=storage_type)
+            # alphaSHist_hel = df.HistoBoost(f"nominal_gen_helicity_AS{pdfName}", axes, [*cols, f"helicity_moments_{tensorASName}_tensor"], tensor_axes=[binning.axis_helicity,as_ax], storage=storage_type)
             results.extend([pdfHist_hel, alphaSHist_hel])
 
     return df
@@ -756,7 +758,7 @@ def add_theory_corr_hists(
                 )
 
             axis_absYVgen = hist.axis.Variable(
-                common.absYWgen_binning_corr if isW else common.absYZgen_binning_corr,
+                binning.absYWgen_binning_corr if isW else binning.absYZgen_binning_corr,
                 name="absYVgenNP",
                 underflow=False,
             )
@@ -813,7 +815,7 @@ def add_theory_corr_hists(
             if "ptVgen" not in cols:
                 axes_PtDepScales += [
                     hist.axis.Variable(
-                        common.ptV_binning, name="ptVgen", underflow=False
+                        binning.ptV_binning, name="ptVgen", underflow=False
                     )
                 ]
                 cols_PtDepScales += ["ptVgen"]
@@ -1135,7 +1137,7 @@ def add_Muon_L1Prefire_unc_hists(
             axes,
             cols,
             "muonL1Prefire_stat_tensor",
-            common.down_up_axis,
+            binning.down_up_axis,
             **kwargs,
         )
     else:
@@ -1176,7 +1178,7 @@ def add_Muon_L1Prefire_unc_hists(
             axes,
             cols,
             "muonL1Prefire_syst_tensor",
-            common.down_up_axis,
+            binning.down_up_axis,
             **kwargs,
         )
     else:
@@ -1200,7 +1202,7 @@ def add_Muon_L1Prefire_unc_hists(
             axes,
             cols,
             "muonL1PrefireSyst_tensor",
-            common.down_up_axis,
+            binning.down_up_axis,
             **kwargs,
         )
 
@@ -1223,7 +1225,7 @@ def add_ECAL_L1Prefire_unc_hists(
         axes,
         cols,
         "ecalL1Prefire_tensor",
-        common.down_up_axis,
+        binning.down_up_axis,
         **kwargs,
     )
 
@@ -1278,7 +1280,7 @@ def add_muonscale_hist(
         axes,
         cols,
         f"muonScaleDummy{netabins}Bins{muon_eta}",
-        [common.down_up_axis, scale_etabins_axis],
+        [binning.down_up_axis, scale_etabins_axis],
         **kwargs,
     )
 
@@ -1311,7 +1313,7 @@ def add_muonscale_smeared_hist(
         axes,
         cols,
         f"muonScaleDummy{netabins}Bins{muon_eta}",
-        [common.down_up_axis, scale_etabins_axis],
+        [binning.down_up_axis, scale_etabins_axis],
         **kwargs,
     )
 
@@ -1354,7 +1356,9 @@ def add_theory_hists(
     logger.debug(
         f"Make theory histograms for {dataset_name} dataset, histogram {base_name}"
     )
-    axis_ptVgen = hist.axis.Variable(common.ptV_binning, name="ptVgen", underflow=False)
+    axis_ptVgen = hist.axis.Variable(
+        binning.ptV_binning, name="ptVgen", underflow=False
+    )
     # for hel analysis, ptVgen is part of axes/col
     ## FIXME:
     ## here should probably not force using the same ptVgen axis when addhelicity=True
@@ -1367,7 +1371,7 @@ def add_theory_hists(
         scale_axes = axes
         scale_cols = cols
 
-    isZ = dataset_name in common.zprocs
+    isZ = dataset_name in samples.zprocs
 
     df = define_scale_tensor(df)
 
@@ -1498,7 +1502,7 @@ def add_breit_wigner_mass_weights_hist(
     tensorName = f"breitwigner_massWeight{label}_tensor"
     bwHistName = common.hist_name(base_name, syst=f"breitwigner_massWeight{label}")
     mass_axis = hist.axis.StrCategory(
-        common.massWeightNames(proc=proc), name="massShift"
+        theory_utils.massWeightNames(proc=proc), name="massShift"
     )
 
     if tensorName not in df.GetColumnNames():
@@ -1532,7 +1536,9 @@ def add_breit_wigner_width_weights_hist(
     label = proc[0] if len(proc) else proc
     tensorName = f"breitwigner_widthWeight{label}_tensor"
     bwHistName = common.hist_name(base_name, syst=f"breitwigner_widthWeight{label}")
-    axis_width = hist.axis.StrCategory(common.widthWeightNames(proc=proc), name="width")
+    axis_width = hist.axis.StrCategory(
+        theory_utils.widthWeightNames(proc=proc), name="width"
+    )
 
     if tensorName not in df.GetColumnNames():
         logger.warning(
@@ -1569,7 +1575,7 @@ def add_helicity_hists(
         f"{base_name}_helicity_xsecs_scale",
         axes,
         [*cols, "helicity_xsecs_scale_tensor"],
-        tensor_axes=[common.axis_helicity, *scale_tensor_axes],
+        tensor_axes=[binning.axis_helicity, *scale_tensor_axes],
         storage=storage,
     )
     results.append(helicity_xsecs_scale)
@@ -1587,7 +1593,7 @@ def add_helicity_hists(
                 f"{base_name}_helicity_xsecs_scale_{var}",
                 axes,
                 [*var_cols, f"helicity_xsecs_scale_{var}_tensor"],
-                tensor_axes=[common.axis_helicity, *scale_tensor_axes],
+                tensor_axes=[binning.axis_helicity, *scale_tensor_axes],
                 storage=storage,
             )
             results.append(helicity_xsecs_scale_var)
@@ -1598,7 +1604,7 @@ def add_helicity_hists(
         cols = cols[1:]
         axes = axes[1:]
 
-        theoryAgnostic_axes, _ = differential.get_theoryAgnostic_axes(
+        theoryAgnostic_axes, _ = binning.get_theoryAgnostic_axes(
             ptV_flow=True, absYV_flow=True, wlike="Z" in dataset_name
         )
         axis_ptV_thag = theoryAgnostic_axes[0]
@@ -1612,7 +1618,7 @@ def add_helicity_hists(
             "nominal_gen_helicity",
             axes,
             [*cols, "helicity_moments_tensor"],
-            tensor_axes=[common.axis_helicity],
+            tensor_axes=[binning.axis_helicity],
             storage=hist.storage.Weight(),
         )
         results.append(gen_nom)
@@ -1626,7 +1632,7 @@ def add_helicity_hists(
             "nominal_gen_yieldsTheoryAgnostic",
             [*axes, axis_ptV_thag, axis_yV_thag],
             [*cols, "ptVgen", "absYVgen", "helicity_moments_helicity_tensor"],
-            tensor_axes=[common.axis_helicity, common.axis_helicity_multidim],
+            tensor_axes=[binning.axis_helicity, binning.axis_helicity_multidim],
             storage=hist.storage.Double(),
         )
 

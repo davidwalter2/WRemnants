@@ -1,7 +1,7 @@
 import hist
 
 from wremnants.production import helicity_utils, systematics, theory_corrections
-from wremnants.utilities import common
+from wremnants.utilities import binning, common
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -53,7 +53,7 @@ def add_xnorm_histograms(
     theoryAgnostic_cols,
 ):
     # add histograms before any selection
-    axis_helicity = common.axis_helicity_multidim
+    axis_helicity = binning.axis_helicity_multidim
     df_xnorm = df
     df_xnorm = df_xnorm.DefinePerSample("exp_weight", "1.0")
     df_xnorm = theory_corrections.define_theory_weights_and_corrs(

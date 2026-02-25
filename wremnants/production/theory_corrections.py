@@ -12,7 +12,7 @@ from wremnants.production import generator_level_definitions, helicity_utils
 from wremnants.production.correctionsTensor_helper import (
     makeCorrectionsTensor,
 )
-from wremnants.utilities import common, theory_utils
+from wremnants.utilities import binning, common, samples, theory_utils
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -281,7 +281,7 @@ def define_pdf_columns(df, dataset_name, pdfs, noAltUnc):
     )
     if (
         len(pdfs) == 0
-        or dataset_name not in common.vprocs
+        or dataset_name not in samples.vprocs
         or "horace" in dataset_name
         or "winhac" in dataset_name
         or "LHEPdfWeight" not in df.GetColumnNames()
@@ -1020,7 +1020,7 @@ def make_theory_helpers(
 def make_qcd_uncertainty_helper_by_helicity(
     is_z=False,
     filename=f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs.hdf5",
-    rebin_ptVgen=common.ptV_binning,
+    rebin_ptVgen=binning.ptV_binning,
     rebin_absYVgen=False,
     rebin_massVgen=False,
     return_tensor=True,
@@ -1032,7 +1032,7 @@ def make_qcd_uncertainty_helper_by_helicity(
 
     def get_helicity_xsecs(
         suffix="",
-        rebin_ptVgen=common.ptV_binning,
+        rebin_ptVgen=binning.ptV_binning,
         rebin_absYVgen=False,
         rebin_massVgen=2,
     ):
@@ -1040,7 +1040,7 @@ def make_qcd_uncertainty_helper_by_helicity(
 
         if rebin_ptVgen:
             if type(rebin_ptVgen) is bool:
-                h = hh.rebinHist(h, "ptVgen", common.ptV_binning)
+                h = hh.rebinHist(h, "ptVgen", binning.ptV_binning)
             else:
                 h = hh.rebinHist(h, "ptVgen", rebin_ptVgen)
         if rebin_massVgen:

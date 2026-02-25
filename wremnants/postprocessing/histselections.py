@@ -3,7 +3,7 @@ import numpy as np
 from scipy import interpolate
 
 from wremnants.postprocessing.regression import Regressor, Regressor2D
-from wremnants.utilities import common
+from wremnants.utilities import binning
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -25,9 +25,9 @@ def extend_edges(traits, x):
 
 def get_rebinning(edges, axis_name):
     if axis_name == "mt":
-        target_edges = common.get_binning_fakes_mt(high_mt_bins=True)
+        target_edges = binning.get_binning_fakes_mt(high_mt_bins=True)
     elif axis_name == "pt":
-        target_edges = common.get_binning_fakes_pt(edges[0], edges[-1])
+        target_edges = binning.get_binning_fakes_pt(edges[0], edges[-1])
     else:
         raise RuntimeError(f"No automatic rebinning known for axis {axis_name}")
 
@@ -931,7 +931,7 @@ class FakeSelectorSimpleABCD(HistselectorABCD):
             hist.axis.Integer(
                 0, alternate.shape[-2], name="_param", overflow=False, underflow=False
             ),
-            common.down_up_axis,
+            binning.down_up_axis,
             storage=hist.storage.Double(),
         )
 

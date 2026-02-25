@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 
 from wremnants.production import theory_corrections
-from wremnants.utilities import common
+from wremnants.utilities import binning, common
 from wremnants.utilities.io_tools import input_tools, output_tools
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -103,7 +103,7 @@ processes = (
 
 binning = {
     "qT": (
-        common.ptZgen_binning_corr if args.proc == "z" else common.ptWgen_binning_corr
+        binning.ptZgen_binning_corr if args.proc == "z" else binning.ptWgen_binning_corr
     ),
     "absY": [0 + 0.5 * i for i in range(9)] + [5.0],
 }

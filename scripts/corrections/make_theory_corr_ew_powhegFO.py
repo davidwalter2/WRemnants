@@ -4,7 +4,7 @@ import os
 import hist
 import numpy as np
 
-from wremnants.utilities import common
+from wremnants.utilities import binning
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools
@@ -81,7 +81,7 @@ if args.debug:
 
 # integrate over pt and phistar
 h = h[{"ptVlhe": hist.sum, "phiStarlhe": hist.sum}]
-h = hh.rebinHist(h, "absYVlhe", common.absYZgen_binning_corr)
+h = hh.rebinHist(h, "absYVlhe", binning.absYZgen_binning_corr)
 
 hcorr = hist.Hist(*h.axes)
 # safe default

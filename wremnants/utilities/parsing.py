@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from wremnants.utilities import common
+from wremnants.utilities import binning, common, samples
 from wums import logging
 
 # choices for legend padding
@@ -276,7 +276,7 @@ def common_parser(analysis_label=""):
         "-e",
         "--era",
         type=str,
-        choices=common.supported_eras,
+        choices=samples.supported_eras,
         help="Data set to process",
         default="2016PostVFP",
     )
@@ -625,14 +625,14 @@ def common_parser(analysis_label=""):
             nargs=3,
             type=float,
             help="Eta binning as 'nbins min max' (only uniform for now)",
-            default=common.get_default_etabins(analysis_label),
+            default=binning.get_default_etabins(analysis_label),
         )
         parser.add_argument(
             "--pt",
             nargs=3,
             type=float,
             help="Pt binning as 'nbins,min,max' (only uniform for now)",
-            default=common.get_default_ptbins(analysis_label),
+            default=binning.get_default_ptbins(analysis_label),
         )
         parser.add_argument(
             "--fitresult",

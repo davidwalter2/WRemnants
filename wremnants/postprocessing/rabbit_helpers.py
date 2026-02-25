@@ -3,7 +3,7 @@ import numpy as np
 
 from wremnants.postprocessing import histselections
 from wremnants.postprocessing.datagroups.datagroup import Datagroup_member
-from wremnants.utilities import common
+from wremnants.utilities import theory_utils
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -27,7 +27,7 @@ def add_mass_diff_variations(
         processes=processes,
         group=f"massDiff{label}",
         systNameReplace=[("Shift", f"Diff{suffix}")],
-        skipEntries=common.massWeightNames(proc=label, exclude=50),
+        skipEntries=theory_utils.massWeightNames(proc=label, exclude=50),
         noi=not constrain,
         noConstraint=not constrain,
         mirror=False,

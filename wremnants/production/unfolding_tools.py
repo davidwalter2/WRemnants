@@ -9,7 +9,7 @@ from wremnants.production import (
     systematics,
     theory_corrections,
 )
-from wremnants.utilities import common, differential
+from wremnants.utilities import binning, common
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -119,14 +119,14 @@ def select_fiducial_space(
         )
         if fiducial not in ["inclusive", "masswindow"]:
             # Use unfolding values in gen script
-            selmap["pt_min"], selmap["pt_max"] = common.get_default_ptbins(
+            selmap["pt_min"], selmap["pt_max"] = binning.get_default_ptbins(
                 mode, gen="vgen" in mode
             )[1:]
-            selmap["abseta_max"] = common.get_default_etabins(mode)[-1]
+            selmap["abseta_max"] = binning.get_default_etabins(mode)[-1]
             if mode[0] == "w" or "wlike" in mode:
-                selmap["mtw_min"] = common.get_default_mtcut(mode)
+                selmap["mtw_min"] = binning.get_default_mtcut(mode)
         elif fiducial == "masswindow" and mode[0] == "z":
-            selmap["mass_min"], selmap["mass_max"] = common.get_default_mz_window()
+            selmap["mass_min"], selmap["mass_max"] = binning.get_default_mz_window()
     else:
         for k in selmap.keys():
             selmap[k] = kwargs.get(k)
@@ -216,7 +216,7 @@ def add_xnorm_histograms(
                 base_name,
                 xnorm_axes,
                 [*xnorm_cols, "helicity_moments_tensor", "nominal_weight"],
-                tensor_axes=[common.axis_helicity_multidim],
+                tensor_axes=[binning.axis_helicity_multidim],
                 storage=hist.storage.Weight(),
             )
         )
@@ -384,7 +384,7 @@ class UnfolderZ:
         self.unfolding_selections = {}
         for level in self.unfolding_levels:
             # for poi as noi, need gen rapidity overflow bin and out of acceptance axes to keep all events and be able to reconstruct corresponding reco histogram
-            a, c, s = differential.get_dilepton_axes(
+            a, c, s = binning.get_dilepton_axes(
                 unfolding_axes_names,
                 reco_axes_edges,
                 level,
@@ -539,7 +539,7 @@ class UnfolderZ:
                         noiAsPoiHistName,
                         yield_axes,
                         [*yield_cols, "nominal_weight_helicity"],
-                        tensor_axes=[common.axis_helicity_multidim],
+                        tensor_axes=[binning.axis_helicity_multidim],
                     )
                 )
             else:

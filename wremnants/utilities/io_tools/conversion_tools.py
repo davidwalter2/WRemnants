@@ -52,7 +52,7 @@ def get_hepdata_label(name, input_dict=None):
     elif name.startswith("norm"):
         # normWminus_PtV1YVBin3Helicity4, but can be PtVO instead of 0
         prefix_split, postfix_split = name.split("_")
-        # binning is hardcoded for now, it is defined in utilities/differential.py: get_theoryAgnostic_axes(...)
+        # binning is hardcoded for now, it is defined in utilities/binning.py: get_theoryAgnostic_axes(...)
         # unless it is passed as command line option
         boson = "W"
         ptVbins = [0.0, 3.0, 6.0, 9.7, 12.4, 16.0, 21.4, 29.5, 60.0]

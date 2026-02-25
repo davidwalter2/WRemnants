@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from wremnants.production import theory_corrections
-from wremnants.utilities import common, parsing
+from wremnants.utilities import common, parsing, samples
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools, plot_tools
@@ -124,7 +124,7 @@ def parse_args():
         "--eras",
         type=str,
         nargs="+",
-        choices=common.supported_eras,
+        choices=samples.supported_eras,
         help="Data set to process",
         default=["13TeVGen"],
     )

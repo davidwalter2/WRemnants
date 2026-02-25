@@ -2,7 +2,7 @@ import hist
 import ROOT
 
 import narf.clingutils
-from wremnants.utilities import common
+from wremnants.utilities import binning, common
 
 narf.clingutils.Declare('#include "muon_prefiring.hpp"')
 
@@ -62,5 +62,5 @@ def pythonize_rdataframe(klass):
             name="etaPhiRegion",
             label="muon prefiring eta-phi regions",
         ),
-        common.down_up_axis,
+        binning.down_up_axis,
     )

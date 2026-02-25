@@ -1,6 +1,6 @@
 import os
 
-from wremnants.utilities import common, differential, parsing
+from wremnants.utilities import binning, common, parsing, samples
 
 analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
@@ -43,7 +43,7 @@ from wums import logging
 parser.add_argument(
     "--mtCut",
     type=int,
-    default=common.get_default_mtcut(analysis_label),
+    default=binning.get_default_mtcut(analysis_label),
     help="Value for the transverse mass cut in the event selection",
 )  # 40 for Wmass, thus be 45 here (roughly half the boson mass)
 parser.add_argument(
@@ -154,7 +154,7 @@ datasets = getDatasets(
 )
 
 # dilepton invariant mass cuts
-mass_min, mass_max = common.get_default_mz_window()
+mass_min, mass_max = binning.get_default_mz_window()
 
 # transverse boson mass cut
 mtw_min = args.mtCut
@@ -201,7 +201,7 @@ if args.fillHistNonTrig:
             overflow=False,
             underflow=False,
         )
-    nominal_axes = [axis_eta, axis_pt, common.axis_charge]
+    nominal_axes = [axis_eta, axis_pt, binning.axis_charge]
     nominal_cols = ["nonTrigMuons_eta0", "nonTrigMuons_pt0", "nonTrigMuons_charge0"]
 else:
     axis_pt = hist.axis.Regular(
@@ -212,7 +212,7 @@ else:
         overflow=False,
         underflow=False,
     )
-    nominal_axes = [axis_eta, axis_pt, common.axis_charge]
+    nominal_axes = [axis_eta, axis_pt, binning.axis_charge]
     nominal_cols = ["trigMuons_eta0", "trigMuons_pt0", "trigMuons_charge0"]
 
 # for isoMt region validation and related tests
@@ -228,7 +228,7 @@ axis_isoCat = hist.axis.Variable(
     [0, 0.15, 0.3, 100], name="relIso", underflow=False, overflow=False
 )
 
-nominal_axes = [axis_eta, axis_pt, common.axis_charge]
+nominal_axes = [axis_eta, axis_pt, binning.axis_charge]
 nominal_cols = ["trigMuons_eta0", "trigMuons_pt0", "trigMuons_charge0"]
 if args.addIsoMtAxes:
     nominal_axes.extend([axis_mtCat, axis_isoCat])
@@ -244,7 +244,7 @@ if args.unfolding:
     unfolding_cols = {}
     for level in args.unfoldingLevels:
 
-        a, c = differential.get_pt_eta_charge_axes(
+        a, c = binning.get_pt_eta_charge_axes(
             level,
             npt_unfolding,
             min_pt_unfolding,
@@ -269,14 +269,14 @@ if args.unfolding:
         unfolding_corr_helper = unfolding_tools.reweight_to_fitresult(args.fitresult)
 
 if args.theoryAgnostic:
-    theoryAgnostic_axes, theoryAgnostic_cols = differential.get_theoryAgnostic_axes(
+    theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
         ptV_bins=args.theoryAgnosticGenPtVbinEdges,
         absYV_bins=args.theoryAgnosticGenAbsYVbinEdges,
         ptV_flow=args.poiAsNoi,
         absYV_flow=args.poiAsNoi,
         wlike=True,
     )
-    axis_helicity = common.axis_helicity_multidim
+    axis_helicity = binning.axis_helicity_multidim
     # the following just prepares the existence of the group for out-of-acceptance signal, but doesn't create or define the histogram yet
     if not args.poiAsNoi or (
         args.theoryAgnosticPolVar and args.theoryAgnosticSplitOOA
@@ -411,7 +411,7 @@ bias_helper = (
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
 corr_helpers = theory_corrections.load_corr_helpers(
-    [d.name for d in datasets if d.name in common.vprocs], theory_corrs
+    [d.name for d in datasets if d.name in samples.vprocs], theory_corrs
 )
 
 # helpers for muRmuF MiNNLO polynomial variations
@@ -445,8 +445,8 @@ if not args.noRecoil:
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
-    isW = dataset.name in common.wprocs
-    isZ = dataset.name in common.zprocs
+    isW = dataset.name in samples.wprocs
+    isZ = dataset.name in samples.zprocs
     isWorZ = isW or isZ
 
     theory_helpers = None
@@ -940,7 +940,7 @@ def build_graph(df, dataset):
             "nonTrigMuons_charge0",
         ]
         df = recoilHelper.recoil_Z(
-            df, results, dataset, common.zprocs_recoil, leps_uncorr, leps_corr
+            df, results, dataset, samples.zprocs_recoil, leps_uncorr, leps_corr
         )  # produces corrected MET as MET_corr_rec_pt/phi
     else:
         df = df.Alias("MET_corr_rec_pt", "MET_pt")
@@ -1069,7 +1069,7 @@ def build_graph(df, dataset):
                 [
                     axis_eta_trig,
                     axis_pt_trig,
-                    common.axis_charge,
+                    binning.axis_charge,
                     axis_eta_nonTrig,
                     axis_pt_nonTrig,
                     common.axis_passMT,
@@ -1210,7 +1210,7 @@ def build_graph(df, dataset):
         results.append(
             df.HistoBoost(
                 "trigMuons_vertexZ0_uncorr",
-                [axis_vertexZ0, common.axis_charge],
+                [axis_vertexZ0, binning.axis_charge],
                 [
                     "trigMuons_vertexZ0",
                     "trigMuons_charge0",
@@ -1221,14 +1221,14 @@ def build_graph(df, dataset):
         results.append(
             df.HistoBoost(
                 "trigMuons_vertexZ0_noVtx",
-                [axis_vertexZ0, common.axis_charge],
+                [axis_vertexZ0, binning.axis_charge],
                 ["trigMuons_vertexZ0", "trigMuons_charge0", "nominal_weight_noVtx"],
             )
         )
         results.append(
             df.HistoBoost(
                 "trigMuons_vertexZ0",
-                [axis_vertexZ0, common.axis_charge],
+                [axis_vertexZ0, binning.axis_charge],
                 ["trigMuons_vertexZ0", "trigMuons_charge0", "nominal_weight"],
             )
         )
@@ -1252,7 +1252,7 @@ def build_graph(df, dataset):
                 [
                     hist.axis.Regular(200, -10, 10, name="trigMuons_dpt"),
                     hist.axis.Regular(200, -10, 10, name="nonTrigMuons_dpt"),
-                    common.axis_charge,
+                    binning.axis_charge,
                 ],
                 [
                     "trigMuons_deltaPt_corrMinusTnp",
@@ -1275,7 +1275,7 @@ def build_graph(df, dataset):
                 [
                     hist.axis.Regular(120, -3.0, 3.0, name="trigMuons_deta"),
                     hist.axis.Regular(120, -3.0, 3.0, name="nonTrigMuons_deta"),
-                    common.axis_charge,
+                    binning.axis_charge,
                 ],
                 [
                     "trigMuons_deltaEta_corrMinusTnp",

@@ -9,8 +9,8 @@ from matplotlib import cm
 
 from wremnants.postprocessing import theory_tools
 from wremnants.utilities import theory_utils
+from wremnants.utilities.binning import get_theoryAgnostic_axes
 from wremnants.utilities.common import axis_helicity_multidim
-from wremnants.utilities.differential import get_theoryAgnostic_axes
 from wremnants.utilities.io_tools import input_tools, output_tools
 from wums import boostHistHelpers as hh
 from wums import ioutils, plot_tools

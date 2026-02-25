@@ -2,7 +2,6 @@ import hist
 
 import narf
 import wums.ioutils
-from wremnants.utilities import common
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -156,7 +155,6 @@ def define_uncrct_reco_muon_kinematics(
 
 
 def define_reco_over_gen_cols(df, reco_type, kinematic_vars=["pt", "eta"]):
-    kinematic_vars = common.string_to_list(kinematic_vars)
     df = define_cvh_reco_muon_kinematics(df, kinematic_vars)
     df = define_uncrct_reco_muon_kinematics(df, kinematic_vars)
     for var in kinematic_vars:

@@ -21,7 +21,7 @@ from wremnants.postprocessing.syst_tools import (
     scale_hist_up_down,
     scale_hist_up_down_corr_from_file,
 )
-from wremnants.utilities import common, parsing, theory_utils
+from wremnants.utilities import binning, common, parsing, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools
 
@@ -1050,8 +1050,8 @@ def setup(
     if dilepton and "run" in fitvar:
         # in case fit is split by runs/ cumulated lumi
         # run axis only exists for data, add it for MC, and scale the MC according to the luminosity fractions
-        run_edges = common.run_edges
-        run_edges_lumi = common.run_edges_lumi
+        run_edges = binning.run_edges
+        run_edges_lumi = binning.run_edges_lumi
         lumis = np.diff(run_edges_lumi) / run_edges_lumi[-1]
 
         datagroups.setGlobalAction(
@@ -1451,7 +1451,7 @@ def setup(
             processes=signal_samples_forMass,
             group=f"massShift",
             noi=not constrainMass,
-            skipEntries=common.massWeightNames(proc=label, exclude=massVariation),
+            skipEntries=theory_utils.massWeightNames(proc=label, exclude=massVariation),
             mirror=False,
             noConstraint=not constrainMass,
             systAxes=["massShift"],
@@ -1494,7 +1494,7 @@ def setup(
                     # systNameReplace=[("Shift",f"Diff{suffix}")],
                     skipEntries=[
                         (x, *[-1] * len(args.fitMassDecorr))
-                        for x in common.massWeightNames(
+                        for x in theory_utils.massWeightNames(
                             proc=label, exclude=args.massVariation
                         )
                     ],
@@ -1616,7 +1616,9 @@ def setup(
             "widthWeightZ",
             name="WidthZ0p8MeV",
             processes=["single_v_nonsig_samples"] if wmass else signal_samples_forMass,
-            skipEntries=common.widthWeightNames(proc="Z", exclude=(2.49333, 2.49493)),
+            skipEntries=theory_utils.widthWeightNames(
+                proc="Z", exclude=(2.49333, 2.49493)
+            ),
             groups=["ZmassAndWidth" if wmass else "widthZ", "theory"],
             mirror=False,
             noi="wwidth" in args.noi if not wmass else False,
@@ -1634,7 +1636,9 @@ def setup(
             mirror=False,
             noi="wwidth" in args.noi,
             noConstraint="wwidth" in args.noi,
-            skipEntries=common.widthWeightNames(proc="W", exclude=(2.09053, 2.09173)),
+            skipEntries=theory_utils.widthWeightNames(
+                proc="W", exclude=(2.09053, 2.09173)
+            ),
             systAxes=["width"],
             systNameReplace=[["2p09053GeV", "Down"], ["2p09173GeV", "Up"]],
             passToFakes=passSystToFakes,
@@ -1746,7 +1750,9 @@ def setup(
                 f"massWeightZ",
                 processes=["single_v_nonsig_samples"],
                 groups=["ZmassAndWidth", "theory"],
-                skipEntries=common.massWeightNames(proc="Z", exclude=massVariationZ),
+                skipEntries=theory_utils.massWeightNames(
+                    proc="Z", exclude=massVariationZ
+                ),
                 mirror=False,
                 noi=not constrainMassZ,
                 noConstraint=not constrainMassZ,

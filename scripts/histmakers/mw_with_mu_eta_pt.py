@@ -1,6 +1,6 @@
 import os
 
-from wremnants.utilities import common, differential, parsing
+from wremnants.utilities import binning, common, parsing, samples
 from wums import logging
 
 analysis_label = common.analysis_label(os.path.basename(__file__))
@@ -42,7 +42,6 @@ from wremnants.production.histmaker_tools import (
     scale_to_data,
     write_analysis_output,
 )
-from wremnants.utilities import common
 
 parser.add_argument(
     "--noGenMatchMC",
@@ -72,7 +71,7 @@ parser.add_argument(
 parser.add_argument(
     "--mtCut",
     type=int,
-    default=common.get_default_mtcut(analysis_label),
+    default=binning.get_default_mtcut(analysis_label),
     help="Value for the transverse mass cut in the event selection",
 )
 parser.add_argument(
@@ -272,7 +271,7 @@ axis_muonJetPt = hist.axis.Regular(
     50, 26, 76, name="muonJetPt", underflow=False, overflow=True
 )
 
-axis_charge = common.axis_charge
+axis_charge = binning.axis_charge
 axis_passIso = common.axis_passIso
 axis_passMT = common.axis_passMT
 axis_mt = hist.axis.Variable(
@@ -295,14 +294,14 @@ axis_fakes_eta = hist.axis.Regular(
 )
 
 axis_fakes_pt = hist.axis.Variable(
-    common.get_binning_fakes_pt(template_minpt, template_maxpt),
+    binning.get_binning_fakes_pt(template_minpt, template_maxpt),
     name="pt",
     overflow=False,
     underflow=False,
 )
 
 axis_mtCat = hist.axis.Variable(
-    common.get_binning_fakes_mt(
+    binning.get_binning_fakes_mt(
         mtw_min, high_mt_bins=False, fine_mt_binning=args.fineMtBinning
     ),
     name="mt",
@@ -310,7 +309,7 @@ axis_mtCat = hist.axis.Variable(
     overflow=True,
 )
 axis_isoCat = hist.axis.Variable(
-    common.get_binning_fakes_relIso(high_iso_bins=False),
+    binning.get_binning_fakes_relIso(high_iso_bins=False),
     name="relIso",
     underflow=False,
     overflow=True,
@@ -392,7 +391,7 @@ if args.unfolding:
     unfolding_cols = {}
     for level in args.unfoldingLevels:
         # for poi as noi, need gen eta overflow bin and out of acceptance axes to keep all events and be able to reconstruct corresponding reco histogram
-        a, c = differential.get_pt_eta_charge_axes(
+        a, c = binning.get_pt_eta_charge_axes(
             level,
             npt_unfolding,
             min_pt_unfolding,
@@ -417,7 +416,7 @@ if args.unfolding:
     if args.unfoldingInclusive:
         cutsmap = {"fiducial": "masswindow"}
     else:
-        mass_min, mass_max = common.get_default_mz_window()
+        mass_min, mass_max = binning.get_default_mz_window()
         cutsmap = {
             "pt_min": args.pt[1],
             "pt_max": args.pt[2],
@@ -428,8 +427,8 @@ if args.unfolding:
 
     unfolder_z = unfolding_tools.UnfolderZ(
         reco_axes_edges={
-            "ptll": common.ptZ_binning,
-            "yll": common.yll_20quantiles_binning,
+            "ptll": binning.ptZ_binning,
+            "yll": binning.yll_20quantiles_binning,
         },
         unfolding_axes_names=["ptVGen", "absYVGen", "helicitySig"],
         unfolding_levels=args.unfoldingLevels,
@@ -449,13 +448,13 @@ theory_helpers_procs = theory_corrections.make_theory_helpers(
 )
 
 if args.theoryAgnostic:
-    theoryAgnostic_axes, theoryAgnostic_cols = differential.get_theoryAgnostic_axes(
+    theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
         ptV_bins=args.theoryAgnosticGenPtVbinEdges,
         absYV_bins=args.theoryAgnosticGenAbsYVbinEdges,
         ptV_flow=args.poiAsNoi,
         absYV_flow=args.poiAsNoi,
     )
-    axis_helicity = common.axis_helicity_multidim
+    axis_helicity = binning.axis_helicity_multidim
     # the following just prepares the existence of the group for out-of-acceptance signal, but doesn't create or define the histogram yet
     if not args.poiAsNoi or (
         args.theoryAgnosticPolVar and args.theoryAgnosticSplitOOA
@@ -616,7 +615,7 @@ bias_helper = (
 
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
-procsWithTheoryCorr = [d.name for d in datasets if d.name in common.vprocs]
+procsWithTheoryCorr = [d.name for d in datasets if d.name in samples.vprocs]
 if len(procsWithTheoryCorr):
     corr_helpers = theory_corrections.load_corr_helpers(
         procsWithTheoryCorr, theory_corrs
@@ -1329,7 +1328,7 @@ def build_graph(df, dataset):
             df,
             results,
             dataset,
-            common.wprocs_recoil,
+            samples.wprocs_recoil,
             leps_uncorr,
             leps_corr,
             cols_fakerate=columns_fakerate,

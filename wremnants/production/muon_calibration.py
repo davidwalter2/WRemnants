@@ -11,7 +11,7 @@ import uproot
 import narf
 import narf.tfliteutils
 import wums.ioutils
-from wremnants.utilities import common
+from wremnants.utilities import binning, common, samples
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -59,7 +59,7 @@ def make_muon_calibration_helpers(
 
     uncertainty_helper.tensor_axes = (
         uncertainty_hist.axes["calvar"],
-        common.down_up_axis,
+        binning.down_up_axis,
     )
 
     return mc_helper, data_helper, uncertainty_helper
@@ -597,7 +597,7 @@ def make_jpsi_crctn_unc_helper(
         helper = ROOT.wrem.JpsiCorrectionsUncHelper_massWeights[
             type(hist_scale_params_unc_cpp).__cpp_name__, nweights
         ](ROOT.std.move(hist_scale_params_unc_cpp))
-    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], common.down_up_axis)
+    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], binning.down_up_axis)
     return helper
 
 
@@ -642,7 +642,7 @@ def make_dummy_closure_uncertainty_helper(neta=24, etalow=-2.4, etahigh=2.4):
         type(hist_scale_params_unc_cpp).__cpp_name__
     ](ROOT.std.move(hist_scale_params_unc_cpp))
 
-    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], common.down_up_axis)
+    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], binning.down_up_axis)
     return helper
 
 
@@ -727,7 +727,7 @@ def make_closure_uncertainty_helper(filepath_correction):
         type(hist_scale_params_unc_cpp).__cpp_name__
     ](ROOT.std.move(hist_scale_params_unc_cpp))
 
-    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], common.down_up_axis)
+    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], binning.down_up_axis)
     return helper
 
 
@@ -756,7 +756,7 @@ def make_uniform_closure_uncertainty_helper(iparm=0, val=1e-5):
         type(hist_scale_params_unc_cpp).__cpp_name__
     ](ROOT.std.move(hist_scale_params_unc_cpp))
 
-    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], common.down_up_axis)
+    helper.tensor_axes = (hist_scale_params_unc.axes["unc"], binning.down_up_axis)
     return helper
 
 
@@ -799,7 +799,7 @@ def make_Z_non_closure_parametrized_helper(
             z_non_closure_helper = ROOT.wrem.ZNonClosureParametrizedHelperCorl[
                 type(hist_non_closure_cpp).__cpp_name__, n_eta_bins
             ](ROOT.std.move(hist_non_closure_cpp))
-        z_non_closure_helper.tensor_axes = tuple([common.down_up_axis])
+        z_non_closure_helper.tensor_axes = tuple([binning.down_up_axis])
         return z_non_closure_helper
     else:
         if scale_var_method == "smearingWeightsSplines":
@@ -812,7 +812,7 @@ def make_Z_non_closure_parametrized_helper(
             ](ROOT.std.move(hist_non_closure_cpp))
         z_non_closure_helper.tensor_axes = (
             hist.axis.Regular(n_eta_bins, 0, n_eta_bins, name="unc"),
-            common.down_up_axis,
+            binning.down_up_axis,
         )
         return z_non_closure_helper
 
@@ -834,7 +834,7 @@ def make_Z_non_closure_binned_helper(
         z_non_closure_helper = ROOT.wrem.ZNonClosureBinnedHelperCorl[
             type(hist_non_closure_cpp).__cpp_name__, n_eta_bins, n_pt_bins
         ](ROOT.std.move(hist_non_closure_cpp))
-        z_non_closure_helper.tensor_axes = tuple([common.down_up_axis])
+        z_non_closure_helper.tensor_axes = tuple([binning.down_up_axis])
         return z_non_closure_helper
     else:
         if scale_var_method == "smearingWeightsSplines":
@@ -848,7 +848,7 @@ def make_Z_non_closure_binned_helper(
         z_non_closure_helper.tensor_axes = (
             hist.axis.Regular(n_eta_bins, 0, n_eta_bins, name="unc_ieta"),
             hist.axis.Regular(n_pt_bins, 0, n_pt_bins, name="unc_ipt"),
-            common.down_up_axis,
+            binning.down_up_axis,
         )
         return z_non_closure_helper
 
@@ -936,7 +936,7 @@ def define_lblcorr_muons(df, cvh_helper, corr_branch="cvh"):
 def define_corrected_muons(
     df, cvh_helper, jpsi_helper, args, dataset, smearing_helper=None, bias_helper=None
 ):
-    if not (dataset.is_data or dataset.name in common.vprocs):
+    if not (dataset.is_data or dataset.name in samples.vprocs):
         corr_type = "none"
     else:
         corr_type = args.muonCorrData if dataset.is_data else args.muonCorrMC

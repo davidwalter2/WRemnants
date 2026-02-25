@@ -10,7 +10,7 @@ import rabbit
 import rabbit.io_tools
 from rabbit.tensorwriter import TensorWriter
 from wremnants.production import theory_corrections
-from wremnants.utilities import common, parsing, theory_utils
+from wremnants.utilities import binning, common, parsing, theory_utils
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -1408,10 +1408,10 @@ if args.fitW:
     # prepare fine binning hists
     from wremnants.utilities import common
 
-    fine_pt_binning = common.ptV_binning[::2]
+    fine_pt_binning = binning.ptV_binning[::2]
     inclusive_pt_binning = [
-        common.ptV_binning[0],
-        common.ptV_binning[-1],
+        binning.ptV_binning[0],
+        binning.ptV_binning[-1],
     ]
     nptfine = len(fine_pt_binning) - 1
     scale_inclusive = np.sqrt((nptfine - 1) / nptfine)

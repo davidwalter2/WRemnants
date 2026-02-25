@@ -2,7 +2,7 @@ import glob
 import os
 import re
 
-from wremnants.utilities import common
+from wremnants.utilities import common, samples
 
 pdfMap = {
     "nnpdf31": {
@@ -248,3 +248,73 @@ def valid_ew_theory_corrections():
         re.match(r"(^.*)Corr[W|Z]\.pkl\.lz4", os.path.basename(c)) for c in corr_files
     ]
     return [m[1] for m in matches if m] + ["none"]
+
+
+def massWeightNames(matches=None, proc="", exclude=[]):
+    if isinstance(exclude, (int, float)):
+        exclude = [
+            exclude,
+        ]
+    central = 10
+    nweights = 21
+    names = [
+        f"massShift{proc[0] if len(proc) else proc}{int(abs(central-i)*10)}MeV{'' if i == central else ('Down' if i < central else 'Up')}"
+        for i in range(nweights)
+        if int(abs(central - i) * 10) not in exclude
+    ]
+    if proc and (proc in samples.zprocs or proc == "Z") and 2.1 not in exclude:
+        # This is the PDG uncertainty (turned off for now since it doesn't seem to have been read into the nano)
+        names.extend(["massShiftZ2p1MeVDown", "massShiftZ2p1MeVUp"])
+
+    # If name is "" it won't be stored
+    return [x if not matches or any(y in x for y in matches) else "" for x in names]
+
+
+def widthWeightNames(matches=None, proc="", exclude=[]):
+    if isinstance(exclude, (int, float)):
+        exclude = [
+            exclude,
+        ]
+    if proc[0] == "Z":
+        widths = (2.49333, 2.49493, 2.4929, 2.4952, 2.4975)
+    elif proc[0] == "W":
+        widths = (2.09053, 2.09173, 2.043, 2.085, 2.127)
+    else:
+        raise RuntimeError(f"No width found for process {proc}")
+    # 0 and 1 are Up, Down from mass uncertainty EW fit (already accounted for in mass variations)
+    # 2, 3, and 4 are PDG width Down, Central, Up
+    names = [
+        f"width{proc[0]}{str(width).replace('.','p')}GeV"
+        for width in widths
+        if width not in exclude
+    ]
+
+    return [x if not matches or any(y in x for y in matches) else "" for x in names]
+
+
+def sin2thetaWeightNames(matches=None, proc=""):
+    if proc[0] != "Z":
+        raise RuntimeError("sin2theta weights are only defined for Z")
+
+    sin2thetas = (
+        0.23151,
+        0.23154,
+        0.23157,
+        0.2230,
+        0.2300,
+        0.2305,
+        0.2310,
+        0.2315,
+        0.2320,
+        0.2325,
+        0.2330,
+    )
+
+    # 1 is the central value
+    # 0 and 2 are Down, Up from uncertainty in EW fit
+    names = [
+        f"sin2theta{proc[0]}{str(sin2theta).replace('.','p')}"
+        for sin2theta in sin2thetas
+    ]
+
+    return [x if not matches or any(y in x for y in matches) else "" for x in names]

@@ -1,6 +1,6 @@
 import os
 
-from wremnants.utilities import common, differential, parsing
+from wremnants.utilities import binning, common, parsing, samples
 
 analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
@@ -105,7 +105,7 @@ axis_lin = hist.axis.Regular(5, 0, 5, name="lin")
 nominal_axes = [
     axis_fakes_pt,
     axis_fakes_eta,
-    common.axis_charge,
+    binning.axis_charge,
     axis_ptW,
     common.axis_passIso,
     common.axis_passMT,
@@ -116,7 +116,7 @@ nominal_cols = ["lep_pt", "lep_eta", "lep_charge", "ptW", "passIso", "passMT"]
 axes_mt = [
     axis_fakes_pt,
     axis_fakes_eta,
-    common.axis_charge,
+    binning.axis_charge,
     axis_mt,
     common.axis_passIso,
 ]
@@ -126,7 +126,7 @@ cols_mt = ["lep_pt", "lep_eta", "lep_charge", "transverseMass", "passIso"]
 axes_fakerate = [
     axis_fakes_pt,
     axis_fakes_eta,
-    common.axis_charge,
+    binning.axis_charge,
     common.axis_passIso,
     axis_mt,
 ]  ## was axis_mt
@@ -151,7 +151,7 @@ if args.unfolding:
     unfolding_cols = {}
     unfolding_selections = {}
     for level in args.unfoldingLevels:
-        a, c, s = differential.get_dilepton_axes(
+        a, c, s = binning.get_dilepton_axes(
             args.unfoldingAxes,
             {"ptll": axis_ptW.edges},
             level,
@@ -175,7 +175,7 @@ if args.unfolding:
 # extra axes which can be used to label tensor_axes
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
 corr_helpers = theory_corrections.load_corr_helpers(
-    [d.name for d in datasets if d.name in common.vprocs], theory_corrs
+    [d.name for d in datasets if d.name in samples.vprocs], theory_corrs
 )
 
 # recoil initialization
@@ -191,7 +191,7 @@ def build_graph(df, dataset):
     isQCDMC = dataset.group == "QCD"
 
     theory_helpers = None
-    if dataset.name in common.vprocs:
+    if dataset.name in samples.vprocs:
         theory_helpers = theory_helpers_procs[dataset.name[0]]
 
     if dataset.is_data:
@@ -442,7 +442,7 @@ def build_graph(df, dataset):
             df,
             results,
             dataset,
-            common.vprocs,
+            samples.vprocs,
             leps_uncorr,
             leps_corr,
             cols_fakerate=columns_fakerate,
@@ -466,7 +466,7 @@ def build_graph(df, dataset):
                 axis_pt,
                 axis_eta,
                 axis_phi,
-                common.axis_charge,
+                binning.axis_charge,
                 common.axis_passMT,
                 common.axis_passIso,
             ],
@@ -485,7 +485,7 @@ def build_graph(df, dataset):
     # df = df.Define("iso_tmp", "if(lep_iso > 0.15) { std::cout << lep_iso << std::endl; } return lep_iso;")
     # results.append(df.HistoBoost("lep_iso", [axis_iso], ["iso_tmp", "nominal_weight"]))
 
-    # results.append(df.HistoBoost("qcd_space", [axis_pt, axis_eta, axis_iso, common.axis_charge, axis_mT], ["lep_pt", "lep_eta", "lep_iso", "lep_charge", "transverseMass", "nominal_weight"]))
+    # results.append(df.HistoBoost("qcd_space", [axis_pt, axis_eta, axis_iso, binning.axis_charge, axis_mT], ["lep_pt", "lep_eta", "lep_iso", "lep_charge", "transverseMass", "nominal_weight"]))
 
     df = df.Define(
         "ptW", "wrem::pt_2(lep_pt, lep_phi, MET_corr_rec_pt, MET_corr_rec_phi)"
@@ -513,11 +513,11 @@ def build_graph(df, dataset):
                     f"{n}_prefireCorr",
                     [*a],
                     [*c, "prefireCorr_syst_tensor"],
-                    tensor_axes=[common.down_up_axis],
+                    tensor_axes=[binning.down_up_axis],
                 )
             )
 
-            if dataset.name in common.vprocs:
+            if dataset.name in samples.vprocs:
                 df = systematics.add_theory_hists(
                     results,
                     df,
@@ -674,7 +674,7 @@ def build_graph(df, dataset):
             "transverseMass_leptonScaleSyst",
             axes_mt,
             [*cols_mt, f"leptonScaleDummy{netabins}Bins"],
-            tensor_axes=[common.down_up_axis, scale_etabins_axis],
+            tensor_axes=[binning.down_up_axis, scale_etabins_axis],
         )
         results.append(leptonMuonScaleSyst)
 

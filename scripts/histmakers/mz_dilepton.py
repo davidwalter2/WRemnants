@@ -1,6 +1,6 @@
 import os
 
-from wremnants.utilities import common, differential, parsing
+from wremnants.utilities import binning, common, parsing, samples
 
 analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
@@ -114,7 +114,7 @@ parser = parsing.set_parser_default(
 )
 parser = parsing.set_parser_default(parser, "excludeProcs", ["QCD", "DYlowMass"])
 parser = parsing.set_parser_default(
-    parser, "pt", common.get_default_ptbins(analysis_label)
+    parser, "pt", binning.get_default_ptbins(analysis_label)
 )
 args = parser.parse_args()
 
@@ -141,22 +141,22 @@ datasets = getDatasets(
 )
 
 # dilepton invariant mass cuts
-mass_min, mass_max = common.get_default_mz_window()
+mass_min, mass_max = binning.get_default_mz_window()
 
-ewMassBins = common.make_bw_binning(mass=91.1535, width=2.4932, initialStep=0.010)
+ewMassBins = binning.make_bw_binning(mass=91.1535, width=2.4932, initialStep=0.010)
 
 if args.useTheoryAgnosticBinning:
-    theoryAgnostic_axes, _ = differential.get_theoryAgnostic_axes(
+    theoryAgnostic_axes, _ = binning.get_theoryAgnostic_axes(
         ptV_flow=True, absYV_flow=True, wlike=True
     )
     axis_ptV_thag = theoryAgnostic_axes[0]
     dilepton_ptV_binning = axis_ptV_thag.edges
 else:
-    dilepton_ptV_binning = common.ptZ_binning if not args.finePtBinning else range(200)
+    dilepton_ptV_binning = binning.ptZ_binning if not args.finePtBinning else range(200)
 
 if "yll" in args.axes:
     # use 20 quantiles in case "yll" is used as nominal axis
-    edges_yll = common.yll_20quantiles_binning
+    edges_yll = binning.yll_20quantiles_binning
     edges_absYll = edges_yll[len(edges_yll) // 2 :]
     axis_yll = hist.axis.Variable(edges_yll, name="yll")
     axis_absYll = hist.axis.Variable(edges_absYll, name="absYll", underflow=False)
@@ -355,7 +355,7 @@ muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = 
 )
 procs = [
     p
-    for p, grp in (("W", common.wprocs), ("Z", common.zprocs))
+    for p, grp in (("W", samples.wprocs), ("Z", samples.zprocs))
     if any(d.name in grp for d in datasets)
 ]
 theory_helpers_procs = theory_corrections.make_theory_helpers(
@@ -499,15 +499,15 @@ if args.jackknifeN > 0:
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
 corr_helpers = theory_corrections.load_corr_helpers(
-    [d.name for d in datasets if d.name in common.vprocs], theory_corrs
+    [d.name for d in datasets if d.name in samples.vprocs], theory_corrs
 )
 
 
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
-    isW = dataset.name in common.wprocs
-    isZ = dataset.name in common.zprocs
+    isW = dataset.name in samples.wprocs
+    isZ = dataset.name in samples.zprocs
     isWorZ = isW or isZ
 
     theory_helpers = {}
@@ -544,7 +544,7 @@ def build_graph(df, dataset):
     cols = nominal_cols
 
     if args.addRunAxis and dataset.is_data:
-        run_edges = common.run_edges
+        run_edges = binning.run_edges
         axes = [
             *axes,
             hist.axis.Variable(
@@ -764,7 +764,7 @@ def build_graph(df, dataset):
 
     axis_eta = hist.axis.Regular(int(args.eta[0]), args.eta[1], args.eta[2], name="eta")
     axis_pt = hist.axis.Regular(int(args.pt[0]), args.pt[1], args.pt[2], name="pt")
-    axis_charge = common.axis_charge
+    axis_charge = binning.axis_charge
     axis_nvalidpixel = hist.axis.Integer(0, 10, name="nvalidpixel")
 
     df = df.Define(
@@ -929,16 +929,14 @@ def build_graph(df, dataset):
 
         if isZ:
             # theory agnostic stuff
-            theoryAgnostic_axes, theoryAgnostic_cols = (
-                differential.get_theoryAgnostic_axes(
-                    ptV_bins=[],
-                    absYV_bins=[],
-                    ptV_flow=True,
-                    absYV_flow=True,
-                    wlike=True,
-                )
+            theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
+                ptV_bins=[],
+                absYV_bins=[],
+                ptV_flow=True,
+                absYV_flow=True,
+                wlike=True,
             )
-            axis_helicity = common.axis_helicity_multidim
+            axis_helicity = binning.axis_helicity_multidim
 
             df_theory_agnostic = theoryAgnostic_tools.define_helicity_weights(
                 df, is_z=True

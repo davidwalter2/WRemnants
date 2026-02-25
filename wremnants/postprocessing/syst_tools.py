@@ -7,7 +7,7 @@ import lz4.frame
 import numpy as np
 
 from wremnants.postprocessing import theory_tools
-from wremnants.utilities import common, theory_utils
+from wremnants.utilities import binning, samples, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -62,27 +62,27 @@ def syst_transform_map(base_hist, hist_name):
     }
     transforms["scetlib_dyturboMSHT20Up"] = {
         "action": lambda h: pdfUnc(h, "pdfMSHT20", "vars")[0],
-        "procs": common.vprocs,
+        "procs": samples.vprocs,
     }
     transforms["scetlib_dyturboMSHT20Down"] = {
         "action": lambda h: pdfUnc(h, "pdfMSHT20", "vars")[1],
-        "procs": common.vprocs,
+        "procs": samples.vprocs,
     }
     transforms["scetlib_dyturboCT18ZUp"] = {
         "action": lambda h: pdfUnc(h, "pdfCT18Z", "vars")[0],
-        "procs": common.vprocs,
+        "procs": samples.vprocs,
     }
     transforms["scetlib_dyturboCT18ZDown"] = {
         "action": lambda h: pdfUnc(h, "pdfCT18Z", "vars")[1],
-        "procs": common.vprocs,
+        "procs": samples.vprocs,
     }
     transforms["scetlib_dyturboMSHT20an3loUp"] = {
         "action": lambda h: pdfUnc(h, "pdfMSHT20", "vars")[0],
-        "procs": common.zprocs,
+        "procs": samples.zprocs,
     }
     transforms["scetlib_dyturboMSHT20an3loDown"] = {
         "action": lambda h: pdfUnc(h, "pdfMSHT20", "vars")[1],
-        "procs": common.zprocs,
+        "procs": samples.zprocs,
     }
     transforms["ewUp"] = {
         "action": lambda h, **args: (
@@ -938,7 +938,7 @@ def scale_hist_up_down(h, scale):
 
     hVar = hist.Hist(
         *[a for a in h.axes],
-        common.down_up_axis,
+        binning.down_up_axis,
         storage=hist.storage.Weight(),
     )
     hVar.values(flow=True)[...] = np.stack(
@@ -961,7 +961,7 @@ def scale_hist_up_down_corr_from_file(h, corr_file=None, corr_hist=None):
 
     hVar = hist.Hist(
         *[a for a in h.axes],
-        common.down_up_axis,
+        binning.down_up_axis,
         storage=hist.storage.Weight(),
     )
     hVar.values(flow=True)[...] = np.stack(

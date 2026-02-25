@@ -4,7 +4,7 @@ import hist
 import numpy as np
 
 from wremnants.postprocessing import syst_tools, theory_tools
-from wremnants.utilities import common, theory_utils
+from wremnants.utilities import binning, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -202,7 +202,7 @@ class TheoryHelper(object):
                         self.add_minnlo_scale_uncertainty(
                             sample_group,
                             extra_name="highpt",
-                            rebin_pt=common.ptV_binning[::2],
+                            rebin_pt=binning.ptV_binning[::2],
                             helicities_to_exclude=range(0, 8),
                             pt_min=27.0,
                             scale=self.minnlo_scale,
@@ -211,7 +211,7 @@ class TheoryHelper(object):
         elif "scale" in self.resumUnc:
             self.add_scetlib_dyturbo_scale_uncertainty(
                 extra_name="inclusive",
-                rebin_pt=[common.ptV_binning[0], common.ptV_binning[-1]],
+                rebin_pt=[binning.ptV_binning[0], binning.ptV_binning[-1]],
                 transition=self.transitionUnc,
             )
             if "binned" in self.resumUnc:
@@ -219,7 +219,7 @@ class TheoryHelper(object):
                 # to avoid underestimating the correlated part of the uncertainty
                 self.add_scetlib_dyturbo_scale_uncertainty(
                     extra_name="fine",
-                    rebin_pt=common.ptV_binning[::2],
+                    rebin_pt=binning.ptV_binning[::2],
                     transition=self.transitionUnc,
                 )
 
@@ -236,7 +236,7 @@ class TheoryHelper(object):
                         # double counting with fully correlated uncertainty
                         scale_inclusive = 1.0
                     else:
-                        fine_pt_binning = common.ptV_binning[::2]
+                        fine_pt_binning = binning.ptV_binning[::2]
                         nptfine = len(fine_pt_binning) - 1
                         scale_inclusive = np.sqrt((nptfine - 1) / nptfine)
 
@@ -252,7 +252,7 @@ class TheoryHelper(object):
                     self.add_minnlo_scale_uncertainty(
                         sample_group,
                         extra_name="inclusive",
-                        rebin_pt=[common.ptV_binning[0], common.ptV_binning[-1]],
+                        rebin_pt=[binning.ptV_binning[0], binning.ptV_binning[-1]],
                         helicities_to_exclude=helicities_to_exclude,
                         scale=scale_inclusive * self.minnlo_scale,
                         symmetrize=self.theory_symmetrize,

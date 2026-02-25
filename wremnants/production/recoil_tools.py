@@ -5,6 +5,7 @@ import hist
 import numpy as np
 import ROOT
 
+from wremnants.utilities import binning
 from wremnants.utilities import common as common
 from wremnants.utilities.io_tools import input_tools
 
@@ -168,7 +169,7 @@ class Recoil:
             200000, -1, 1, name="res", underflow=False, overflow=False
         )
 
-        self.axis_charge = common.axis_charge
+        self.axis_charge = binning.axis_charge
         self.axis_passIso = common.axis_passIso
         self.axis_passMT = common.axis_passMT
 

@@ -10,7 +10,7 @@ import narf.clingutils
 from wremnants.production.correctionsTensor_helper import (
     makeCorrectionsTensor,
 )
-from wremnants.utilities import common
+from wremnants.utilities import binning, common
 from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -121,7 +121,7 @@ def make_helper_helicity(axes, nhelicity=6):
         logger.warning(
             f"An error occurred while trying to create a helicity tensor helper: {e}"
         )
-    tensor_axes = [common.axis_helicity_multidim, *axes]
+    tensor_axes = [binning.axis_helicity_multidim, *axes]
     return helper, tensor_axes
 
 
