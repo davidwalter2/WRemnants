@@ -574,4 +574,4 @@ def get_binning_fakes_relIso(high_iso_bins=False):
     if high_iso_bins:
         # needed for extended 2D method
         edges.append(0.3)
-    return
+    return edges
