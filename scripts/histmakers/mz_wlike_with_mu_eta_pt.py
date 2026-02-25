@@ -244,7 +244,7 @@ if args.unfolding:
     unfolding_cols = {}
     for level in args.unfoldingLevels:
 
-        a, c = binning.get_pt_eta_charge_axes(
+        a, c = binning.get_unfolding_pt_eta_charge_axes(
             level,
             npt_unfolding,
             min_pt_unfolding,

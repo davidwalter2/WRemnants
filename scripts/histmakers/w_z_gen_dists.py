@@ -223,7 +223,7 @@ def build_graph(df, dataset):
 
     if args.useUnfoldingBinning and "Z" in dataset.name:
         unfolding_axes, unfolding_cols, unfolding_selections = (
-            binning.get_dilepton_axes(
+            binning.get_unfolding_dilepton_axes(
                 ["ptVGen", "absYVGen"],
                 {
                     "ptll": binning.ptZ_binning,

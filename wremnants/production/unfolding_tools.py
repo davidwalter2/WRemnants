@@ -384,7 +384,7 @@ class UnfolderZ:
         self.unfolding_selections = {}
         for level in self.unfolding_levels:
             # for poi as noi, need gen rapidity overflow bin and out of acceptance axes to keep all events and be able to reconstruct corresponding reco histogram
-            a, c, s = binning.get_dilepton_axes(
+            a, c, s = binning.get_unfolding_dilepton_axes(
                 unfolding_axes_names,
                 reco_axes_edges,
                 level,

@@ -151,7 +151,7 @@ if args.unfolding:
     unfolding_cols = {}
     unfolding_selections = {}
     for level in args.unfoldingLevels:
-        a, c, s = binning.get_dilepton_axes(
+        a, c, s = binning.get_unfolding_dilepton_axes(
             args.unfoldingAxes,
             {"ptll": axis_ptW.edges},
             level,

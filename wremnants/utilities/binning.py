@@ -315,7 +315,7 @@ def get_default_mz_window():
     return 60, 120
 
 
-def get_pt_eta_axes(
+def get_unfolding_pt_eta_axes(
     gen_level,
     n_bins_pt,
     min_pt,
@@ -358,7 +358,7 @@ def get_pt_eta_axes(
     return axes, cols
 
 
-def get_pt_eta_charge_axes(
+def get_unfolding_pt_eta_charge_axes(
     gen_level,
     n_bins_pt,
     min_pt,
@@ -369,7 +369,7 @@ def get_pt_eta_charge_axes(
     add_out_of_acceptance_axis=False,
 ):
 
-    axes, cols = get_pt_eta_axes(
+    axes, cols = get_unfolding_pt_eta_axes(
         gen_level,
         n_bins_pt,
         min_pt,
@@ -389,7 +389,7 @@ def get_pt_eta_charge_axes(
     return axes, cols
 
 
-def get_dilepton_axes(
+def get_unfolding_dilepton_axes(
     gen_vars,
     reco_edges,
     gen_level,
