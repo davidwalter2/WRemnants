@@ -5,11 +5,11 @@ import hist
 import lz4.frame
 from matplotlib import cm
 
-from utilities import parsing
-from utilities.io_tools import input_tools
-from wremnants import plot_tools, theory_tools
+from wremnants.production import helicity_utils
+from wremnants.utilities import parsing
+from wremnants.utilities.io_tools import input_tools
 from wums import boostHistHelpers as hh
-from wums import logging
+from wums import logging, plot_tools
 
 s = hist.tag.Slicer()
 # Map hist_name argument to the actual hist and it's axis stored in files
@@ -45,7 +45,7 @@ lookup = {
         "sigma4_ptV": {
             "hist": "helicity_moments_scale",
             "axis": "ptVgen",
-            "action": lambda x: theory_tools.scale_angular_moments(
+            "action": lambda x: helicity_utils.helicity_xsec_to_angular_coeffs(
                 x[
                     {
                         "muRfact": 1.0j,
@@ -58,7 +58,7 @@ lookup = {
         "sigma4_absYV": {
             "hist": "helicity_moments_scale",
             "axis": "absYVgen",
-            "action": lambda x: theory_tools.scale_angular_moments(
+            "action": lambda x: helicity_utils.helicity_xsec_to_angular_coeffs(
                 x[
                     {
                         "muRfact": 1.0j,
