@@ -2,7 +2,7 @@ import argparse
 import os
 import pathlib
 
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io
 from wums import logging
 
 parser = argparse.ArgumentParser()
@@ -31,7 +31,7 @@ def print_command_from_root(rtfile_name):
 
 
 def print_command_from_dict(infile):
-    meta_data = input_tools.get_metadata(infile)
+    meta_data = base_io.get_metadata(infile)
     if meta_data is not None:
 
         def get(arg):

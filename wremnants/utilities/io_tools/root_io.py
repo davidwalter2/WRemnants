@@ -1,3 +1,7 @@
+"""
+Reading and writing functions using the ROOT library
+"""
+
 import ROOT
 
 from wums import logging

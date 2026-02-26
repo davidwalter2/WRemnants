@@ -11,7 +11,7 @@ from wremnants.production.correctionsTensor_helper import (
     makeCorrectionsTensor,
 )
 from wremnants.utilities import binning, common
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -61,7 +61,7 @@ def make_helicity_weight_helper(
 ):
 
     with h5py.File(filename, "r") as ff:
-        out = input_tools.load_results_h5py(ff)
+        out = base_io.load_results_h5py(ff)
 
     hist_helicity_xsec_scales = out["Z"] if is_z else out["W"]
 

@@ -13,7 +13,7 @@ from wremnants.production.correctionsTensor_helper import (
     makeCorrectionsTensor,
 )
 from wremnants.utilities import binning, common, samples, theory_utils
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io
 from wums import boostHistHelpers as hh
 from wums import logging
 
@@ -1028,7 +1028,7 @@ def make_qcd_uncertainty_helper_by_helicity(
 
     # load helicity cross sections from file
     with h5py.File(filename, "r") as h5file:
-        results = input_tools.load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
 
     def get_helicity_xsecs(
         suffix="",
@@ -1261,7 +1261,7 @@ def make_uncertainty_helper_by_helicity(
             return None
         with h5py.File(filename, "r") as h5file:
             for process in proc_map.get(proc, ()):
-                results = input_tools.load_results_h5py(h5file)
+                results = base_io.load_results_h5py(h5file)
                 if process not in results.keys():
                     logger.warning(
                         f"Did not find key for process {process} in {filename}. Not creating histogram of variations by helicities for process {process} and variation {nom}."
@@ -1334,7 +1334,7 @@ def make_helicity_test_corrector(is_z=False, filename=None):
 
     # load hist_helicity cross sections from file
     with h5py.File(filename, "r") as h5file:
-        results = input_tools.load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
         hist_helicity_xsec = results["Z"] if is_z else results["W"]
 
     coeffs = helicity_utils.helicity_xsec_to_angular_coeffs(hist_helicity_xsec)

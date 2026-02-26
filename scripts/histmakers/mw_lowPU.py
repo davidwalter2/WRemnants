@@ -107,8 +107,8 @@ nominal_axes = [
     axis_fakes_eta,
     binning.axis_charge,
     axis_ptW,
-    common.axis_passIso,
-    common.axis_passMT,
+    binning.axis_passIso,
+    binning.axis_passMT,
 ]
 nominal_cols = ["lep_pt", "lep_eta", "lep_charge", "ptW", "passIso", "passMT"]
 
@@ -118,7 +118,7 @@ axes_mt = [
     axis_fakes_eta,
     binning.axis_charge,
     axis_mt,
-    common.axis_passIso,
+    binning.axis_passIso,
 ]
 cols_mt = ["lep_pt", "lep_eta", "lep_charge", "transverseMass", "passIso"]
 
@@ -127,7 +127,7 @@ axes_fakerate = [
     axis_fakes_pt,
     axis_fakes_eta,
     binning.axis_charge,
-    common.axis_passIso,
+    binning.axis_passIso,
     axis_mt,
 ]  ## was axis_mt
 columns_fakerate = [
@@ -467,8 +467,8 @@ def build_graph(df, dataset):
                 axis_eta,
                 axis_phi,
                 binning.axis_charge,
-                common.axis_passMT,
-                common.axis_passIso,
+                binning.axis_passMT,
+                binning.axis_passIso,
             ],
             [
                 "lep_pt",

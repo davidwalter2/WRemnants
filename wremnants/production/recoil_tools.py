@@ -5,8 +5,7 @@ import hist
 import numpy as np
 import ROOT
 
-from wremnants.utilities import binning
-from wremnants.utilities import common as common
+from wremnants.utilities import binning, common
 from wremnants.utilities.io_tools import input_tools
 
 # prefer newer package if available
@@ -170,8 +169,8 @@ class Recoil:
         )
 
         self.axis_charge = binning.axis_charge
-        self.axis_passIso = common.axis_passIso
-        self.axis_passMT = common.axis_passMT
+        self.axis_passIso = binning.axis_passIso
+        self.axis_passMT = binning.axis_passMT
 
         self.axis_lep_pt_test = hist.axis.Regular(
             100, 0.0, 100.0, name="pt_test", underflow=False

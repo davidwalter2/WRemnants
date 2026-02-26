@@ -8,7 +8,7 @@ import ROOT
 
 import narf
 from wremnants.utilities import common
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io
 from wums import boostHistHelpers as hh
 from wums import ioutils, logging, output_tools
 
@@ -247,7 +247,7 @@ def make_quantile_helper(
     """
 
     h5file = h5py.File(filename, "r")
-    results = input_tools.load_results_h5py(h5file)
+    results = base_io.load_results_h5py(h5file)
 
     hIn = hh.sumHists(results[p]["output"][name].get() for p in processes)
 

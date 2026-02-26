@@ -6,7 +6,7 @@ import hist
 import lz4.frame
 import numpy as np
 
-from wremnants.postprocessing import theory_tools
+from wremnants.postprocessing import pdf_tools
 from wremnants.utilities import binning, samples, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -22,9 +22,7 @@ def syst_transform_map(base_hist, hist_name):
         key = list(pdfInfo.keys())[list(pdfNames).index(pdfName)]
         unc = pdfInfo[key]["combine"]
         scale = pdfInfo[key]["scale"] if "scale" in pdfInfo[key] else 1.0
-        return theory_tools.hessianPdfUnc(
-            h, uncType=unc, scale=scale, axis_name=axis_name
-        )
+        return pdf_tools.hessianPdfUnc(h, uncType=unc, scale=scale, axis_name=axis_name)
 
     def uncHist(unc):
         return unc if base_hist == "nominal" else f"{base_hist}_{unc}"

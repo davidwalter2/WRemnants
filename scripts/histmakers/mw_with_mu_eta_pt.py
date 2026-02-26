@@ -272,8 +272,8 @@ axis_muonJetPt = hist.axis.Regular(
 )
 
 axis_charge = binning.axis_charge
-axis_passIso = common.axis_passIso
-axis_passMT = common.axis_passMT
+axis_passIso = binning.axis_passIso
+axis_passMT = binning.axis_passMT
 axis_mt = hist.axis.Variable(
     (*np.arange(0, mtw_min + 2, 2), *np.arange(mtw_min + 5, 95, 5), 100, 120),
     name="mt",
@@ -1707,7 +1707,7 @@ def build_graph(df, dataset):
                     axis_fakes_pt,
                     axis_charge,
                     axis_mt,
-                    common.axis_relIsoCat,
+                    binning.axis_relIsoCat,
                 ],
                 [
                     "goodMuons_eta0",

@@ -7,15 +7,7 @@ import h5py
 from hist import Hist
 
 import wums
-from wums import ioutils
-
-
-def load_results_h5py(h5file):
-    if "results" in h5file.keys():
-        return ioutils.pickle_load_h5py(h5file["results"])
-    else:
-        return {k: ioutils.pickle_load_h5py(v) for k, v in h5file.items()}
-
+from wremnants.utilities.io_tools import base_io
 
 parser = argparse.ArgumentParser(description="Read in a hdf5 file.")
 parser.add_argument(
@@ -85,7 +77,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 with h5py.File(args.infile, "r") as h5file:
-    results = load_results_h5py(h5file)
+    results = base_io.load_results_h5py(h5file)
     print(f"Samples in file: {results.keys()}\n")
 
     if args.path:

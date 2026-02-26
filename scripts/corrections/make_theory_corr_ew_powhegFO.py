@@ -5,7 +5,7 @@ import hist
 import numpy as np
 
 from wremnants.utilities import binning
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io, input_tools
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools
 
@@ -118,7 +118,7 @@ meta_dict = {}
 for f in [args.input]:
     label = os.path.basename(f)
     try:
-        meta = input_tools.get_metadata(f)
+        meta = base_io.get_metadata(f)
         meta_dict[label] = meta
     except ValueError as e:
         logger.warning(f"No meta data found for file {f}")

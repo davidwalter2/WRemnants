@@ -1,3 +1,9 @@
+"""
+More specific reading and writing functions.
+The basic functions are in base_io.py
+Functions using the ROOT library are in root_io.py
+"""
+
 import json
 import os
 import pathlib
@@ -8,19 +14,13 @@ import h5py
 import hist
 import lz4.frame
 import numpy as np
-import uproot
 
+from wremnants.utilities import binning
+from wremnants.utilities.io_tools import base_io
 from wums import boostHistHelpers as hh
 from wums import ioutils, logging
 
 logger = logging.child_logger(__name__)
-
-
-def load_results_h5py(h5file):
-    if "results" in h5file.keys():
-        return ioutils.pickle_load_h5py(h5file["results"])
-    else:
-        return {k: ioutils.pickle_load_h5py(v) for k, v in h5file.items()}
 
 
 def read_and_scale_pkllz4(fname, proc, histname, calculate_lumi=False, scale=1):
@@ -32,7 +32,7 @@ def read_and_scale_pkllz4(fname, proc, histname, calculate_lumi=False, scale=1):
 
 def read_hist_names(fname, proc):
     with h5py.File(fname, "r") as h5file:
-        results = load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
         if proc not in results:
             raise ValueError(f"Invalid process {proc}! No output found in file {fname}")
         return results[proc]["output"].keys()
@@ -40,19 +40,19 @@ def read_hist_names(fname, proc):
 
 def read_keys(fname):
     with h5py.File(fname, "r") as h5file:
-        results = load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
         return results.keys()
 
 
 def read_xsec(fname, proc):
     with h5py.File(fname, "r") as h5file:
-        results = load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
         return results[proc]["dataset"]["xsec"]
 
 
 def read_sumw(fname, proc):
     with h5py.File(fname, "r") as h5file:
-        results = load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
         return results[proc]["weight_sum"]
 
 
@@ -60,7 +60,7 @@ def read_and_scale(
     fname, proc, histname, calculate_lumi=False, scale=1, apply_xsec=True
 ):
     with h5py.File(fname, "r") as h5file:
-        results = load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
 
         return load_and_scale(
             results, proc, histname, calculate_lumi, scale, apply_xsec
@@ -98,7 +98,7 @@ def load_and_scale(
 
 def read_all_and_scale(fname, procs, histnames, lumi=False):
     h5file = h5py.File(fname, "r")
-    results = load_results_h5py(h5file)
+    results = base_io.load_results_h5py(h5file)
 
     hists = []
     for histname in histnames:
@@ -146,7 +146,7 @@ def read_scetlib_hist(path, nonsing="none", flip_y_sign=False, charge=None):
         scetlibh = hist.Hist(*axes, storage=storage, data=vals)
 
     if charge is not None:
-        scetlibh = add_charge_axis(scetlibh, charge)
+        scetlibh = binning.add_charge_axis(scetlibh, charge)
 
     if nonsing and nonsing != "none":
         if nonsing == "auto":
@@ -270,7 +270,7 @@ def read_nnlojet_file(
     h.variances()[...] = h.variances() * h.variances()
 
     if charge is not None:
-        h = add_charge_axis(h, charge)
+        h = binning.add_charge_axis(h, charge)
 
     return h * 1e-3
 
@@ -429,6 +429,8 @@ def read_text_data(filename):
 
 def read_dyturbo_file(filename, axnames=("Y", "qT"), charge=None, coeff=None):
     if filename.endswith(".root"):
+        import uproot
+
         f = uproot.open(filename)
         hname = "_".join((["wgt", coeff] if coeff else ["s"]) + [axnames[0].lower()])
         h = f[hname].to_hist()
@@ -468,27 +470,9 @@ def read_dyturbo_file(filename, axnames=("Y", "qT"), charge=None, coeff=None):
         h.variances()[...] = h.variances() * h.variances()
 
     if charge is not None:
-        h = add_charge_axis(h, charge)
+        h = binning.add_charge_axis(h, charge)
 
     return h * 1 / 1000
-
-
-def add_charge_axis(h, charge):
-    charge_args = (2, -2.0, 2.0) if charge != 0 else (1, 0, 1)
-    charge_axis = hist.axis.Regular(*charge_args, flow=False, name="charge")
-
-    has_vars = h.axes.name[-1] == "vars"
-    new_axes = (
-        (*h.axes, charge_axis)
-        if not has_vars
-        else (*h.axes[:-1], charge_axis, h.axes[-1])
-    )
-    hnew = hist.Hist(*new_axes, storage=h.storage_type())
-    if has_vars:
-        hnew[..., charge_axis.index(charge), :] = h.view(flow=True)
-    else:
-        hnew[..., charge_axis.index(charge)] = h.view(flow=True)
-    return hnew
 
 
 def read_scetlib_resum_and_fosing(
@@ -715,30 +699,6 @@ def read_json(fIn):
         return jsDict
 
 
-def get_metadata(infile):
-    results = None
-    if infile.endswith(".pkl.lz4"):
-        with lz4.frame.open(infile) as f:
-            results = pickle.load(f)
-    elif infile.endswith(".pkl"):
-        with open(infile, "rb") as f:
-            results = pickle.load(f)
-    elif infile.endswith(".hdf5"):
-        h5file = h5py.File(infile, "r")
-        if "meta_info" in h5file.keys():
-            return ioutils.pickle_load_h5py(h5file["meta_info"])
-        meta = h5file.get("meta", h5file.get("results", None))
-        results = ioutils.pickle_load_h5py(meta) if meta else None
-
-    if results is None:
-        logger.warning(
-            "Failed to find results dict. Note that only pkl, hdf5, and pkl.lz4 file types are supported"
-        )
-        return None
-
-    return results.get("meta_info", results.get("meta_data", results.get("meta", None)))
-
-
 def get_scetlib_config(infile):
     if infile.endswith(".pkl"):
         with open(infile, "rb") as f:
@@ -768,7 +728,7 @@ def read_infile(input):
     elif input.endswith(".hdf5"):
         h5file = h5py.File(input, "r")
         infiles = [h5file]
-        result = load_results_h5py(h5file)
+        result = base_io.load_results_h5py(h5file)
     else:
         raise ValueError("Unsupported file type")
 
@@ -784,6 +744,8 @@ def read_dyturbo_angular_coeffs(
         raise ValueError("Can only add axes of size 1!")
 
     if type(dyturbof) == str:
+        import uproot
+
         dyturbof = uproot.open(dyturbof)
 
     if not boson:
@@ -906,7 +868,7 @@ def read_mu_hist_combine_tau(
     minnlof, mu_sample, hist_name, eras, combine_with_tau=True
 ):
     with h5py.File(minnlof, "r") as h5file:
-        results = load_results_h5py(h5file)
+        results = base_io.load_results_h5py(h5file)
         sumw = 0
         xsec = 0
         hmu = None

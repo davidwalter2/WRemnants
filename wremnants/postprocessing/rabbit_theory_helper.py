@@ -3,7 +3,7 @@ import re
 import hist
 import numpy as np
 
-from wremnants.postprocessing import syst_tools, theory_tools
+from wremnants.postprocessing import syst_tools
 from wremnants.utilities import binning, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -1036,7 +1036,7 @@ class TheoryHelper(object):
                     pdfInfo = theory_utils.pdf_info_map("Zmumu_2016PostVFP", pdf)
                     pdfName = pdfInfo["name"]
                     as_range = pdfInfo["alphasRange"]
-                    as_range = theory_tools.pdfMap[pdf]["alphasRange"]
+                    as_range = theory_utils.pdfMap[pdf]["alphasRange"]
                 else:
                     raise RuntimeError(
                         f"AlphaS correction histogram {asname} not found in theoryCorrs. "

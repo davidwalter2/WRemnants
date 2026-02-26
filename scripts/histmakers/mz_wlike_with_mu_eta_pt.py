@@ -1072,7 +1072,7 @@ def build_graph(df, dataset):
                     binning.axis_charge,
                     axis_eta_nonTrig,
                     axis_pt_nonTrig,
-                    common.axis_passMT,
+                    binning.axis_passMT,
                 ],
                 [
                     "trigMuons_eta0",
@@ -1087,7 +1087,7 @@ def build_graph(df, dataset):
         else:
             nominal_bothMuons = df.HistoBoost(
                 "nominal_bothMuons",
-                [*axes, axis_eta_nonTrig, axis_pt_nonTrig, common.axis_passMT],
+                [*axes, axis_eta_nonTrig, axis_pt_nonTrig, binning.axis_passMT],
                 [
                     *cols,
                     "nonTrigMuons_eta0",
@@ -1130,8 +1130,8 @@ def build_graph(df, dataset):
             "nominal_vertexZstudy",
             [
                 axis_abseta,
-                common.axis_passIso,
-                common.axis_passMT,
+                binning.axis_passIso,
+                binning.axis_passMT,
                 axis_absDiffGenRecoVtx_z,
                 axis_prefsrWpt,
             ],

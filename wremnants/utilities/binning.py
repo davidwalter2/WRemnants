@@ -526,6 +526,18 @@ def make_bw_binning(
 
 
 # for fake estimation
+# binary categories for simple ABCD method
+passIsoName = "passIso"
+passMTName = "passMT"
+
+axis_passIso = hist.axis.Boolean(name=passIsoName)
+axis_passMT = hist.axis.Boolean(name=passMTName)
+
+# axes with only a few bins for beyond simple ABCD methods
+axis_isoCat = hist.axis.Variable([0, 4, 8], name="iso", underflow=False, overflow=True)
+axis_relIsoCat = hist.axis.Variable(
+    [0, 0.15, 0.3], name="relIso", underflow=False, overflow=True
+)
 
 
 def get_binning_fakes_pt(min_pt, max_pt):
@@ -575,3 +587,21 @@ def get_binning_fakes_relIso(high_iso_bins=False):
         # needed for extended 2D method
         edges.append(0.3)
     return edges
+
+
+def add_charge_axis(h, charge):
+    charge_args = (2, -2.0, 2.0) if charge != 0 else (1, 0, 1)
+    charge_axis = hist.axis.Regular(*charge_args, flow=False, name="charge")
+
+    has_vars = h.axes.name[-1] == "vars"
+    new_axes = (
+        (*h.axes, charge_axis)
+        if not has_vars
+        else (*h.axes[:-1], charge_axis, h.axes[-1])
+    )
+    hnew = hist.Hist(*new_axes, storage=h.storage_type())
+    if has_vars:
+        hnew[..., charge_axis.index(charge), :] = h.view(flow=True)
+    else:
+        hnew[..., charge_axis.index(charge)] = h.view(flow=True)
+    return hnew

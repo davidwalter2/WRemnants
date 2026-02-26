@@ -1,7 +1,5 @@
 import pathlib
 
-import hist
-
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -94,34 +92,6 @@ muonEfficiency_altBkgSyst_effSteps = ["reco", "tracking"]
 muonEfficiency_standaloneNumberOfValidHits = (
     1  # to use as "var >= this" (if this=0 the define for the cut is not used at all)
 )
-
-
-# for fake estimation
-# binary categories for simple ABCD method
-passIsoName = "passIso"
-passMTName = "passMT"
-
-passIso = {passIsoName: True}
-failIso = {passIsoName: False}
-passMT = {passMTName: True}
-failMT = {passMTName: False}
-
-axis_passIso = hist.axis.Boolean(name=passIsoName)
-axis_passMT = hist.axis.Boolean(name=passMTName)
-
-# axes with only a few bins for beyond simple ABCD methods
-axis_isoCat = hist.axis.Variable([0, 4, 8], name="iso", underflow=False, overflow=True)
-axis_relIsoCat = hist.axis.Variable(
-    [0, 0.15, 0.3], name="relIso", underflow=False, overflow=True
-)
-
-
-def getIsoMtRegionID(passIso=True, passMT=True):
-    return passIso * 1 + passMT * 2
-
-
-def getIsoMtRegionFromID(regionID):
-    return {passIsoName: regionID & 1, passMTName: regionID & 2}
 
 
 def hist_name(baseName, syst=""):
