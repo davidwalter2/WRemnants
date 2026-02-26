@@ -14,7 +14,7 @@ import wums
 from wremnants.postprocessing import histselections as sel
 from wremnants.postprocessing.datagroups.datagroup import Datagroup
 from wremnants.utilities import common
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io
 from wremnants.utilities.styles import styles
 from wums import boostHistHelpers as hh
 from wums import logging
@@ -39,7 +39,7 @@ class Datagroups(object):
         elif infile.endswith(".hdf5"):
             logger.info("Load input file")
             h5file = h5py.File(infile, "r")
-            self.results = input_tools.load_results_h5py(h5file)
+            self.results = base_io.load_results_h5py(h5file)
         else:
             raise ValueError(f"{infile} has unsupported file type")
 

@@ -7,7 +7,7 @@ import hist
 import numpy as np
 from matplotlib import cm
 
-from wremnants.postprocessing import theory_tools
+from wremnants.postprocessing import pdf_tools
 from wremnants.utilities import theory_utils
 from wremnants.utilities.binning import get_theoryAgnostic_axes
 from wremnants.utilities.common import axis_helicity_multidim
@@ -148,7 +148,7 @@ for dataset in args.datasets:
             coeffs_pdf.append(hel_pdf)
 
         uncHists = [
-            [h[{axis_label: 0}], *theory_tools.hessianPdfUnc(h, axis_label, unc, scale)]
+            [h[{axis_label: 0}], *pdf_tools.hessianPdfUnc(h, axis_label, unc, scale)]
             for h, unc, scale in zip(coeffs_pdf, uncType, uncScale)
         ]
 
@@ -172,7 +172,7 @@ for dataset in args.datasets:
             )
         ]
         uncHists_hera = [
-            [h[{axis_label: 0}], *theory_tools.hessianPdfUnc(h, axis_label, unc, scale)]
+            [h[{axis_label: 0}], *pdf_tools.hessianPdfUnc(h, axis_label, unc, scale)]
             for h, unc, scale in zip(coeffs_heraext, uncType_hera, uncScale_hera)
         ]
 

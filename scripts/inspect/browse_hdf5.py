@@ -4,7 +4,7 @@ import argparse
 
 import h5py
 
-from wremnants.utilities.io_tools import input_tools
+from wremnants.utilities.io_tools import base_io
 from wums import ioutils, logging
 
 # import wremnants
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     h5file = h5py.File(args.inputfile[0], "r")
-    results = input_tools.load_results_h5py(h5file)
+    results = base_io.load_results_h5py(h5file)
 
     if args.printMode == "all":
         print(results)

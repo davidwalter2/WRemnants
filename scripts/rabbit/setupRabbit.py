@@ -11,7 +11,6 @@ from wremnants.postprocessing import (
     rabbit_helpers,
     rabbit_theory_helper,
     rabbit_theoryAgnostic_helper,
-    theory_tools,
 )
 from wremnants.postprocessing.datagroups import datagroups
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
@@ -21,6 +20,7 @@ from wremnants.postprocessing.syst_tools import (
     scale_hist_up_down,
     scale_hist_up_down_corr_from_file,
 )
+from wremnants.production import helicity_utils
 from wremnants.utilities import binning, common, parsing, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools
@@ -979,7 +979,7 @@ def setup(
 
     if args.angularCoeffs:
         datagroups.setGlobalAction(
-            lambda h: theory_tools.helicity_xsec_to_angular_coeffs(
+            lambda h: helicity_utils.helicity_xsec_to_angular_coeffs(
                 h, helicity_axis_name="helicitygen"
             )
         )
