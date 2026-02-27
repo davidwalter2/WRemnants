@@ -1,3 +1,7 @@
+"""
+Implementing various configurations for (extended) ABCD methods for nonprompt muon estimation.
+"""
+
 import hist
 import numpy as np
 from scipy import interpolate

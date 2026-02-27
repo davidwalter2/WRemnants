@@ -1,3 +1,8 @@
+"""
+Define the datagroups objects with individual datagroup objects and it's members.
+This one is for the single muon and dimuon analysis at high PU used for 2016 postVFP analysis but it may be used also for other, similar analyses.
+"""
+
 from wums import logging
 
 logger = logging.child_logger(__name__)
@@ -5,7 +10,6 @@ logger = logging.child_logger(__name__)
 
 def make_datagroups_2016(
     dg,
-    combine=False,
     pseudodata_pdfset=None,
     excludeGroups=None,
     filterGroups=None,
@@ -30,7 +34,7 @@ def make_datagroups_2016(
         members=dg.get_members_from_results(startswith=["GG", "QG"]),
     )
 
-    if pseudodata_pdfset and dg.combine:
+    if pseudodata_pdfset:
         dg.addGroup(
             f"pdf{pseudodata_pdfset.upper()}_sum",
             label=f"pdf{pseudodata_pdfset.upper()}",

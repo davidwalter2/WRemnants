@@ -1,3 +1,7 @@
+"""
+This is the Low PU data set taken at 13 TeV with an integrated luminosity of about 200/pb
+"""
+
 from wremnants.utilities import common
 
 lumijson = f"{common.data_dir}/lowPU/Cert_306896-307082_13TeV_PromptReco_Collisions17_JSON_LowPU_lowPU_suppressedHighPULS.txt"

@@ -1,3 +1,11 @@
+"""
+This is the central class to load, manipulate and hold histograms for plotting and fit input data preparation.
+A datagroups object contains multiple datagroup objects.
+Each datagroup represents a independenly treated process (e.g. a separate histogram sich as 'Wmunu` with a different color in the stacked plotted histogram) and contains multiple members.
+Each member typically represents the output from a single dataset from the histogram production (e.g. Wminusmunu).
+New, manipulated datagroup objects with members can be constructed that are not bound to that logic.
+"""
+
 import itertools
 import math
 import os

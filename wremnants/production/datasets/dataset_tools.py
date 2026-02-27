@@ -1,3 +1,7 @@
+"""
+Functionality to load and prepare datasets with the focus on CMS NanoAOD or NanoGEN files
+"""
+
 import importlib
 import os
 import random
