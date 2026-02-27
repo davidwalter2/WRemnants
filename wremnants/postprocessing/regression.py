@@ -1,3 +1,8 @@
+"""
+Performing (non-negative) linear least square for different polynomials.
+Mainly used in wremnants/postprocessing/histselections.py for smoothing the nonprompt lepton estimation in the extended ABCD method
+"""
+
 import numpy as np
 from scipy import stats
 from scipy.optimize import nnls

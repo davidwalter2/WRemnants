@@ -1,3 +1,7 @@
+"""
+This is the Low PU data set taken at 5.020 TeV with an integrated luminosity of about 300/pb
+"""
+
 from wremnants.utilities import common
 
 lumicsv = f"{common.data_dir}/bylsoutput_2017G.csv"

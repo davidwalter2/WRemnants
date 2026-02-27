@@ -1,9 +1,14 @@
+"""
+Define the datagroups objects with individual datagroup objects and it's members.
+This one is for the single muon/electron and dimuon/electron analysis at low PU used for 2017 analysis but it may be used also for other, similar analyses.
+"""
+
 from wums import logging
 
 logger = logging.child_logger(__name__)
 
 
-def make_datagroups_lowPU(dg, combine=False, excludeGroups=None, filterGroups=None):
+def make_datagroups_lowPU(dg, excludeGroups=None, filterGroups=None):
     # reset datagroups
     dg.groups = {}
 

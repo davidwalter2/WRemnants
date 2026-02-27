@@ -1,3 +1,7 @@
+"""
+For the use in detector-independent generator studies and input to theory corrections
+"""
+
 import copy
 
 from wremnants.production.datasets.datasetDict_2016PostVFP import (
