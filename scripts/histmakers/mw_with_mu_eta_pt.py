@@ -449,13 +449,13 @@ if args.unfolding:
         )
 
 if args.skipByHelicityCorrection:
+    helicity_smoothing_helpers_procs = {}
+else:
     helicity_smoothing_helpers_procs = (
         theory_corrections.make_helicity_smoothing_helpers(
             args.pdfs, args.theoryCorr, procs=["Z", "W"]
         )
     )
-else:
-    helicity_smoothing_helpers_procs = {}
 
 if args.theoryAgnostic:
     theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
@@ -739,7 +739,7 @@ def build_graph(df, dataset):
         hist.storage.Double()
     )  # turn off sum weight square for systematic histograms
 
-    if dataset.name[0] in helicity_smoothing_helpers_procs.keys():
+    if isWorZ and dataset.name[0] in helicity_smoothing_helpers_procs.keys():
         helicity_smoothing_helpers = helicity_smoothing_helpers_procs[dataset.name[0]]
     else:
         helicity_smoothing_helpers = {}

@@ -366,6 +366,8 @@ muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = 
 )
 
 if args.skipByHelicityCorrection:
+    helicity_smoothing_helpers_procs = {}
+else:
     procs = [
         p
         for p, grp in (("W", samples.wprocs), ("Z", samples.zprocs))
@@ -376,8 +378,6 @@ if args.skipByHelicityCorrection:
             args.pdfs, args.theoryCorr, procs=procs
         )
     )
-else:
-    helicity_smoothing_helpers_procs = {}
 
 # extra axes which can be used to label tensor_axes
 if args.binnedScaleFactors:
@@ -541,7 +541,7 @@ def build_graph(df, dataset):
     isZ = dataset.name in samples.zprocs
     isWorZ = isW or isZ
 
-    if dataset.name[0] in helicity_smoothing_helpers_procs.keys():
+    if isWorZ and dataset.name[0] in helicity_smoothing_helpers_procs.keys():
         helicity_smoothing_helpers = helicity_smoothing_helpers_procs[dataset.name[0]]
     else:
         helicity_smoothing_helpers = {}
