@@ -285,6 +285,18 @@ class Datagroups(object):
                 "histselectors only implemented for single lepton (with fakes)"
             )
             return  # histselectors only implemented for single lepton (with fakes)
+
+        if mode in ["none", None]:
+            g = self.fakeName
+            members = self.groups[g].members[:]
+            if len(members) == 0:
+                raise RuntimeError(f"No member found for group {g}")
+            base_member = members[0].name
+            h = self.results[base_member]["output"][histToRead].get()
+            self.groups[g].histselector = sel.OnesSelector(h)
+
+            return
+
         auxiliary_info = {"ABCDmode": mode}
         signalselector = sel.SignalSelectorABCD
         scale = 1
