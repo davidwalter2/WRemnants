@@ -400,20 +400,73 @@ class SignalSelectorABCD(HistselectorABCD):
         return self.get_hist_passX_passY(h)
 
 
-class OnesSelector(object):
+class OnesSelector(HistselectorABCD):
     """
-    Don't actually select anything, just set the values of the histogram to ones
-    This is e.g. to perform the ABCD method in the simultaneous fit of all regions to data
+    Flat-ones fake template for the simultaneous (extended)ABCD fit, where the
+    rabbit model carries the absolute scale and per-region polynomial shape.
+    The (sel_x, sel_y) signal-region slice is scaled by 0.85 as a closure-test
+    correction.
+
+    Setting ``external_params`` to a Chebyshev coefficient vector before calling
+    ``get_hist`` reweights the signal-region slice by
+    ``exp(sum_k p_k T_k(x_norm))`` along the smoothing axis on top of the
+    nominal scale, so a single non-zero coefficient produces a Param_k
+    systematic shape analogous to the polynomial-coefficient variations used
+    with FakeSelector*ExtendedABCD.
     """
 
-    def __init__(self, *args, **kwargs):
-        pass
+    def __init__(self, h, *args, **kwargs):
+        super().__init__(h, *args, **kwargs)
+        self.external_params = None
+
+    @staticmethod
+    def _uhi_to_numpy(sel, axis):
+        # hist UHI uses imaginary numbers for axis coordinates and hist.sum as
+        # a step to collapse the axis; numpy understands neither.
+        if isinstance(sel, slice):
+            start, stop = sel.start, sel.stop
+            if isinstance(start, complex):
+                start = axis.index(start.imag)
+            if isinstance(stop, complex):
+                stop = axis.index(stop.imag)
+            return slice(start, stop)
+        if isinstance(sel, complex):
+            return axis.index(sel.imag)
+        return sel
+
+    def _signal_region_slice(self, h):
+        sl = [slice(None)] * h.ndim
+        for name, sel in [(self.name_x, self.sel_x), (self.name_y, self.sel_y)]:
+            i = h.axes.name.index(name)
+            sl[i] = self._uhi_to_numpy(sel, h.axes[i])
+        return tuple(sl)
+
+    def _apply_cheb_reweight(self, h):
+        if self.external_params is None or not np.any(self.external_params):
+            return
+        edges = h.axes[self.smoothing_axis_name].edges
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        x_norm = (
+            2
+            * (centers - self.smoothing_axis_min)
+            / (self.smoothing_axis_max - self.smoothing_axis_min)
+            - 1
+        )
+        weight = np.exp(np.polynomial.chebyshev.chebval(x_norm, self.external_params))
+        sm_idx = h.axes.name.index(self.smoothing_axis_name)
+        bcast = [1] * h.ndim
+        bcast[sm_idx] = -1
+        sl = self._signal_region_slice(h)
+        h.values()[sl] *= weight.reshape(bcast)
 
     # signal region selection
     def get_hist(self, h, is_nominal=False):
         h_new = h.copy()
-        h_new.values()[...] = np.ones_like(h.values())
-        h_new.variances()[...] = np.zeros_like(h.values())
+        h_new.values()[...] = 1.0
+        h_new.variances()[...] = 0.0
+        # Closure-test correction: scale the signal region template by 0.85.
+        h_new.values()[self._signal_region_slice(h_new)] = 0.85
+        self._apply_cheb_reweight(h_new)
         return h_new
 
 

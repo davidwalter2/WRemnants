@@ -1393,50 +1393,37 @@ def setup(
         datagroups.fakeName = args.qcdProcessName
 
     if wmass and not datagroups.xnorm:
-        if args.fakeEstimation not in [None, "none"]:
-            abcdExplicitAxisEdges = {}
-            if len(args.ABCDedgesByAxis):
-                for item in args.ABCDedgesByAxis:
-                    ax_name, ax_edges = item.split("=")
-                    abcdExplicitAxisEdges[ax_name] = [
-                        float(x) for x in ax_edges.split(",")
-                    ]
+        abcdExplicitAxisEdges = {}
+        if len(args.ABCDedgesByAxis):
+            for item in args.ABCDedgesByAxis:
+                ax_name, ax_edges = item.split("=")
+                abcdExplicitAxisEdges[ax_name] = [float(x) for x in ax_edges.split(",")]
 
-            datagroups.fakerate_axes = args.fakerateAxes
-            # datagroups.fakeTransferAxis = args.fakeTransferAxis if args.fakeTransferAxis in args.fakerateAxes else ""
-            # datagroups.fakeTransferCorrFileName = args.fakeTransferCorrFileName
-            histselector_kwargs = dict(
-                mode=args.fakeEstimation,
-                smoothing_mode=args.fakeSmoothingMode,
-                smoothingOrderSpectrum=args.fakeSmoothingOrder,
-                smoothingPolynomialSpectrum=args.fakeSmoothingPolynomial,
-                mcCorr=args.fakeMCCorr,
-                integrate_x="mt" not in fitvar,
-                forceGlobalScaleFakes=args.forceGlobalScaleFakes,
-                abcdExplicitAxisEdges=abcdExplicitAxisEdges,
-                fakeTransferAxis=(
-                    args.fakeTransferAxis
-                    if args.fakeTransferAxis in args.fakerateAxes
-                    else ""
-                ),
-                fakeTransferCorrFileName=args.fakeTransferCorrFileName,
-                histAxesRemovedBeforeFakes=(
-                    [str(x[0].split(":")[0]) for x in args.presel]
-                    if args.presel
-                    else []
-                ),
-            )
-            datagroups.set_histselectors(
-                datagroups.getNames(), inputBaseName, **histselector_kwargs
-            )
-        else:
-            from wremnants.postprocessing import histselections as sel
-
-            g = datagroups.fakeName
-            members = datagroups.groups[g].members[:]
-            if len(members) == 0:
-                raise RuntimeError(f"No member found for group {g}")
-            datagroups.groups[g].histselector = sel.OnesSelector()
+        datagroups.fakerate_axes = args.fakerateAxes
+        # datagroups.fakeTransferAxis = args.fakeTransferAxis if args.fakeTransferAxis in args.fakerateAxes else ""
+        # datagroups.fakeTransferCorrFileName = args.fakeTransferCorrFileName
+        histselector_kwargs = dict(
+            mode=args.fakeEstimation,
+            smoothing_mode=args.fakeSmoothingMode,
+            smoothingOrderSpectrum=args.fakeSmoothingOrder,
+            smoothingPolynomialSpectrum=args.fakeSmoothingPolynomial,
+            mcCorr=args.fakeMCCorr,
+            integrate_x="mt" not in fitvar,
+            forceGlobalScaleFakes=args.forceGlobalScaleFakes,
+            abcdExplicitAxisEdges=abcdExplicitAxisEdges,
+            fakeTransferAxis=(
+                args.fakeTransferAxis
+                if args.fakeTransferAxis in args.fakerateAxes
+                else ""
+            ),
+            fakeTransferCorrFileName=args.fakeTransferCorrFileName,
+            histAxesRemovedBeforeFakes=(
+                [str(x[0].split(":")[0]) for x in args.presel] if args.presel else []
+            ),
+        )
+        datagroups.set_histselectors(
+            datagroups.getNames(), inputBaseName, **histselector_kwargs
+        )
 
     logger.debug(f"Making datacards with these processes: {datagroups.getProcesses()}")
 
@@ -1467,6 +1454,7 @@ def setup(
 
     passSystToFakes = (
         wmass
+        and args.fakeEstimation not in ["none"]
         and not (datagroups.xnorm or args.skipSignalSystOnFakes)
         and datagroups.fakeName != "QCD"
         and (excludeGroup != None and datagroups.fakeName not in excludeGroup)
@@ -2065,14 +2053,28 @@ def setup(
                 norm=abs(args.logNormalWtaunu),
             )
 
-        if args.logNormalFake > 0.0 and datagroups.fakeName in datagroups.groups.keys():
+        if (
+            args.logNormalFake > 0.0
+            and datagroups.fakeName in datagroups.groups.keys()
+            and args.fakeEstimation != "none"
+        ):
+            # In the simultaneous (extended)ABCD fit (OnesSelector) the
+            # per-region polynomial coefficients are unconstrained, so a global
+            # log-normal on the fake process is fully degenerate with shifting
+            # each region's T_0 and carries no information.
             if "fakenorm" in args.decorrSystByVar and decorr_syst_var in fitvar:
                 datagroups.addSystematic(
-                    name=f"CMS_{datagroups.fakeName}",
+                    name=f"{datagroups.fakeName}Param0",
                     processes=[datagroups.fakeName],
-                    groups=["Fake", "experiment", "expNoLumi", "expNoCalib"],
+                    groups=[
+                        f"{datagroups.fakeName}Param0",
+                        "Fake",
+                        "experiment",
+                        "expNoLumi",
+                        "expNoCalib",
+                    ],
                     passToFakes=False,
-                    baseName=f"CMS_{datagroups.fakeName}_",
+                    baseName=f"{datagroups.fakeName}Param0_",
                     systAxes=[f"{decorr_syst_var}_", "downUpVar"],
                     labelsByAxis=[decorr_syst_var, "downUpVar"],
                     actionRequiresNomi=True,
@@ -2086,9 +2088,15 @@ def setup(
                 )
             else:
                 datagroups.addNormSystematic(
-                    name=f"CMS_{datagroups.fakeName}",
+                    name=f"{datagroups.fakeName}Param0",
                     processes=[datagroups.fakeName],
-                    groups=["Fake", "experiment", "expNoLumi", "expNoCalib"],
+                    groups=[
+                        f"{datagroups.fakeName}Param0",
+                        "Fake",
+                        "experiment",
+                        "expNoLumi",
+                        "expNoCalib",
+                    ],
                     passToFakes=False,
                     norm=args.logNormalFake,
                 )
@@ -2121,6 +2129,7 @@ def setup(
         (datagroups.fakeName != "QCD" and args.qcdProcessName != "QCD")
         and datagroups.fakeName in datagroups.groups.keys()
         and not datagroups.xnorm
+        and args.fakeEstimation not in ["none"]
         and (
             args.fakeSmoothingMode != "binned"
             or (args.fakeEstimation in ["extrapolate"] and "mt" in fitvar)
@@ -2356,6 +2365,69 @@ def setup(
                     systAxes=["downUpVar"],
                     labelsByAxis=["downUpVar"],
                 )
+
+    if (
+        args.fakeEstimation == "none"
+        and datagroups.fakeName in datagroups.groups.keys()
+        and not datagroups.xnorm
+    ):
+        # OnesSelector path: rabbit's per-region polynomial provides the shape;
+        # vary the k-th Chebyshev coefficient by reweighting the signal-region
+        # slice of the flat-ones template by exp(mag * T_k(pt_norm)).
+        onesselector = datagroups.groups[datagroups.fakeName].histselector
+
+        def fake_nonclosure_ones(
+            h,
+            *args,
+            param_idx=1,
+            variation_size=0.1,
+            order=2,
+            fakeselector=None,
+            **kwargs,
+        ):
+            if args:
+                raise TypeError(f"Unexpected positional arguments: {args}")
+            params = np.zeros(order + 1)
+            params[param_idx] = variation_size
+            fakeselector.external_params = params
+            hvar = fakeselector.get_hist(h, **kwargs)
+            fakeselector.external_params = None
+            hvar = hist.Hist(
+                *hvar.axes,
+                hist.axis.Integer(0, 1, name="var", underflow=False, overflow=False),
+                storage=hist.storage.Double(),
+                data=hvar.values(flow=True)[..., np.newaxis],
+            )
+            return hvar
+
+        # idx=0: signal-region norm uncertainty (T_0 = 1), magnitude = log(1.05)
+        # to match the historical 5% log-normal on the fake process.
+        for idx, mag in [(0, np.log(1.05)), (1, 0.1), (2, 0.1)]:
+            subgroup = f"{datagroups.fakeName}Param{idx}"
+            datagroups.addSystematic(
+                inputBaseName,
+                groups=[
+                    subgroup,
+                    "Fake",
+                    "experiment",
+                    "expNoLumi",
+                    "expNoCalib",
+                ],
+                name=subgroup,
+                baseName=subgroup,
+                processes=datagroups.fakeName,
+                noConstraint=False,
+                mirror=True,
+                scale=1,
+                applySelection=False,
+                action=fake_nonclosure_ones,
+                actionArgs=dict(
+                    param_idx=idx,
+                    variation_size=mag,
+                    fakeselector=onesselector,
+                ),
+                systAxes=["var"],
+            )
 
     if not args.noEfficiencyUnc:
 
