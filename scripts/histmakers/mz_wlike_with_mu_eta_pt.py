@@ -131,6 +131,10 @@ if args.useRefinedVeto and args.useGlobalOrTrackerVeto:
     raise NotImplementedError(
         "Options --useGlobalOrTrackerVeto and --useRefinedVeto cannot be used together at the moment."
     )
+
+if args.dxybsVeto > 0 and args.dxybsVeto < args.dxybs:
+    raise ValueError("When using together '--dxybsVeto X --dxybs Y' it must be X > Y.")
+
 if args.validateVetoSF:
     if args.useGlobalOrTrackerVeto or not args.useRefinedVeto:
         raise NotImplementedError(
@@ -311,7 +315,9 @@ theory_helpers_procs = theory_corrections.make_theory_helpers(
 )
 
 # extra axes which can be used to label tensor_axes
-if args.binnedScaleFactors:
+if args.noScaleFactors:
+    logger.info("Running with no scale factors")
+elif args.binnedScaleFactors:
     logger.info("Using binned scale factors and uncertainties")
     # add usePseudoSmoothing=True for tests with Asimov
     muon_efficiency_helper, muon_efficiency_helper_syst, muon_efficiency_helper_stat = (
@@ -336,18 +342,19 @@ else:
 logger.info(f"SF file: {args.sfFile}")
 
 muon_efficiency_helper_syst_altBkg = {}
-for es in common.muonEfficiency_altBkgSyst_effSteps:
-    altSFfile = args.sfFile.replace(".root", "_altBkg.root")
-    logger.info(f"Additional SF file for alternate syst with {es}: {altSFfile}")
-    muon_efficiency_helper_syst_altBkg[es] = (
-        muon_efficiencies_smooth.make_muon_efficiency_helpers_smooth_altSyst(
-            filename=altSFfile,
-            era=era,
-            what_analysis=thisAnalysis,
-            max_pt=axis_pt.edges[-1],
-            effStep=es,
+if not args.noScaleFactors:
+    for es in common.muonEfficiency_altBkgSyst_effSteps:
+        altSFfile = args.sfFile.replace(".root", "_altBkg.root")
+        logger.info(f"Additional SF file for alternate syst with {es}: {altSFfile}")
+        muon_efficiency_helper_syst_altBkg[es] = (
+            muon_efficiencies_smooth.make_muon_efficiency_helpers_smooth_altSyst(
+                filename=altSFfile,
+                era=era,
+                what_analysis=thisAnalysis,
+                max_pt=axis_pt.edges[-1],
+                effStep=es,
+            )
         )
-    )
 
 if args.validateVetoSF:
     logger.warning(
@@ -624,7 +631,14 @@ def build_graph(df, dataset):
         df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper
     )
 
-    df = muon_selections.select_veto_muons(df, nMuons=2, ptCut=args.vetoRecoPt)
+    df = muon_selections.select_veto_muons(
+        df,
+        nMuons=2,
+        ptCut=args.vetoRecoPt,
+        etaCut=args.vetoRecoEta,
+        staPtCut=args.vetoRecoStaPt,
+        dxybsCut=args.dxybsVeto if args.dxybsVeto > 0 else args.dxybs,
+    )
 
     isoThreshold = args.isolationThreshold
 
@@ -645,6 +659,7 @@ def build_graph(df, dataset):
             isoThreshold=isoThreshold,
             requirePixelHits=args.requirePixelHits,
             requireID=False,
+            dxybsCut=args.dxybs,
         )
         df = muon_selections.define_trigger_muons(df)
         # apply lower pt cut and medium ID on triggering muon
@@ -1388,38 +1403,39 @@ def build_graph(df, dataset):
 
     if not dataset.is_data and not args.onlyMainHistograms:
 
-        df = systematics.add_muon_efficiency_unc_hists(
-            results,
-            df,
-            muon_efficiency_helper_stat,
-            muon_efficiency_helper_syst,
-            axes,
-            cols,
-            what_analysis=thisAnalysis,
-            singleMuonCollection="trigMuons",
-            smooth3D=args.smooth3dsf,
-        )
-        for es in common.muonEfficiency_altBkgSyst_effSteps:
-            df = systematics.add_muon_efficiency_unc_hists_altBkg(
+        if not args.noScaleFactors:
+            df = systematics.add_muon_efficiency_unc_hists(
                 results,
                 df,
-                muon_efficiency_helper_syst_altBkg[es],
+                muon_efficiency_helper_stat,
+                muon_efficiency_helper_syst,
                 axes,
                 cols,
-                singleMuonCollection="trigMuons",
                 what_analysis=thisAnalysis,
-                step=es,
+                singleMuonCollection="trigMuons",
+                smooth3D=args.smooth3dsf,
             )
-        if args.validateVetoSF:
-            df = systematics.add_muon_efficiency_veto_unc_hists(
-                results,
-                df,
-                muon_efficiency_veto_helper_stat,
-                muon_efficiency_veto_helper_syst,
-                axes,
-                cols,
-                muons="nonTrigMuons",
-            )
+            for es in common.muonEfficiency_altBkgSyst_effSteps:
+                df = systematics.add_muon_efficiency_unc_hists_altBkg(
+                    results,
+                    df,
+                    muon_efficiency_helper_syst_altBkg[es],
+                    axes,
+                    cols,
+                    singleMuonCollection="trigMuons",
+                    what_analysis=thisAnalysis,
+                    step=es,
+                )
+            if args.validateVetoSF:
+                df = systematics.add_muon_efficiency_veto_unc_hists(
+                    results,
+                    df,
+                    muon_efficiency_veto_helper_stat,
+                    muon_efficiency_veto_helper_syst,
+                    axes,
+                    cols,
+                    muons="nonTrigMuons",
+                )
 
         if era == "2016PostVFP" and args.addRunAxis and not args.randomizeDataByRun:
             # to simplify the code, use helper with largest uncertainty for all eras when splitting data

@@ -529,6 +529,13 @@ def common_parser(analysis_label=""):
             help="Upper threshold for muon absolute dxy with respect to beamspot",
         )
         parser.add_argument(
+            "--dxybsVeto",
+            default=-1,
+            type=float,
+            help="""Upper threshold for muon absolute dxy with respect to beamspot for veto muons.
+            If negative, use the same value as in --dxybs""",
+        )
+        parser.add_argument(
             "--oneMCfileEveryN",
             type=int,
             default=None,
