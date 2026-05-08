@@ -106,9 +106,6 @@ gatherProcesses_ = {
 }
 
 
-#########################################################################
-
-
 def common_plot_parser():
     parser = parsing.base_parser()
     parser.add_argument(
