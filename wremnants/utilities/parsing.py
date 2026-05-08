@@ -594,6 +594,17 @@ def common_parser(analysis_label=""):
             Specify a list of weights (one less item than --addNvtxAxis)
             """,
         )
+        parser.add_argument(
+            "--addMuonDxybsAxis",
+            type=float,
+            default=None,
+            nargs="+",
+            help="""
+            Add another fit axis with the muon dxybs (absolute value).
+            Specify a list of bin edges (the number of bins is inferred accordingly).
+            The overflow bin is created to contain everything above the last edge.
+        """,
+        )
 
     commonargs, _ = parser.parse_known_args()
 
