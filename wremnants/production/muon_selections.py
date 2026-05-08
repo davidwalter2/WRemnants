@@ -76,7 +76,7 @@ def select_veto_muons(
     # tightGlobalOrTracker relevant only when useGlobalOrTrackerVeto = True
     df = df.Define(
         "vetoMuonsPre",
-        f"Muon_looseId && std::abs(Muon_dxybs) < {dxybsCut} && Muon_correctedCharge != -99",
+        f"Muon_looseId && abs(Muon_dxybs) < {dxybsCut} && Muon_correctedCharge != -99",
     )
     nHitsSA = common.muonEfficiency_standaloneNumberOfValidHits
     df = df.Define(
@@ -135,7 +135,7 @@ def select_good_muons(
         df = df.Define("Muon_category", "Muon_isGlobal && Muon_highPurity")
 
     goodMuonsSelection = f"Muon_correctedPt > {ptLow} && Muon_correctedPt < {ptHigh} && vetoMuons && Muon_category"
-    goodMuonsSelection += f" std::abs(Muon_dxybs) < {dxybsCut}"  # apply here as well because threshold might differ from the one in vetoMuons
+    goodMuonsSelection += f" abs(Muon_dxybs) < {dxybsCut}"  # apply here as well because threshold might differ from the one in vetoMuons
 
     if nonPromptFromSV:
         # medium ID added afterwards
