@@ -1721,9 +1721,7 @@ def build_graph(df, dataset):
         # Defined as Threshold - |dxybs| so that for signal it peaks at Threshold instead of 0
         # for convenience in the later study
         df = df.Define("goodMuons_dxybs0", f"std::abs(Muon_dxybs[goodMuons][0])")
-        df = df.Define(
-            "goodMuons_dxybsFlip0", f"{args.dxybs} - std::abs(goodMuons_dxybs0)"
-        )
+        df = df.Define("goodMuons_dxybsFlip0", f"{args.dxybs} - goodMuons_dxybs0")
 
         mTStudyForFakes = df.HistoBoost(
             "mTStudyForFakes",
