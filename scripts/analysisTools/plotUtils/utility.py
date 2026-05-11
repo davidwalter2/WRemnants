@@ -106,9 +106,6 @@ gatherProcesses_ = {
 }
 
 
-#########################################################################
-
-
 def common_plot_parser():
     parser = parsing.base_parser()
     parser.add_argument(
@@ -1951,6 +1948,7 @@ def drawNTH1(
     yAxisExtendConstant=1.2,
     markerStyleFirstHistogram=20,
     useLineFirstHistogram=False,
+    colorFirstHistogram=None,
     fillStyleSecondHistogram=3004,
     fillColorSecondHistogram=None,
     colorVec=None,
@@ -2034,6 +2032,8 @@ def drawNTH1(
     if useLineFirstHistogram:
         h1.SetMarkerSize(0)
         h1.SetLineWidth(lineWidth)
+        if colorFirstHistogram:
+            h1.SetLineColor(colorFirstHistogram)
     else:
         h1.SetMarkerColor(ROOT.kBlack)
         h1.SetMarkerStyle(markerStyleFirstHistogram)

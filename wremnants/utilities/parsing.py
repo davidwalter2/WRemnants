@@ -529,6 +529,13 @@ def common_parser(analysis_label=""):
             help="Upper threshold for muon absolute dxy with respect to beamspot",
         )
         parser.add_argument(
+            "--dxybsVeto",
+            default=-1,
+            type=float,
+            help="""Upper threshold for muon absolute dxy with respect to beamspot for veto muons.
+            If negative, use the same value as in --dxybs""",
+        )
+        parser.add_argument(
             "--oneMCfileEveryN",
             type=int,
             default=None,
@@ -586,6 +593,17 @@ def common_parser(analysis_label=""):
             To be used together with --addNvtxAxis, if desired.
             Specify a list of weights (one less item than --addNvtxAxis)
             """,
+        )
+        parser.add_argument(
+            "--addMuonDxybsAxis",
+            type=float,
+            default=None,
+            nargs="+",
+            help="""
+            Add another fit axis with the muon dxybs (absolute value).
+            Specify a list of bin edges (the number of bins is inferred accordingly).
+            The overflow bin is created to contain everything above the last edge.
+        """,
         )
 
     commonargs, _ = parser.parse_known_args()
