@@ -38,6 +38,7 @@ from wremnants.production.histmaker_tools import (
     aggregate_groups,
     define_norm_weight_nRecoVtx,
     get_run_lumi_edges,
+    make_muon_dxybs_axis,
     make_muon_phi_axis,
     scale_to_data,
     write_analysis_output,
@@ -177,10 +178,8 @@ if args.useRefinedVeto and args.useGlobalOrTrackerVeto:
         "Options --useGlobalOrTrackerVeto and --useRefinedVeto cannot be used together at the moment."
     )
 
-if args.useRefinedVeto:
-    pass
-else:
-    pass
+if args.dxybsVeto > 0 and args.dxybsVeto < args.dxybs:
+    raise ValueError("When using together '--dxybsVeto X --dxybs Y' it must be X > Y.")
 
 if args.unfolding or args.theoryAgnostic:
     if args.theoryAgnostic:
@@ -486,7 +485,7 @@ axis_dxybs = hist.axis.Regular(
     args.dxybs,
     name="dxybs",
     underflow=False,
-    overflow=True,
+    overflow=False,
 )
 axis_hasjet_fakes = hist.axis.Boolean(
     name="hasJets"
@@ -773,6 +772,10 @@ def build_graph(df, dataset):
     axes = nominal_axes
     cols = nominal_cols
 
+    if args.addMuonDxybsAxis is not None:
+        axes = [*axes, make_muon_dxybs_axis(args.addMuonDxybsAxis)]
+        cols = [*cols, "goodMuons_dxybs0"]
+
     if args.addMuonPhiAxis is not None:
         axes = [*axes, make_muon_phi_axis(args.addMuonPhiAxis)]
         cols = [*cols, "goodMuons_phi0"]
@@ -1000,7 +1003,7 @@ def build_graph(df, dataset):
         ptCut=args.vetoRecoPt,
         etaCut=args.vetoRecoEta,
         staPtCut=args.vetoRecoStaPt,
-        dxybsCut=args.dxybs,
+        dxybsCut=args.dxybsVeto if args.dxybsVeto > 0 else args.dxybs,
         useGlobalOrTrackerVeto=useGlobalOrTrackerVeto,
     )
     df = muon_selections.select_good_muons(
@@ -1014,6 +1017,7 @@ def build_graph(df, dataset):
         nonPromptFromSV=args.selectNonPromptFromSV,
         nonPromptFromLighMesonDecay=args.selectNonPromptFromLightMesonDecay,
         requirePixelHits=args.requirePixelHits,
+        dxybsCut=args.dxybs,
     )
 
     # the corrected RECO muon kinematics, which is intended to be used as the nominal
@@ -1722,9 +1726,8 @@ def build_graph(df, dataset):
 
         # Defined as Threshold - |dxybs| so that for signal it peaks at Threshold instead of 0
         # for convenience in the later study
-        df = df.Define(
-            "goodMuons_dxybs0", f"{args.dxybs} - abs(Muon_dxybs[goodMuons][0])"
-        )
+        df = df.Define("goodMuons_dxybs0", f"std::abs(Muon_dxybs[goodMuons][0])")
+        df = df.Define("goodMuons_dxybsFlip0", f"{args.dxybs} - goodMuons_dxybs0")
 
         mTStudyForFakes = df.HistoBoost(
             "mTStudyForFakes",
@@ -1749,7 +1752,7 @@ def build_graph(df, dataset):
                 "goodMuons_eta0",
                 "goodMuons_pt0",
                 "goodMuons_charge0",
-                "goodMuons_dxybs0",
+                "goodMuons_dxybsFlip0",
                 "passIso",
                 "passMT",
                 "nominal_weight",

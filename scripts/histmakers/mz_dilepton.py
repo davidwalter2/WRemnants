@@ -128,6 +128,9 @@ args = parser.parse_args()
 
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 
+if args.dxybsVeto > 0 and args.dxybsVeto < args.dxybs:
+    raise ValueError("When using together '--dxybsVeto X --dxybs Y' it must be X > Y.")
+
 thisAnalysis = (
     ROOT.wrem.AnalysisType.Dilepton
     if args.useDileptonTriggerSelection
@@ -646,7 +649,13 @@ def build_graph(df, dataset):
         df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper
     )
 
-    df = muon_selections.select_veto_muons(df, nMuons=2)
+    df = muon_selections.select_veto_muons(
+        df,
+        nMuons=2,
+        etaCut=args.vetoRecoEta,
+        staPtCut=args.vetoRecoStaPt,
+        dxybsCut=args.dxybsVeto if args.dxybsVeto > 0 else args.dxybs,
+    )
     isoThreshold = args.isolationThreshold
     passIsoBoth = args.muonIsolation[0] + args.muonIsolation[1] == 2
     df = muon_selections.select_good_muons(
@@ -660,6 +669,7 @@ def build_graph(df, dataset):
         isoBranch=isoBranch,
         isoThreshold=isoThreshold,
         requirePixelHits=args.requirePixelHits,
+        dxybsCut=args.dxybs,
     )
 
     df = muon_selections.define_trigger_muons(
