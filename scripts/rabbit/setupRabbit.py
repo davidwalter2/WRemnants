@@ -1489,6 +1489,12 @@ def setup(
                 startsWith=ZMatch,
                 excludeMatch=dibosonMatch,
             )
+            datagroups.addProcessGroup(
+                "low_mass_samples",
+                startsWith=["DYlowMass"],
+                excludeMatch=dibosonMatch,
+            )
+
     datagroups.addProcessGroup(
         "single_vmu_samples",
         startsWith=[*WMatch, *ZMatch],

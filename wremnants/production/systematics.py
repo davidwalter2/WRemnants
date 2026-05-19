@@ -285,12 +285,15 @@ def define_mass_width_sin2theta_weights(df, proc):
 def add_massweights_hist(
     results, df, axes, cols, base_name="nominal", proc="", **kwargs
 ):
-    name = common.hist_name(
-        base_name, syst="massWeight" + (proc[0] if len(proc) else proc)
-    )
-    name_widthdecor = common.hist_name(
-        base_name, syst="massWeight_widthdecor" + (proc[0] if len(proc) else proc)
-    )
+    if len(proc) == 0:
+        label = None
+    elif proc.startswith("DY"):
+        label = "Z"
+    else:
+        label = proc[0]
+
+    name = common.hist_name(base_name, syst="massWeight" + label)
+    name_widthdecor = common.hist_name(base_name, syst="massWeight_widthdecor" + label)
     mass_axis = hist.axis.StrCategory(
         theory_utils.massWeightNames(proc=proc), name="massShift"
     )
@@ -313,9 +316,14 @@ def add_massweights_hist(
 def add_widthweights_hist(
     results, df, axes, cols, base_name="nominal", proc="", **kwargs
 ):
-    name = common.hist_name(
-        base_name, syst="widthWeight" + (proc[0] if len(proc) else proc)
-    )
+    if len(proc) == 0:
+        label = None
+    elif proc.startswith("DY"):
+        label = "Z"
+    else:
+        label = proc[0]
+
+    name = common.hist_name(base_name, syst="widthWeight" + label)
     axis_width = hist.axis.StrCategory(
         theory_utils.widthWeightNames(proc=proc), name="width"
     )
@@ -1476,12 +1484,13 @@ def add_theory_hists(
             )
             add_pdfAlphaSByHelicity_hist(results, df, v, axes, cols, name=k, **info)
 
-        add_breit_wigner_mass_weights_hist(
-            results, df, axes, cols, proc=dataset_name, **info
-        )
-        add_breit_wigner_width_weights_hist(
-            results, df, axes, cols, proc=dataset_name, **info
-        )
+        if any(dataset_name.startswith(x) for x in ["W", "Z"]):
+            add_breit_wigner_mass_weights_hist(
+                results, df, axes, cols, proc=dataset_name, **info
+            )
+            add_breit_wigner_width_weights_hist(
+                results, df, axes, cols, proc=dataset_name, **info
+            )
 
         # TODO: Should have consistent order here with the scetlib correction function
         if df.HasColumn("massWeight_tensor_wnom"):
@@ -1506,7 +1515,10 @@ def add_breit_wigner_mass_weights_hist(
     storage=hist.storage.Double(),
     **kwargs,
 ):
-    label = proc[0] if len(proc) else proc
+    if proc.startswith("DYJets"):
+        label = "Z"
+    else:
+        label = proc[0] if len(proc) else proc
     tensorName = f"breitwigner_massWeight{label}_tensor"
     bwHistName = common.hist_name(base_name, syst=f"breitwigner_massWeight{label}")
     mass_axis = hist.axis.StrCategory(

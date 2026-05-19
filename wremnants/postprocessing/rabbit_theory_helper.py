@@ -260,7 +260,7 @@ class TheoryHelper(object):
         if self.minnlo_unc and self.minnlo_unc not in ["none", None]:
             # sigma_-1 uncertainty is covered by scetlib-dyturbo uncertainties if they are used
             helicities_to_exclude = None if self.resumUnc == "minnlo" else [-1]
-            for sample_group in ["signal_samples_inctau", "single_v_nonsig_samples"]:
+            for sample_group in ["signal_samples_inctau", "single_v_nonsig_samples", "low_mass_samples"]:
                 if self.datagroups.procGroups.get(sample_group, None):
                     # two sets of nuisances, one binned in ~10% quantiles, and one inclusive in pt
                     # to avoid underestimating the correlated part of the uncertainty
