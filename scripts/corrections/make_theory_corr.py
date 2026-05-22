@@ -242,7 +242,7 @@ def main():
     }
 
     if args.proc == "z":
-        eventgen_procs = ["Zmumu"]  # , "DYJetsToMuMuMass10to50"]
+        eventgen_procs = ["Zmumu", "Zmumu10to50"]
         filesByProc = {"Zmumu": args.corrFiles}
     else:
         wpfiles = list(
@@ -281,18 +281,18 @@ def main():
                 "WtoNMuMN50V0p001",
             ]
 
-    minnloh = hh.sumHists(
-        [
-            input_tools.read_mu_hist_combine_tau(
-                args.minnloFile,
-                proc,
-                args.minnloh,
-                eras=args.eras,
-                combine_with_tau=args.proc != "bsm",
-            )
-            for proc in eventgen_procs
-        ]
-    )
+    minnlohists = [
+        input_tools.read_mu_hist_combine_tau(
+            args.minnloFile,
+            proc,
+            args.minnloh,
+            eras=args.eras,
+            combine_with_tau=args.proc != "bsm",
+        )
+        for proc in eventgen_procs
+    ]
+
+    minnloh = hh.sumHists(minnlohists)
 
     if "y" in minnloh.axes.name:
         minnloh = hh.makeAbsHist(minnloh, "y")
@@ -302,20 +302,20 @@ def main():
         if ax.name in ax_map:
             hh.renameAxis(minnloh, ax.name, ax_map[ax.name])
 
-    numh = hh.sumHists(
-        [
-            read_corr(
-                procName,
-                args.generator,
-                corr_file,
-                args.axes,
-                qt_cutoff=args.qtCutoff,
-                smooth=args.smooth,
-                nnlojet_mass_edges=args.nnlojetMassEdges,
-            )
-            for procName, corr_file in filesByProc.items()
-        ]
-    )
+    numhists = [
+        read_corr(
+            procName,
+            args.generator,
+            corr_file,
+            args.axes,
+            qt_cutoff=args.qtCutoff,
+            smooth=args.smooth,
+            nnlojet_mass_edges=args.nnlojetMassEdges,
+        )
+        for procName, corr_file in filesByProc.items()
+    ]
+
+    numh = hh.sumHists(numhists)
 
     if args.selectVars:
         numh = numh[{"vars": args.selectVars}]
@@ -416,6 +416,10 @@ def main():
     output_tools.write_lz4_pkl_output(
         outfile, args.proc.upper(), output_dict, common.base_dir, args, meta_dict
     )
+
+    corrh = hh.disableFlow(corrh)
+    numh = hh.disableFlow(numh)
+    minnloh = hh.disableFlow(minnloh)
 
     logger.info("Correction binning is")
     for ax in corrh.axes:
@@ -518,7 +522,7 @@ def main():
                             rlabel="x/MiNNLO",
                             legtext_size=24,
                             nlegcols=1,
-                            rrange=[0.8, 1.2],
+                            rrange=[0.71, 1.29] if varm in ["qT"] else [0.81, 1.19],
                             yscale=1.1,
                             xlim=None,
                             binwnorm=1.0,

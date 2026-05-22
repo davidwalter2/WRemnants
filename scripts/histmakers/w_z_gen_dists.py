@@ -165,6 +165,10 @@ axis_chargel_gen = hist.axis.Regular(
     overflow=False,
 )
 
+# axis_massWgen = hist.axis.Variable([4.0, 13000.0], name="massVgen")
+axis_massWgen = hist.axis.Variable([0, 75, 80, 85, 120.0, 13000], name="massVgen")
+axis_massZgen = hist.axis.Variable([10, 60.0, 120.0, 13000], name="massVgen")
+
 # fine mass bins for studies
 # axis_massZgen = hist.axis.Variable(
 #     [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 13000],
@@ -172,14 +176,9 @@ axis_chargel_gen = hist.axis.Regular(
 #     underflow=False,
 #     overflow=False,
 # )
-
-# axis_massWgen = hist.axis.Variable([4.0, 13000.0], name="massVgen")
-axis_massWgen = hist.axis.Variable(
-    [0, 75, 80, 85, 120.0, 13000], name="massVgen", underflow=False, overflow=False
-)
-axis_massZgen = hist.axis.Variable(
-    [0, 60.0, 120.0, 13000], name="massVgen", underflow=False, overflow=False
-)
+# axis_massZgen = hist.axis.Regular(
+#     120, 0, 120, name="massVgen", underflow=False, overflow=False
+# )
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
 procsWithTheoryCorr = [d.name for d in datasets if d.name in samples.vprocs]
