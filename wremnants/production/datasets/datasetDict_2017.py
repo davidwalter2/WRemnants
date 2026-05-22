@@ -59,12 +59,12 @@ dataDict = {
         "group": "Zmumu",
         "das_name": "private",
     },
-    "DYJetsToMuMuMass10to50_2017": {
+    "Zmumu10to50_2017": {
         "filepaths": [
             "{BASE_PATH}/DYJetsToMuMu_M-10to50_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MC2017_{NANO_PROD_TAG}"
         ],
         "xsec": common.xsec_DYJetsToLLMass10to50,
-        "group": "DYlowMass",
+        "group": "Zmumu",
         "das_name": "/DYJetsToMuMu_M-10to50_H2ErratumFix_PDFExt_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/RunIISummer20UL17NanoAODv9-106X_upgrade2017_realistic_v16_L1v1*v1/NANOAODSIM",
     },
     "Ztautau_2017": {  # this sample needs to be produced using old Mass fix one
