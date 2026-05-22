@@ -1515,10 +1515,7 @@ def add_breit_wigner_mass_weights_hist(
     storage=hist.storage.Double(),
     **kwargs,
 ):
-    if proc.startswith("DYJets"):
-        label = "Z"
-    else:
-        label = proc[0] if len(proc) else proc
+    label = proc[0] if len(proc) else proc
     tensorName = f"breitwigner_massWeight{label}_tensor"
     bwHistName = common.hist_name(base_name, syst=f"breitwigner_massWeight{label}")
     mass_axis = hist.axis.StrCategory(
