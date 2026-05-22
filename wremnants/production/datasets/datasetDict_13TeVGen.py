@@ -57,7 +57,7 @@ def merge_samples(
     suffix="13TeVGen",
     processes=[
         "Zmumu",
-        "DYJetsToMuMuMass10to50",
+        "Zmumu10to50",
         "Wplusmunu",
         "Wminusmunu",
         "Ztautau",
