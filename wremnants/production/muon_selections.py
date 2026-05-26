@@ -111,7 +111,6 @@ def select_good_muons(
     df,
     ptLow,
     ptHigh,
-    datasetGroup,
     nMuons=1,
     use_trackerMuons=False,
     use_isolation=False,

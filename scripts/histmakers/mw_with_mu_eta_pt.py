@@ -1012,7 +1012,6 @@ def build_graph(df, dataset):
         df,
         template_minpt,
         template_maxpt,
-        dataset.group,
         nMuons=1,
         use_trackerMuons=args.trackerMuons,
         use_isolation=False,

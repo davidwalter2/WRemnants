@@ -48,11 +48,6 @@ parser.add_argument(
     help="Use theory agnostic binning (coarser) to produce the results",
 )
 parser.add_argument(
-    "--useDileptonTriggerSelection",
-    action="store_true",
-    help="Use dilepton trigger selection (default uses the Wlike one, with one triggering muon and odd/even event selection to define its charge, staying agnostic to the other)",
-)
-parser.add_argument(
     "--insituEffMCFile",
     type=str,
     default=None,
@@ -65,14 +60,6 @@ parser.add_argument(
     "--noAuxiliaryHistograms",
     action="store_true",
     help="Remove auxiliary histograms to save memory (removed by default with --unfolding or --theoryAgnostic)",
-)
-parser.add_argument(
-    "--muonIsolation",
-    type=int,
-    nargs=2,
-    default=[1, 1],
-    choices=[-1, 0, 1],
-    help="Apply isolation cut to triggering and not-triggering muon (in this order): -1/1 for failing/passing isolation, 0 for skipping it. If using --useDileptonTriggerSelection, then the sorting is based on the muon charge as -/+",
 )
 parser.add_argument(
     "--flipEventNumberSplitting",
@@ -141,11 +128,8 @@ logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 if args.dxybsVeto > 0 and args.dxybsVeto < args.dxybs:
     raise ValueError("When using together '--dxybsVeto X --dxybs Y' it must be X > Y.")
 
-thisAnalysis = (
-    ROOT.wrem.AnalysisType.Dilepton
-    if args.useDileptonTriggerSelection
-    else ROOT.wrem.AnalysisType.Wlike
-)
+thisAnalysis = ROOT.wrem.AnalysisType.Dilepton
+
 isoBranch = muon_selections.getIsoBranch(args.isolationDefinition)
 era = args.era
 
@@ -300,6 +284,19 @@ for a in args.axes:
             f" {a} is not a known axes! Supported axes choices are {list(all_axes.keys())}"
         )
 
+axis_eta = hist.axis.Regular(
+    int(args.eta[0]),
+    args.eta[1],
+    args.eta[2],
+    name="eta",
+    underflow=False,
+    overflow=False,
+)
+axis_pt = hist.axis.Regular(
+    int(args.pt[0]), args.pt[1], args.pt[2], name="pt", underflow=False, overflow=False
+)
+axis_charge = binning.axis_charge
+
 # sepcial axes
 axis_corr_eta = hist.axis.Regular(48, -2.4, 2.4, name="corr_eta")
 axis_corr_phi = hist.axis.Regular(1, -np.pi, np.pi, circular=True, name="corr_phi")
@@ -317,49 +314,11 @@ auxiliary_gen_axes = [
 ]
 
 # axis order must match cols order (HistoBoost fills positionally): eta, pt, charge
-axes_probe_ID = [
-    hist.axis.Regular(
-        int(args.eta[0]),
-        args.eta[1],
-        args.eta[2],
-        name="eta",
-        underflow=False,
-        overflow=False,
-    ),
-    hist.axis.Regular(
-        int(args.pt[0]),
-        args.pt[1],
-        args.pt[2],
-        name="pt",
-        underflow=False,
-        overflow=False,
-    ),
-    hist.axis.Regular(2, -2.0, 2.0, name="charge", underflow=False, overflow=False),
-]
+axes_probe_ID = [axis_eta, axis_pt, axis_charge]
 cols_probe_ID = ["probeMuons_eta0", "probeMuons_pt0", "probeMuons_charge0"]
 
-axes_probe_HLT = [
-    hist.axis.Regular(
-        int(args.eta[0]),
-        args.eta[1],
-        args.eta[2],
-        name="eta",
-        underflow=False,
-        overflow=False,
-    ),
-    hist.axis.Regular(
-        int(args.pt[0]),
-        args.pt[1],
-        args.pt[2],
-        name="pt",
-        underflow=False,
-        overflow=False,
-    ),
-]
-cols_probe_HLT = [
-    "probeMuons_eta0",
-    "probeMuons_pt0",
-]
+axes_probe_HLT = [axis_eta, axis_pt]
+cols_probe_HLT = ["probeMuons_eta0", "probeMuons_pt0"]
 
 # Probe binning used to measure our own MC efficiency (effMC) for the in-situ
 # muon efficiency method: args.eta x args.pt x charge, matching the Chebyshev
@@ -762,15 +721,13 @@ def build_graph(df, dataset):
         dxybsCut=args.dxybsVeto if args.dxybsVeto > 0 else args.dxybs,
     )
     isoThreshold = args.isolationThreshold
-    passIsoBoth = args.muonIsolation[0] + args.muonIsolation[1] == 2
     df = muon_selections.select_good_muons(
         df,
         args.pt[1],
         args.pt[2],
-        dataset.group,
         nMuons=1,
         use_trackerMuons=args.trackerMuons,
-        use_isolation=passIsoBoth,
+        use_isolation=False,
         isoBranch=isoBranch,
         isoThreshold=isoThreshold,
         requirePixelHits=args.requirePixelHits,
@@ -778,19 +735,7 @@ def build_graph(df, dataset):
         condition=">=",
     )
 
-    df = muon_selections.define_two_muons(df, dilepton=args.useDileptonTriggerSelection)
-
-    # iso cut applied here, if requested, because it needs the definition of firstMuons and secondMuons from muon_selections.define_trigger_muons
-    if not passIsoBoth and (args.muonIsolation[0] or args.muonIsolation[1]):
-        df = muon_selections.apply_iso_muons(
-            df,
-            args.muonIsolation[0],
-            args.muonIsolation[1],
-            isoBranch,
-            isoThreshold,
-            name_first="firstMuons",
-            name_second="secondMuons",
-        )
+    df = muon_selections.define_two_muons(df, dilepton=True)
 
     df = muon_selections.select_z_candidate(
         df, mass_min, mass_max, name_first="firstMuons", name_second="secondMuons"
@@ -803,43 +748,15 @@ def build_graph(df, dataset):
         df, dataset, args.trackerMuons, "secondMuons"
     )
 
-    if args.useDileptonTriggerSelection:
-        df = muon_selections.apply_triggermatching_muon(
-            df, dataset, "firstMuons", "secondMuons", era=era
-        )
-        df = df.Alias("muonsMinus_pt0", "firstMuons_pt0")
-        df = df.Alias("muonsPlus_pt0", "secondMuons_pt0")
-        df = df.Alias("muonsMinus_eta0", "firstMuons_eta0")
-        df = df.Alias("muonsPlus_eta0", "secondMuons_eta0")
-        df = df.Alias("muonsMinus_mom4", "firstMuons_mom4")
-        df = df.Alias("muonsPlus_mom4", "secondMuons_mom4")
-    else:
-        df = muon_selections.apply_triggermatching_muon(
-            df, dataset, "firstMuons", era=era
-        )
-        df = df.Define("firstMuon_isNegative", "firstMuons_charge0 == -1")
-        df = df.Define(
-            "muonsMinus_pt0", "firstMuon_isNegative ? firstMuons_pt0 : secondMuons_pt0"
-        )
-        df = df.Define(
-            "muonsPlus_pt0", "firstMuon_isNegative ? secondMuons_pt0 : firstMuons_pt0"
-        )
-        df = df.Define(
-            "muonsMinus_eta0",
-            "firstMuon_isNegative ? firstMuons_eta0 : secondMuons_eta0",
-        )
-        df = df.Define(
-            "muonsPlus_eta0",
-            "firstMuon_isNegative ? secondMuons_eta0 : firstMuons_eta0",
-        )
-        df = df.Define(
-            "muonsMinus_mom4",
-            "firstMuon_isNegative ? firstMuons_mom4 : secondMuons_mom4",
-        )
-        df = df.Define(
-            "muonsPlus_mom4",
-            "firstMuon_isNegative ? secondMuons_mom4 : firstMuons_mom4",
-        )
+    df = muon_selections.apply_triggermatching_muon(
+        df, dataset, "firstMuons", "secondMuons", era=era
+    )
+    df = df.Alias("muonsMinus_pt0", "firstMuons_pt0")
+    df = df.Alias("muonsPlus_pt0", "secondMuons_pt0")
+    df = df.Alias("muonsMinus_eta0", "firstMuons_eta0")
+    df = df.Alias("muonsPlus_eta0", "secondMuons_eta0")
+    df = df.Alias("muonsMinus_mom4", "firstMuons_mom4")
+    df = df.Alias("muonsPlus_mom4", "secondMuons_mom4")
 
     useTnpMuonVarForSF = args.useTnpMuonVarForSF
     # in principle these are only needed for MC,
@@ -919,9 +836,6 @@ def build_graph(df, dataset):
     else:
         cvhName = "cvhideal"
 
-    axis_eta = hist.axis.Regular(int(args.eta[0]), args.eta[1], args.eta[2], name="eta")
-    axis_pt = hist.axis.Regular(int(args.pt[0]), args.pt[1], args.pt[2], name="pt")
-    axis_charge = binning.axis_charge
     axis_nvalidpixel = hist.axis.Integer(0, 10, name="nvalidpixel")
 
     df = df.Define(
@@ -973,12 +887,8 @@ def build_graph(df, dataset):
             "tnpEta0",
             "SApt0",
             "SAeta0",
-            # "tnpUT0",
             "tnpCharge0",
-            # "passIso0",
         ]
-        # if args.useDileptonTriggerSelection:
-        # muonVarsForSF.append("passTrigger0")
         # careful, first all firstMuon variables, then all secondMuon
         columnsForSF = [
             f"{t}Muons_{v}" for t in ["first", "second"] for v in muonVarsForSF
@@ -1413,6 +1323,18 @@ def build_graph(df, dataset):
                 smooth3D=args.smooth3dsf,
                 base_name=channel,
             )
+
+            for es in common.muonEfficiency_altBkgSyst_effSteps:
+                df = systematics.add_muon_efficiency_unc_hists_altBkg(
+                    results,
+                    df,
+                    muon_efficiency_helper_syst_altBkg[es],
+                    axes,
+                    cols,
+                    what_analysis=thisAnalysis,
+                    step=es,
+                    base_name=channel,
+                )
 
             if muon_insitu_efficiency_helper is not None:
                 # in-situ ID/HLT/Iso efficiency: per-category Chebyshev

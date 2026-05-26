@@ -629,7 +629,7 @@ def make_muon_efficiency_helpers_smooth(
                         effStat_manager[effStatKey]["axisLabels"],
                         name=f"{effStatKey}_eff_type",
                     )
-                    if smooth3D:
+                    if is3D:
                         effStat_manager[effStatKey]["boostHist"] = hist.Hist(
                             axis_eta_eff,
                             axis_pt_eff,
@@ -652,45 +652,25 @@ def make_muon_efficiency_helpers_smooth(
                         )
 
                 # hist_hist may or may not have overflows, but the left-hand side histogram have them: read with flow=False to get only things in acceptance here
-                if smooth3D:
-                    if is3D:
-                        # hist_hist has dimension 4, ut as third axes
+                if is3D:
+                    # hist_hist has dimension 4, ut as third axes
+                    effStat_manager[effStatKey]["boostHist"].view(flow=False)[
+                        :,
+                        :,
+                        axis_charge_def.index(charge),
+                        axis_eff_type.index(eff_type),
+                        nom_up_effStat_axis.index(0),
+                        :,
+                    ] = hist_hist.view(flow=False)[:, :, :, 0]
+                    for iup in range(1, 1 + nPtEigenBins):
                         effStat_manager[effStatKey]["boostHist"].view(flow=False)[
                             :,
                             :,
                             axis_charge_def.index(charge),
                             axis_eff_type.index(eff_type),
-                            nom_up_effStat_axis.index(0),
+                            nom_up_effStat_axis.index(iup),
                             :,
-                        ] = hist_hist.view(flow=False)[:, :, :, 0]
-                        for iup in range(1, 1 + nPtEigenBins):
-                            effStat_manager[effStatKey]["boostHist"].view(flow=False)[
-                                :,
-                                :,
-                                axis_charge_def.index(charge),
-                                axis_eff_type.index(eff_type),
-                                nom_up_effStat_axis.index(iup),
-                                :,
-                            ] = hist_hist.view(flow=False)[:, :, :, iup]
-                    else:
-                        # hist_hist has dimension 3, no ut axis
-                        effStat_manager[effStatKey]["boostHist"].view(flow=False)[
-                            :,
-                            :,
-                            axis_charge_def.index(charge),
-                            axis_eff_type.index(eff_type),
-                            nom_up_effStat_axis.index(0),
-                            0,
-                        ] = hist_hist.view(flow=False)[:, :, 0]
-                        for iup in range(1, 1 + nPtEigenBins):
-                            effStat_manager[effStatKey]["boostHist"].view(flow=False)[
-                                :,
-                                :,
-                                axis_charge_def.index(charge),
-                                axis_eff_type.index(eff_type),
-                                nom_up_effStat_axis.index(iup),
-                                0,
-                            ] = hist_hist.view(flow=False)[:, :, iup]
+                        ] = hist_hist.view(flow=False)[:, :, :, iup]
                 else:
                     # boostHist has no ut axis
                     effStat_manager[effStatKey]["boostHist"].view(flow=False)[
@@ -726,7 +706,7 @@ def make_muon_efficiency_helpers_smooth(
         ] = effStat_manager[effStatKey]["boostHist"].view(flow=True)[
             :, axis_pt_eff.extent - 2, ...
         ]
-        if smooth3D:
+        if is3D:
             effStat_manager[effStatKey]["boostHist"].view(flow=True)[..., 0] = (
                 effStat_manager[effStatKey]["boostHist"].view(flow=True)[..., 1]
             )
@@ -741,7 +721,7 @@ def make_muon_efficiency_helpers_smooth(
         sf_stat_pyroot = narf.hist_to_pyroot_boost(
             effStat_manager[effStatKey]["boostHist"]
         )
-        if smooth3D:
+        if is3D:
             if "sf_iso" in effStatKey:
                 helper_stat = ROOT.wrem.muon_efficiency_smooth_helper_stat_iso_utDep[
                     templateAnalysisArg,
