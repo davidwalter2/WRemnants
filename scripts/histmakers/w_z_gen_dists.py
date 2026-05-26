@@ -165,6 +165,10 @@ axis_chargel_gen = hist.axis.Regular(
     overflow=False,
 )
 
+# axis_massWgen = hist.axis.Variable([4.0, 13000.0], name="massVgen")
+axis_massWgen = hist.axis.Variable([0, 75, 80, 85, 120.0, 13000], name="massVgen")
+axis_massZgen = hist.axis.Variable([10, 60.0, 120.0, 13000], name="massVgen")
+
 # fine mass bins for studies
 # axis_massZgen = hist.axis.Variable(
 #     [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 13000],
@@ -172,10 +176,9 @@ axis_chargel_gen = hist.axis.Regular(
 #     underflow=False,
 #     overflow=False,
 # )
-
-# axis_massWgen = hist.axis.Variable([4.0, 13000.0], name="massVgen")
-axis_massWgen = hist.axis.Variable([0, 75, 80, 85, 120.0, 13000], name="massVgen")
-axis_massZgen = hist.axis.Variable([60.0, 120.0, 13000], name="massVgen")
+# axis_massZgen = hist.axis.Regular(
+#     120, 0, 120, name="massVgen", underflow=False, overflow=False
+# )
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
 procsWithTheoryCorr = [d.name for d in datasets if d.name in samples.vprocs]
@@ -225,7 +228,7 @@ def build_graph(df, dataset):
     axis_ptV_thag = theoryAgnostic_axes[0]
     axis_yV_thag = theoryAgnostic_axes[1]
 
-    if args.useUnfoldingBinning and "Z" in dataset.name:
+    if args.useUnfoldingBinning and isZ:
         unfolding_axes, unfolding_cols, unfolding_selections = (
             binning.get_unfolding_dilepton_axes(
                 ["ptVGen", "absYVGen"],
@@ -264,10 +267,10 @@ def build_graph(df, dataset):
             edges_ptV = np.append(np.arange(0, 100.5, 0.5), 13000.0)
         else:
             edges_ptV = (
-                binning.ptZgen_binning_corr if isZ else binning.ptWgen_binning_corr
+                binning.ptWgen_binning_corr if isW else binning.ptZgen_binning_corr
             )
         edges_absYV = (
-            binning.absYZgen_binning_corr if isZ else binning.absYWgen_binning_corr
+            binning.absYWgen_binning_corr if isW else binning.absYZgen_binning_corr
         )
 
         axis_absYVgen = hist.axis.Variable(
@@ -319,21 +322,19 @@ def build_graph(df, dataset):
         df, dataset.name, corr_helpers, args, helicity_smoothing_helpers
     )
 
-    if isZ or dataset.group in [
-        "DYlowMass",
-    ]:
-        nominal_axes = [
-            axis_massZgen,
-            axis_rapidity,
-            axis_ptqVgen if args.ptqVgen else axis_ptVgen,
-            axis_chargeZgen,
-        ]
-    else:
+    if isW:
         nominal_axes = [
             axis_massWgen,
             axis_rapidity,
             axis_ptqVgen if args.ptqVgen else axis_ptVgen,
             axis_chargeWgen,
+        ]
+    else:
+        nominal_axes = [
+            axis_massZgen,
+            axis_rapidity,
+            axis_ptqVgen if args.ptqVgen else axis_ptVgen,
+            axis_chargeZgen,
         ]
 
     nominal_cols = [
@@ -1020,11 +1021,11 @@ def build_graph(df, dataset):
 
 
 resultdict = narf.build_and_run(datasets, build_graph)
+if not args.noScaleToData:
+    # weight to cross section / sum(weights) * lumi with lumi=1 w/o data
+    scale_to_data(resultdict)
+
 if len(args.aggregateGroups) > 0:
-    if not args.noScaleToData:
-        scale_to_data(
-            resultdict
-        )  # weight to cross section / sum(weights) * lumi with lumi=1 w/o data
     aggregate_groups(datasets, resultdict, args.aggregateGroups)
 write_analysis_output(
     resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args
@@ -1038,6 +1039,11 @@ if not args.addHelicityAxis and not args.skipHelicityXsecs:
     helicity_xsecs_out = {}
     for dataset in datasets:
         name = dataset.name
+        if name.startswith("DY"):
+            label = "Z"
+        else:
+            label = name[0]
+
         for var in ["", "lhe", "hardProcess", "postShower", "postBeamRemnants"]:
             if var == "":
                 suffix = ""
@@ -1053,7 +1059,7 @@ if not args.addHelicityAxis and not args.skipHelicityXsecs:
 
             helicity_xsecs = resultdict[name]["output"][histname].get()
 
-            key = f"{name[0]}{suffix}"
+            key = f"{label}{suffix}"
 
             if key not in helicity_xsecs_out.keys():
                 helicity_xsecs_out[key] = helicity_xsecs
@@ -1083,7 +1089,7 @@ if not args.addHelicityAxis and not args.skipHelicityXsecs:
 
             helicity_xsecs = resultdict[name]["output"][histname].get()
 
-            key = f"{name[0]}_{var}"
+            key = f"{label}_{var}"
 
             if key not in helicity_xsecs_out.keys():
                 helicity_xsecs_out[key] = helicity_xsecs

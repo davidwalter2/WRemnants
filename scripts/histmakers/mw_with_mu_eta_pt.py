@@ -457,6 +457,7 @@ else:
         )
     )
 
+
 if args.theoryAgnostic:
     theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
         ptV_bins=args.theoryAgnosticGenPtVbinEdges,
@@ -728,7 +729,6 @@ def build_graph(df, dataset):
     isWmunu = isBSM or dataset.group in ["Wmunu"]
     isZ = dataset.group in ["Zmumu", "Ztautau"]
     isZmumu = dataset.group in ["Zmumu"]
-    isZveto = isZ or dataset.group in ["DYlowMass"]
     isWorZ = isW or isZ
     isTop = dataset.group == "Top"
     isQCDMC = dataset.group == "QCD"
@@ -737,8 +737,10 @@ def build_graph(df, dataset):
         hist.storage.Double()
     )  # turn off sum weight square for systematic histograms
 
-    if isWorZ and dataset.name[0] in helicity_smoothing_helpers_procs.keys():
-        helicity_smoothing_helpers = helicity_smoothing_helpers_procs[dataset.name[0]]
+    if isWorZ:
+        label = dataset.name[0] if isW else "Z"
+        if label in helicity_smoothing_helpers_procs.keys():
+            helicity_smoothing_helpers = helicity_smoothing_helpers_procs[label]
     else:
         helicity_smoothing_helpers = {}
 
@@ -1289,7 +1291,7 @@ def build_graph(df, dataset):
             )
             weight_expr += "*weight_fullMuonSF_withTrackingReco"
 
-            if isZveto and not args.noGenMatchMC:
+            if isZ and not args.noGenMatchMC:
                 if args.scaleDYvetoFraction > 0.0:
                     # weight different from 1 only for events with >=2 gen muons in acceptance but only 1 reco muon
                     df = df.Define(
@@ -2315,7 +2317,7 @@ def build_graph(df, dataset):
                         step=es,
                         storage_type=storage_type,
                     )
-                if isZveto and not args.noGenMatchMC and not args.noVetoSF:
+                if isZ and not args.noGenMatchMC and not args.noVetoSF:
                     df = systematics.add_muon_efficiency_veto_unc_hists(
                         results,
                         df,
@@ -2349,9 +2351,7 @@ def build_graph(df, dataset):
 
         # n.b. this is the W analysis so mass weights shouldn't be propagated
         # on the Z samples (but can still use it for dummy muon scale)
-
         if isWorZ:
-
             df = systematics.add_theory_hists(
                 results,
                 df,
@@ -2365,6 +2365,7 @@ def build_graph(df, dataset):
                 storage_type=storage_type,
             )
 
+        if isWorZ:
             # Don't think it makes sense to apply the mass weights to scale leptons from tau decays
             if (
                 "massWeight_tensor" in df.GetColumnNames()
