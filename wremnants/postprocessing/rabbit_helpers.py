@@ -3,11 +3,73 @@ import numpy as np
 
 from wremnants.postprocessing import histselections
 from wremnants.postprocessing.datagroups.datagroup import Datagroup_member
-from wremnants.utilities import theory_utils
+from wremnants.production.muon_efficiencies_insitu import (
+    insitu_n_coeff,
+    insitu_parameter_labels,
+    insitu_step_group,
+)
+from wremnants.utilities import common, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging
 
 logger = logging.child_logger(__name__)
+
+
+def add_muon_insitu_efficiency_systs(datagroups, inputBaseName, passSystToFakes=True):
+    """Declare the in-situ muon efficiency Chebyshev coefficients as
+    unconstrained nuisances (not NOIs).
+
+    The histmaker writes a syst histogram ``<inputBaseName>_muonInsituEff`` per
+    category whose last axis ``insituEffParm`` enumerates the (step, eta,
+    [charge], coeff) coefficients (flat Integer axis). We relabel it to a
+    StrCategory of the coefficient names so each of the ~768 bins becomes one
+    independent nuisance. The names are channel independent on purpose, so
+    rabbit pools identically-named nuisances across the 4 category channels —
+    this realises the cross-category in-situ constraint.
+    """
+    histname = common.hist_name(inputBaseName, syst="muonInsituEff")
+
+    def relabel(h):
+        # n_eta follows the histmaker --eta binning: NSF = n_eta * n_coeff * 4
+        n_sf = h.axes["insituEffParm"].size
+        n_eta = n_sf // (insitu_n_coeff * 4)
+        labels = insitu_parameter_labels(n_eta=n_eta, n_coeff=insitu_n_coeff)
+        assert len(labels) == n_sf, (len(labels), n_sf)
+        axes = [
+            (
+                hist.axis.StrCategory(labels, name="insituEffParm")
+                if ax.name == "insituEffParm"
+                else ax
+            )
+            for ax in h.axes
+        ]
+        hnew = hist.Hist(*axes, storage=h.storage_type())
+        # insituEffParm is the last axis; Integer (no flow) -> StrCategory adds
+        # one (empty) overflow bin, so copy into the in-range slice
+        hnew.view(flow=True)[..., : len(labels)] = h.view(flow=True)
+        return hnew
+
+    datagroups.addSystematic(
+        histname=histname,
+        name="muonInsituEff",
+        baseName="",  # nuisance names come straight from the StrCategory labels
+        processes=None,  # all MC processes (incl. unfolding-split signal bins)
+        noi=False,
+        noConstraint=True,
+        mirror=True,
+        scale=1,
+        systAxes=["insituEffParm"],
+        passToFakes=passSystToFakes,
+        groups=[
+            "muonInsituEff",
+            *insitu_step_group.values(),
+            "experiment",
+            "expNoLumi",
+            "expNoCalib",
+        ],
+        splitGroup={g: f".*{g}.*" for g in insitu_step_group.values()},
+        preOp=relabel,
+    )
 
 
 def decorrelateByAxis(

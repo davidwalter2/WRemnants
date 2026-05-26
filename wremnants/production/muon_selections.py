@@ -168,8 +168,8 @@ def select_good_muons(
     return df
 
 
-def define_trigger_muons(
-    df, name_first="trigMuons", name_second="nonTrigMuons", dilepton=False
+def define_two_muons(
+    df, name_first="firstMuons", name_second="secondMuons", dilepton=False
 ):
     if dilepton:
         # by convention define first as negative charge, but actually both leptons could be triggering here
@@ -187,10 +187,10 @@ def define_trigger_muons(
         df = df.Define(f"{name_second}_charge0", "isEvenEvent ? 1 : -1")
 
     df = df.Define(
-        name_first, f"goodMuons && Muon_correctedCharge == {name_first}_charge0"
+        name_first, f"vetoMuons && Muon_correctedCharge == {name_first}_charge0"
     )
     df = df.Define(
-        name_second, f"goodMuons && Muon_correctedCharge == {name_second}_charge0"
+        name_second, f"vetoMuons && Muon_correctedCharge == {name_second}_charge0"
     )
 
     df = muon_calibration.define_corrected_reco_muon_kinematics(

@@ -127,6 +127,13 @@ def make_subparsers(parser, argv=None):
         choices=["unfolding", "theoryAgnosticNormVar", "theoryAgnosticPolVar"],
         help="Select analysis mode to run. Default is the traditional analysis",
     )
+    parser.add_argument(
+        "--muonInsituEfficiency",
+        action="store_true",
+        help="Add the in-situ muon efficiency Chebyshev coefficients (per-category "
+        "ID/HLT/Iso) as unconstrained nuisances. Requires the histmaker to have been "
+        "run with --insituEffMCFile so the muonInsituEff histograms are present.",
+    )
 
     tmpKnownArgs, _ = parser.parse_known_args(argv)
     subparserName = tmpKnownArgs.analysisMode
@@ -1709,6 +1716,14 @@ def setup(
             decorwidth=decorwidth,
         )
 
+    if args.muonInsituEfficiency and not stat_only:
+        # in-situ ID/HLT/Iso efficiency Chebyshev coefficients as unconstrained
+        # nuisances; names are channel independent so they correlate across the
+        # 4 category channels (the cross-category in-situ constraint)
+        rabbit_helpers.add_muon_insitu_efficiency_systs(
+            datagroups, inputBaseName, passSystToFakes=passSystToFakes
+        )
+
     add_theory_uncertainties = not stat_only and not args.noTheoryUnc
 
     # this appears within doStatOnly because technically these nuisances should be part of it
@@ -2471,6 +2486,15 @@ def setup(
             ]
             effTypesUt = [x for x in effStatTypes if x not in effTypesNoUt]
             effSystTypes = [*effTypesNoIso, "iso"]
+            if args.muonInsituEfficiency:
+                # ID/HLT/Iso are determined in-situ; only the reco/tracking
+                # external efficiency uncertainties are propagated here
+                effStatTypes = ["reco", "tracking"]
+                effSystTypes = ["reco", "tracking"]
+                effTypesUt = []
+                allEffTnP = [f"effStatTnP_sf_{eff}" for eff in effStatTypes] + [
+                    "effSystTnP"
+                ]
             effCommonGroups = [
                 "muon_eff_all",
                 "experiment",
@@ -2479,17 +2503,28 @@ def setup(
             ]
             for name in allEffTnP:
                 if "Syst" in name:
-                    axes = ["reco-tracking-idip-trigger-iso", "n_syst_variations"]
-                    axlabels = ["WPSYST", "_etaDecorr"]
-                    nameReplace = [
-                        ("WPSYST0", "reco"),
-                        ("WPSYST1", "tracking"),
-                        ("WPSYST2", "idip"),
-                        ("WPSYST3", "trigger"),
-                        ("WPSYST4", "iso"),
-                        ("effSystTnP", "effSyst"),
-                        ("etaDecorr0", "fullyCorr"),
-                    ]
+                    if args.muonInsituEfficiency:
+                        # reco/tracking-only effSyst working-point axis
+                        axes = ["reco-tracking", "n_syst_variations"]
+                        axlabels = ["WPSYST", "_etaDecorr"]
+                        nameReplace = [
+                            ("WPSYST0", "reco"),
+                            ("WPSYST1", "tracking"),
+                            ("effSystTnP", "effSyst"),
+                            ("etaDecorr0", "fullyCorr"),
+                        ]
+                    else:
+                        axes = ["reco-tracking-idip-trigger-iso", "n_syst_variations"]
+                        axlabels = ["WPSYST", "_etaDecorr"]
+                        nameReplace = [
+                            ("WPSYST0", "reco"),
+                            ("WPSYST1", "tracking"),
+                            ("WPSYST2", "idip"),
+                            ("WPSYST3", "trigger"),
+                            ("WPSYST4", "iso"),
+                            ("effSystTnP", "effSyst"),
+                            ("etaDecorr0", "fullyCorr"),
+                        ]
                     mirror = True
                     groupName = "muon_eff_syst"
                     scale = args.effSystScale

@@ -2,6 +2,8 @@ SCRIPT_FILE_REL_PATH="${BASH_SOURCE[0]}"
 if [[ "$SCRIPT_FILE_REL_PATH" == "" ]]; then
   SCRIPT_FILE_REL_PATH="${(%):-%N}"
 fi
+
+export PATH="$PATH:/home/submit/david_w/.local/bin/"
 WREM_BASE=$( cd "$( dirname "${SCRIPT_FILE_REL_PATH}" )" && pwd )
 export WREM_BASE=$(readlink -f "$WREM_BASE")
 

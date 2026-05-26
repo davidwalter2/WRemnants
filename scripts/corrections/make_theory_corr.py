@@ -302,20 +302,19 @@ def main():
         if ax.name in ax_map:
             hh.renameAxis(minnloh, ax.name, ax_map[ax.name])
 
-    numh = hh.sumHists(
-        [
-            read_corr(
-                procName,
-                args.generator,
-                corr_file,
-                args.axes,
-                qt_cutoff=args.qtCutoff,
-                smooth=args.smooth,
-                nnlojet_mass_edges=args.nnlojetMassEdges,
-            )
-            for procName, corr_file in filesByProc.items()
-        ]
-    )
+    hists = [
+        read_corr(
+            procName,
+            args.generator,
+            corr_file,
+            args.axes,
+            qt_cutoff=args.qtCutoff,
+            smooth=args.smooth,
+            nnlojet_mass_edges=args.nnlojetMassEdges,
+        )
+        for procName, corr_file in filesByProc.items()
+    ]
+    numh = hh.sumHists(hists)
 
     if args.selectVars:
         numh = numh[{"vars": args.selectVars}]
@@ -364,12 +363,18 @@ def main():
         minnloh = hh.rebinHist(
             minnloh,
             args.integrateAxis,
-            minnloh.axes[args.integrateAxis].edges[np.array((0, -1))],
+            [
+                minnloh.axes[args.integrateAxis].edges[0],
+                minnloh.axes[args.integrateAxis].edges[-1],
+            ],
         )
         numh = hh.rebinHist(
             numh,
             args.integrateAxis,
-            numh.axes[args.integrateAxis].edges[np.array((0, -1))],
+            [
+                numh.axes[args.integrateAxis].edges[0],
+                numh.axes[args.integrateAxis].edges[-1],
+            ],
         )
 
     corrh_unc, minnloh, numh = theory_corrections.make_corr_from_ratio(
@@ -506,7 +511,9 @@ def main():
                             ],
                             [
                                 "MiNNLO",
-                                generator.replace("_", " ").replace("FineBins ", ""),
+                                args.generator.replace("_", " ").replace(
+                                    "FineBins ", ""
+                                ),
                             ],
                             colors=["orange", "mediumpurple"],
                             linestyles=[
@@ -524,7 +531,7 @@ def main():
                             binwnorm=1.0,
                             baseline=True,
                             extra_text=extra_text,
-                            extra_text_loc=(0.5, 0.7) if varm == "qT" else (0.1, 0.2),
+                            extra_text_loc=(0.3, 0.7) if varm == "qT" else (0.1, 0.2),
                         )
                         plot_name = f"{varm}_{generator}_MiNNLO_{proc}{suffix}"
                         plot_tools.save_pdf_and_png(outdir, plot_name)

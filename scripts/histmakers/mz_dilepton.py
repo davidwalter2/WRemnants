@@ -15,6 +15,7 @@ import narf
 from wremnants.production import (
     muon_calibration,
     muon_efficiencies_binned,
+    muon_efficiencies_insitu,
     muon_efficiencies_smooth,
     muon_prefiring,
     muon_selections,
@@ -50,6 +51,15 @@ parser.add_argument(
     "--useDileptonTriggerSelection",
     action="store_true",
     help="Use dilepton trigger selection (default uses the Wlike one, with one triggering muon and odd/even event selection to define its charge, staying agnostic to the other)",
+)
+parser.add_argument(
+    "--insituEffMCFile",
+    type=str,
+    default=None,
+    help="MC efficiency file (.pkl.lz4 from scripts/corrections/make_insitu_effMC.py) "
+    "enabling the in-situ muon efficiency systematic histograms (per-category "
+    "Chebyshev coefficient variations). Without it, only the effMCprobe_* "
+    "histograms needed to produce that file are written.",
 )
 parser.add_argument(
     "--noAuxiliaryHistograms",
@@ -269,20 +279,35 @@ all_axes = {
     "ewMll": hist.axis.Variable(ewMassBins, name="ewMll"),
     "ewMlly": hist.axis.Variable(ewMassBins, name="ewMlly"),
     "ewLogDeltaM": hist.axis.Regular(100, -10, 4, name="ewLogDeltaM"),
-    "trigMuons_abseta0": hist.axis.Regular(
-        3, 0.0, 2.4, name="trigMuons_abseta0", underflow=False
+    "firstMuons_abseta0": hist.axis.Regular(
+        3, 0.0, 2.4, name="firstMuons_abseta0", underflow=False
     ),
-    "nonTrigMuons_eta0": hist.axis.Regular(
-        int(args.eta[0]), args.eta[1], args.eta[2], name="nonTrigMuons_eta0"
+    "secondMuons_eta0": hist.axis.Regular(
+        int(args.eta[0]), args.eta[1], args.eta[2], name="secondMuons_eta0"
     ),
-    "nonTrigMuons_pt0": hist.axis.Regular(
-        int(args.pt[0]), args.pt[1], args.pt[2], name="nonTrigMuons_pt0"
+    "secondMuons_pt0": hist.axis.Regular(
+        int(args.pt[0]), args.pt[1], args.pt[2], name="secondMuons_pt0"
     ),
-    "nonTrigMuons_charge0": hist.axis.Regular(
-        2, -2.0, 2.0, underflow=False, overflow=False, name="nonTrigMuons_charge0"
+    "secondMuons_charge0": hist.axis.Regular(
+        2, -2.0, 2.0, underflow=False, overflow=False, name="secondMuons_charge0"
     ),
     "ptll_resolution": hist.axis.Regular(1000, -1, 1, name="ptll_resolution"),
 }
+
+for a in args.axes:
+    if a not in all_axes.keys():
+        logger.error(
+            f" {a} is not a known axes! Supported axes choices are {list(all_axes.keys())}"
+        )
+
+# sepcial axes
+axis_corr_eta = hist.axis.Regular(48, -2.4, 2.4, name="corr_eta")
+axis_corr_phi = hist.axis.Regular(1, -np.pi, np.pi, circular=True, name="corr_phi")
+axis_corr_parms = hist.axis.StrCategory(
+    ["A_k", "e_k", "M_k", "M_lambda", "A_phi", "e_phi", "M_phi"],
+    name="corr_parms",
+)
+axis_res_parms = hist.axis.StrCategory(["a", "c", "b"], name="res_parms")
 
 auxiliary_gen_axes = [
     "massVgen",  # preFSR variables
@@ -291,11 +316,75 @@ auxiliary_gen_axes = [
     "ewLogDeltaM",  # ew variables
 ]
 
-for a in args.axes:
-    if a not in all_axes.keys():
-        logger.error(
-            f" {a} is not a known axes! Supported axes choices are {list(all_axes.keys())}"
-        )
+# axis order must match cols order (HistoBoost fills positionally): eta, pt, charge
+axes_probe_ID = [
+    hist.axis.Regular(
+        int(args.eta[0]),
+        args.eta[1],
+        args.eta[2],
+        name="eta",
+        underflow=False,
+        overflow=False,
+    ),
+    hist.axis.Regular(
+        int(args.pt[0]),
+        args.pt[1],
+        args.pt[2],
+        name="pt",
+        underflow=False,
+        overflow=False,
+    ),
+    hist.axis.Regular(2, -2.0, 2.0, name="charge", underflow=False, overflow=False),
+]
+cols_probe_ID = ["probeMuons_eta0", "probeMuons_pt0", "probeMuons_charge0"]
+
+axes_probe_HLT = [
+    hist.axis.Regular(
+        int(args.eta[0]),
+        args.eta[1],
+        args.eta[2],
+        name="eta",
+        underflow=False,
+        overflow=False,
+    ),
+    hist.axis.Regular(
+        int(args.pt[0]),
+        args.pt[1],
+        args.pt[2],
+        name="pt",
+        underflow=False,
+        overflow=False,
+    ),
+]
+cols_probe_HLT = [
+    "probeMuons_eta0",
+    "probeMuons_pt0",
+]
+
+# Probe binning used to measure our own MC efficiency (effMC) for the in-situ
+# muon efficiency method: args.eta x args.pt x charge, matching the Chebyshev
+# decorrelation grid and probe pt window (see make_insitu_effMC.py).
+axes_insitu_effMC = [
+    hist.axis.Regular(
+        int(args.eta[0]),
+        args.eta[1],
+        args.eta[2],
+        name="eta",
+        underflow=False,
+        overflow=False,
+    ),
+    hist.axis.Regular(
+        int(args.pt[0]),
+        args.pt[1],
+        args.pt[2],
+        name="pt",
+        underflow=False,
+        overflow=False,
+    ),
+    hist.axis.Regular(2, -2.0, 2.0, name="charge", underflow=False, overflow=False),
+]
+cols_insitu_effMC = ["probeMuons_eta0", "probeMuons_pt0", "probeMuons_charge0"]
+
 
 nominal_cols = args.axes
 
@@ -403,9 +492,25 @@ else:
             isoEfficiencySmoothing=args.isoEfficiencySmoothing,
             smooth3D=args.smooth3dsf,
             isoDefinition=args.isolationDefinition,
+            baseEff_types=["reco", "tracking"],
+            trigEff_types=[],
+            isoEff_types=[],
         )
     )
 logger.info(f"SF file: {args.sfFile}")
+
+# In-situ muon efficiency helper (ID/HLT/Iso floated as Chebyshev polynomials).
+# Built only when the MC-efficiency file is provided; the first pass that
+# produces that file (via the effMCprobe_* histograms) runs without it.
+muon_insitu_efficiency_helper = None
+insitu_parameter_labels = None
+if args.insituEffMCFile is not None:
+    muon_insitu_efficiency_helper, insitu_parameter_labels = (
+        muon_efficiencies_insitu.make_muon_insitu_efficiency_helper(
+            args.insituEffMCFile, pt_range=(args.pt[1], args.pt[2])
+        )
+    )
+    logger.info(f"In-situ effMC file: {args.insituEffMCFile}")
 
 muon_efficiency_helper_syst_altBkg = {}
 for es in common.muonEfficiency_altBkgSyst_effSteps:
@@ -663,93 +768,96 @@ def build_graph(df, dataset):
         args.pt[1],
         args.pt[2],
         dataset.group,
-        nMuons=2,
+        nMuons=1,
         use_trackerMuons=args.trackerMuons,
         use_isolation=passIsoBoth,
         isoBranch=isoBranch,
         isoThreshold=isoThreshold,
         requirePixelHits=args.requirePixelHits,
         dxybsCut=args.dxybs,
+        condition=">=",
     )
 
-    df = muon_selections.define_trigger_muons(
-        df, dilepton=args.useDileptonTriggerSelection
-    )
+    df = muon_selections.define_two_muons(df, dilepton=args.useDileptonTriggerSelection)
 
-    # iso cut applied here, if requested, because it needs the definition of trigMuons and nonTrigMuons from muon_selections.define_trigger_muons
-    if not passIsoBoth:
+    # iso cut applied here, if requested, because it needs the definition of firstMuons and secondMuons from muon_selections.define_trigger_muons
+    if not passIsoBoth and (args.muonIsolation[0] or args.muonIsolation[1]):
         df = muon_selections.apply_iso_muons(
-            df, args.muonIsolation[0], args.muonIsolation[1], isoBranch, isoThreshold
+            df,
+            args.muonIsolation[0],
+            args.muonIsolation[1],
+            isoBranch,
+            isoThreshold,
+            name_first="firstMuons",
+            name_second="secondMuons",
         )
 
-    df = df.Define("trigMuons_passIso0", f"{isoBranch}[trigMuons][0] < {isoThreshold}")
-    df = df.Define(
-        "nonTrigMuons_passIso0", f"{isoBranch}[nonTrigMuons][0] < {isoThreshold}"
+    df = muon_selections.select_z_candidate(
+        df, mass_min, mass_max, name_first="firstMuons", name_second="secondMuons"
     )
 
-    df = muon_selections.select_z_candidate(df, mass_min, mass_max)
-
     df = muon_selections.select_standalone_muons(
-        df, dataset, args.trackerMuons, "trigMuons"
+        df, dataset, args.trackerMuons, "firstMuons"
     )
     df = muon_selections.select_standalone_muons(
-        df, dataset, args.trackerMuons, "nonTrigMuons"
+        df, dataset, args.trackerMuons, "secondMuons"
     )
 
     if args.useDileptonTriggerSelection:
         df = muon_selections.apply_triggermatching_muon(
-            df, dataset, "trigMuons", "nonTrigMuons", era=era
+            df, dataset, "firstMuons", "secondMuons", era=era
         )
-        df = df.Alias("muonsMinus_pt0", "trigMuons_pt0")
-        df = df.Alias("muonsPlus_pt0", "nonTrigMuons_pt0")
-        df = df.Alias("muonsMinus_eta0", "trigMuons_eta0")
-        df = df.Alias("muonsPlus_eta0", "nonTrigMuons_eta0")
-        df = df.Alias("muonsMinus_mom4", "trigMuons_mom4")
-        df = df.Alias("muonsPlus_mom4", "nonTrigMuons_mom4")
+        df = df.Alias("muonsMinus_pt0", "firstMuons_pt0")
+        df = df.Alias("muonsPlus_pt0", "secondMuons_pt0")
+        df = df.Alias("muonsMinus_eta0", "firstMuons_eta0")
+        df = df.Alias("muonsPlus_eta0", "secondMuons_eta0")
+        df = df.Alias("muonsMinus_mom4", "firstMuons_mom4")
+        df = df.Alias("muonsPlus_mom4", "secondMuons_mom4")
     else:
         df = muon_selections.apply_triggermatching_muon(
-            df, dataset, "trigMuons", era=era
+            df, dataset, "firstMuons", era=era
         )
-        df = df.Define("trigMuon_isNegative", "trigMuons_charge0 == -1")
+        df = df.Define("firstMuon_isNegative", "firstMuons_charge0 == -1")
         df = df.Define(
-            "muonsMinus_pt0", "trigMuon_isNegative ? trigMuons_pt0 : nonTrigMuons_pt0"
+            "muonsMinus_pt0", "firstMuon_isNegative ? firstMuons_pt0 : secondMuons_pt0"
         )
         df = df.Define(
-            "muonsPlus_pt0", "trigMuon_isNegative ? nonTrigMuons_pt0 : trigMuons_pt0"
+            "muonsPlus_pt0", "firstMuon_isNegative ? secondMuons_pt0 : firstMuons_pt0"
         )
         df = df.Define(
             "muonsMinus_eta0",
-            "trigMuon_isNegative ? trigMuons_eta0 : nonTrigMuons_eta0",
+            "firstMuon_isNegative ? firstMuons_eta0 : secondMuons_eta0",
         )
         df = df.Define(
-            "muonsPlus_eta0", "trigMuon_isNegative ? nonTrigMuons_eta0 : trigMuons_eta0"
+            "muonsPlus_eta0",
+            "firstMuon_isNegative ? secondMuons_eta0 : firstMuons_eta0",
         )
         df = df.Define(
             "muonsMinus_mom4",
-            "trigMuon_isNegative ? trigMuons_mom4 : nonTrigMuons_mom4",
+            "firstMuon_isNegative ? firstMuons_mom4 : secondMuons_mom4",
         )
         df = df.Define(
-            "muonsPlus_mom4", "trigMuon_isNegative ? nonTrigMuons_mom4 : trigMuons_mom4"
+            "muonsPlus_mom4",
+            "firstMuon_isNegative ? secondMuons_mom4 : firstMuons_mom4",
         )
 
     useTnpMuonVarForSF = args.useTnpMuonVarForSF
     # in principle these are only needed for MC,
     # but one may want to compare tnp and corrected variables also for data
     if useTnpMuonVarForSF:
-        df = df.Define("trigMuons_tnpPt0", "Muon_pt[trigMuons][0]")
-        df = df.Define("trigMuons_tnpEta0", "Muon_eta[trigMuons][0]")
-        df = df.Define("trigMuons_tnpCharge0", "Muon_charge[trigMuons][0]")
-        df = df.Define("nonTrigMuons_tnpPt0", "Muon_pt[nonTrigMuons][0]")
-        df = df.Define("nonTrigMuons_tnpEta0", "Muon_eta[nonTrigMuons][0]")
-        df = df.Define("nonTrigMuons_tnpCharge0", "Muon_charge[nonTrigMuons][0]")
+        df = df.Define("firstMuons_tnpPt0", "Muon_pt[firstMuons][0]")
+        df = df.Define("firstMuons_tnpEta0", "Muon_eta[firstMuons][0]")
+        df = df.Define("firstMuons_tnpCharge0", "Muon_charge[firstMuons][0]")
+        df = df.Define("secondMuons_tnpPt0", "Muon_pt[secondMuons][0]")
+        df = df.Define("secondMuons_tnpEta0", "Muon_eta[secondMuons][0]")
+        df = df.Define("secondMuons_tnpCharge0", "Muon_charge[secondMuons][0]")
     else:
-        df = df.Alias("trigMuons_tnpPt0", "trigMuons_pt0")
-        df = df.Alias("trigMuons_tnpEta0", "trigMuons_eta0")
-        df = df.Alias("trigMuons_tnpCharge0", "trigMuons_charge0")
-        df = df.Alias("nonTrigMuons_tnpPt0", "nonTrigMuons_pt0")
-        df = df.Alias("nonTrigMuons_tnpEta0", "nonTrigMuons_eta0")
-        df = df.Alias("nonTrigMuons_tnpCharge0", "nonTrigMuons_charge0")
-        #
+        df = df.Alias("firstMuons_tnpPt0", "firstMuons_pt0")
+        df = df.Alias("firstMuons_tnpEta0", "firstMuons_eta0")
+        df = df.Alias("firstMuons_tnpCharge0", "firstMuons_charge0")
+        df = df.Alias("secondMuons_tnpPt0", "secondMuons_pt0")
+        df = df.Alias("secondMuons_tnpEta0", "secondMuons_eta0")
+        df = df.Alias("secondMuons_tnpCharge0", "secondMuons_charge0")
 
     df = df.Define("ptll", "ll_mom4.pt()")
     df = df.Define("yll", "ll_mom4.Rapidity()")
@@ -801,9 +909,9 @@ def build_graph(df, dataset):
 
             df = df.Define(c, h, a)
 
-    # TODO might need to add an explicit cut on trigMuons_pt0 in case nominal pt range
+    # TODO might need to add an explicit cut on firstMuons_pt0 in case nominal pt range
     # extends below 26 GeV e.g. for calibration test purposes
-    df = df.Define("trigMuons_abseta0", "std::fabs(trigMuons_eta0)")
+    df = df.Define("firstMuons_abseta0", "std::fabs(firstMuons_eta0)")
 
     if dataset.is_data:
         df = df.DefinePerSample("nominal_weight", "1.0")
@@ -817,22 +925,23 @@ def build_graph(df, dataset):
     axis_nvalidpixel = hist.axis.Integer(0, 10, name="nvalidpixel")
 
     df = df.Define(
-        f"trigMuons_{cvhName}NValidPixelHits0",
-        f"Muon_{cvhName}NValidPixelHits[trigMuons][0]",
+        f"firstMuons_{cvhName}NValidPixelHits0",
+        f"Muon_{cvhName}NValidPixelHits[firstMuons][0]",
     )
     df = df.Define(
-        f"nonTrigMuons_{cvhName}NValidPixelHits0",
-        f"Muon_{cvhName}NValidPixelHits[nonTrigMuons][0]",
+        f"secondMuons_{cvhName}NValidPixelHits0",
+        f"Muon_{cvhName}NValidPixelHits[secondMuons][0]",
     )
 
     logger.debug(f"Define weights and store nominal histograms")
 
-    if dataset.is_data:
-        if args.nToysMC > 0:
-            axes = [*axes, axis_toys]
-            cols = [*cols, "toyIdxs"]
-        results.append(df.HistoBoost("nominal", axes, cols))
-    else:
+    df = df.Define("goodFirstMuons", "goodMuons && firstMuons")
+    df = df.Define("goodSecondMuons", "goodMuons && secondMuons")
+
+    df = df.Define("firstMuons_passID0", "Sum(goodFirstMuons) == 1")
+    df = df.Define("secondMuons_passID0", "Sum(goodSecondMuons) == 1")
+
+    if not dataset.is_data:
         df = df.Define("weight_pu", pileup_helper, ["Pileup_nTrueInt"])
         df = df.Define("weight_vtx", vertex_helper, ["GenVtx_z", "Pileup_nTrueInt"])
 
@@ -864,42 +973,44 @@ def build_graph(df, dataset):
             "tnpEta0",
             "SApt0",
             "SAeta0",
-            "tnpUT0",
+            # "tnpUT0",
             "tnpCharge0",
-            "passIso0",
+            # "passIso0",
         ]
-        if args.useDileptonTriggerSelection:
-            muonVarsForSF.append("passTrigger0")
-        # careful, first all trig variables, then all nonTrig
+        # if args.useDileptonTriggerSelection:
+        # muonVarsForSF.append("passTrigger0")
+        # careful, first all firstMuon variables, then all secondMuon
         columnsForSF = [
-            f"{t}Muons_{v}" for t in ["trig", "nonTrig"] for v in muonVarsForSF
+            f"{t}Muons_{v}" for t in ["first", "second"] for v in muonVarsForSF
         ]
 
         df = muon_selections.define_muon_uT_variable(
             df,
             isWorZ,
             smooth3dsf=args.smooth3dsf,
-            colNamePrefix="trigMuons",
+            colNamePrefix="firstMuons",
             addWithTnpMuonVar=useTnpMuonVarForSF,
         )
         df = muon_selections.define_muon_uT_variable(
             df,
             isWorZ,
             smooth3dsf=args.smooth3dsf,
-            colNamePrefix="nonTrigMuons",
+            colNamePrefix="secondMuons",
             addWithTnpMuonVar=useTnpMuonVarForSF,
         )
-        # ut is defined in muon_selections.define_muon_uT_variable
-        if not useTnpMuonVarForSF:
-            df = df.Alias("trigMuons_tnpUT0", "trigMuons_uT0")
-            df = df.Alias("nonTrigMuons_tnpUT0", "nonTrigMuons_uT0")
+        # # ut is defined in muon_selections.define_muon_uT_variable
+        # if not useTnpMuonVarForSF:
+        #     df = df.Alias("firstMuons_tnpUT0", "firstMuons_uT0")
+        #     df = df.Alias("secondMuons_tnpUT0", "secondMuons_uT0")
 
-        if not args.smooth3dsf:
-            columnsForSF.remove("trigMuons_tnpUT0")
-            columnsForSF.remove("nonTrigMuons_tnpUT0")
+        # if not args.smooth3dsf:
+        #     columnsForSF.remove("firstMuons_tnpUT0")
+        #     columnsForSF.remove("secondMuons_tnpUT0")
 
+        # reco + tracking scale factors stay from the external measurement
+        # (ID/HLT/Iso are determined in-situ instead). Applied to the nominal
+        # weight for all categories.
         if not args.noScaleFactors:
-            # FIXME: add flags for pass_trigger for both leptons
             df = df.Define(
                 "weight_fullMuonSF_withTrackingReco",
                 muon_efficiency_helper,
@@ -907,34 +1018,41 @@ def build_graph(df, dataset):
             )
             weight_expr += "*weight_fullMuonSF_withTrackingReco"
 
-        # prepare inputs for pixel multiplicity helpers
+        # prepare inputs for pixel multiplicity helpers.
+        # NOTE: the pixel-multiplicity correction has a (nonTriggering, triggering)
+        # category axis (the shared wrem::TriggerCat enum). In this dilepton
+        # selection both muons can trigger, so the category is assigned
+        # POSITIONALLY (first muon -> triggering slot, second muon ->
+        # nonTriggering slot); it does NOT reflect the actual per-muon trigger
+        # decision. The RVec element order is irrelevant (the helpers loop over
+        # muons), only the per-muon (kinematics <-> category) pairing matters.
         df = df.DefinePerSample(
-            "MuonNonTrigTrig_triggerCat",
-            "ROOT::VecOps::RVec<wrem::TriggerCat>{wrem::TriggerCat::nonTriggering, wrem::TriggerCat::triggering}",
+            "MuonFirstSecond_triggerCat",
+            "ROOT::VecOps::RVec<wrem::TriggerCat>{wrem::TriggerCat::triggering, wrem::TriggerCat::nonTriggering}",
         )
         df = df.Define(
-            "MuonNonTrigTrig_eta",
-            "ROOT::VecOps::RVec<float>{nonTrigMuons_eta0, trigMuons_eta0}",
+            "MuonFirstSecond_eta",
+            "ROOT::VecOps::RVec<float>{firstMuons_eta0, secondMuons_eta0}",
         )
         df = df.Define(
-            "MuonNonTrigTrig_pt",
-            "ROOT::VecOps::RVec<float>{nonTrigMuons_pt0, trigMuons_pt0}",
+            "MuonFirstSecond_pt",
+            "ROOT::VecOps::RVec<float>{firstMuons_pt0, secondMuons_pt0}",
         )
         df = df.Define(
-            "MuonNonTrigTrig_charge",
-            "ROOT::VecOps::RVec<int>{nonTrigMuons_charge0, trigMuons_charge0}",
+            "MuonFirstSecond_charge",
+            "ROOT::VecOps::RVec<int>{firstMuons_charge0, secondMuons_charge0}",
         )
         df = df.Define(
-            f"MuonNonTrigTrig_{cvhName}NValidPixelHits",
-            f"ROOT::VecOps::RVec<int>{{nonTrigMuons_{cvhName}NValidPixelHits0, trigMuons_{cvhName}NValidPixelHits0}}",
+            f"MuonFirstSecond_{cvhName}NValidPixelHits",
+            f"ROOT::VecOps::RVec<int>{{firstMuons_{cvhName}NValidPixelHits0, secondMuons_{cvhName}NValidPixelHits0}}",
         )
 
         pixel_multiplicity_cols = [
-            "MuonNonTrigTrig_triggerCat",
-            "MuonNonTrigTrig_eta",
-            "MuonNonTrigTrig_pt",
-            "MuonNonTrigTrig_charge",
-            f"MuonNonTrigTrig_{cvhName}NValidPixelHits",
+            "MuonFirstSecond_triggerCat",
+            "MuonFirstSecond_eta",
+            "MuonFirstSecond_pt",
+            "MuonFirstSecond_charge",
+            f"MuonFirstSecond_{cvhName}NValidPixelHits",
         ]
 
         if args.reweightPixelMultiplicity:
@@ -955,273 +1073,13 @@ def build_graph(df, dataset):
             helicity_smoothing_helpers=helicity_smoothing_helpers,
         )
 
-        results.append(
-            df.HistoBoost(
-                "weight",
-                [hist.axis.Regular(100, -2, 2)],
-                ["nominal_weight"],
-                storage=hist.storage.Double(),
-            )
-        )
-
-        if args.nToysMC > 0 or args.splitSampleInN > 1 or args.jackknifeN > 1:
-            results.append(
-                df.HistoBoost("nominal_asimov", axes, [*cols, "nominal_weight"])
-            )
-        if args.nToysMC > 0:
-            axes = [*axes, axis_toys]
-            cols = [*cols, "toyIdxs"]
-        if args.splitSampleInN > 1:
-            axes = [*axes, axis_split]
-            cols = [*cols, "sample_n"]
-        if args.jackknifeN > 1:
-            axes = [*axes, axis_jackknife]
-            cols = [*cols, "jackknife_sample"]
-
-        results.append(df.HistoBoost("nominal", axes, [*cols, "nominal_weight"]))
-
-        if isZ:
-            # theory agnostic stuff
-            theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
-                ptV_bins=[],
-                absYV_bins=[],
-                ptV_flow=True,
-                absYV_flow=True,
-                wlike=True,
-            )
-            axis_helicity = binning.axis_helicity_multidim
-
-            df_theory_agnostic = theoryAgnostic_tools.define_helicity_weights(
-                df, is_z=True
-            )
-            noiAsPoiHistName = common.hist_name("nominal", syst="yieldsTheoryAgnostic")
-            logger.debug(
-                f"Creating special histogram '{noiAsPoiHistName}' for theory agnostic to treat POIs as NOIs"
-            )
-            results.append(
-                df_theory_agnostic.HistoBoost(
-                    noiAsPoiHistName,
-                    [*axes, *theoryAgnostic_axes],
-                    [*cols, *theoryAgnostic_cols, "nominal_weight_helicity"],
-                    tensor_axes=[axis_helicity],
-                )
-            )
-
-    # histograms for corrections/uncertainties for pixel hit multiplicity
-
-    # hNValidPixelHitsTrig = df.HistoBoost("hNValidPixelHitsTrig", [axis_eta, axis_nvalidpixel], ["trigMuons_eta0", f"trigMuons_{cvhName}NValidPixelHits0", "nominal_weight"])
-    # results.append(hNValidPixelHitsTrig)
-    #
-    # hNValidPixelHitsNonTrig = df.HistoBoost("hNValidPixelHitsNonTrig", [axis_eta, axis_nvalidpixel], ["nonTrigMuons_eta0", f"nonTrigMuons_{cvhName}NValidPixelHits0", "nominal_weight"])
-    # results.append(hNValidPixelHitsNonTrig)
-
-    hNValidPixelHitsTrig = df.HistoBoost(
-        "hNValidPixelHitsTrig",
-        [axis_eta, axis_pt, axis_charge, axis_nvalidpixel],
-        [
-            "trigMuons_eta0",
-            "trigMuons_pt0",
-            "trigMuons_charge0",
-            f"trigMuons_{cvhName}NValidPixelHits0",
-            "nominal_weight",
-        ],
-    )
-    results.append(hNValidPixelHitsTrig)
-
-    hNValidPixelHitsNonTrig = df.HistoBoost(
-        "hNValidPixelHitsNonTrig",
-        [axis_eta, axis_pt, axis_charge, axis_nvalidpixel],
-        [
-            "nonTrigMuons_eta0",
-            "nonTrigMuons_pt0",
-            "nonTrigMuons_charge0",
-            f"nonTrigMuons_{cvhName}NValidPixelHits0",
-            "nominal_weight",
-        ],
-    )
-    results.append(hNValidPixelHitsNonTrig)
-
-    if args.unfolding and args.poiAsNoi and dataset.group == "Zmumu":
-        unfolder_z.add_poi_as_noi_histograms(
-            df,
-            results,
-            nominal_axes,
-            nominal_cols,
-        )
-
-    if args.makeCSQuantileHists:
-        results.append(
-            df.HistoBoost(
-                f"nominal_csQuantiles",
-                [
-                    all_axes[o]
-                    for o in ["ptll", "absYll", "phiStarll", "cosThetaStarll"]
-                ],
-                ["ptll", "absYll", "phiStarll", "cosThetaStarll"],
-            )
-        )
-
-    if not args.noAuxiliaryHistograms:
-        for obs in [
-            ["ptll", "yll"],
-            "mll",
-            "cosThetaStarll",
-            "phiStarll",
-            "etaPlus",
-            "etaMinus",
-            "ptPlus",
-            "ptMinus",
-        ]:
-            if isinstance(obs, str):
-                obs = [obs]
-            obs_name = f"nominal_{'_'.join(obs)}"
-            obs_axes = [all_axes[o] for o in obs]
-
-            if dataset.is_data:
-                results.append(df.HistoBoost(obs_name, obs_axes, obs))
-            else:
-                results.append(
-                    df.HistoBoost(obs_name, obs_axes, [*obs, "nominal_weight"])
-                )
-                if isWorZ and not args.onlyMainHistograms:
-                    df = systematics.add_theory_hists(
-                        results,
-                        df,
-                        args,
-                        dataset.name,
-                        corr_helpers,
-                        helicity_smoothing_helpers,
-                        obs_axes,
-                        obs,
-                        base_name=obs_name,
-                        for_wmass=False,
-                    )
-
-    if not args.noAuxiliaryHistograms and isZ:
-        # gen level variables
-        for obs in auxiliary_gen_axes:
-            results.append(
-                df.HistoBoost(
-                    f"nominal_{obs}", [all_axes[obs]], [obs, "nominal_weight"]
-                )
-            )
-            if not args.onlyMainHistograms:
-                df = systematics.add_theory_hists(
-                    results,
-                    df,
-                    args,
-                    dataset.name,
-                    corr_helpers,
-                    helicity_smoothing_helpers,
-                    [all_axes[obs]],
-                    [obs],
-                    base_name=f"nominal_{obs}",
-                    for_wmass=False,
-                )
-
-    # test plots
-    if args.validationHists:
-        # resolution plot
-        df = df.Define("ptll_relResolution", "(ptll - postfsrPTV)/postfsrPTV")
-        df = df.Define("ptll_resolution", "(ptll - postfsrPTV)")
-        results.append(
-            df.HistoBoost(
-                f"nominal_relResolution",
-                [all_axes["ptll_resolution"], all_axes["ptll"], axis_absYll],
-                ["ptll_resolution", "postfsrPTV", "absYll", "nominal_weight"],
-            )
-        )
-        results.append(
-            df.HistoBoost(
-                f"nominal_resolution",
-                [all_axes["ptll_resolution"], all_axes["ptll"], axis_absYll],
-                ["ptll_resolution", "postfsrPTV", "absYll", "nominal_weight"],
-            )
-        )
-
-    if args.validationHists and args.useDileptonTriggerSelection:
-        df_plusTrig = df.Filter("trigMuons_passTrigger0")
-        df_minusTrig = df.Filter("nonTrigMuons_passTrigger0")
-        df_bothTrig = df.Filter("trigMuons_passTrigger0 && nonTrigMuons_passTrigger0")
-        df_plusTrigOnly = df.Filter(
-            "trigMuons_passTrigger0 && !nonTrigMuons_passTrigger0"
-        )
-        df_minusTrigOnly = df.Filter(
-            "nonTrigMuons_passTrigger0 && !trigMuons_passTrigger0"
-        )
-        for obs in ["etaPlus", "etaMinus", "ptPlus", "ptMinus"]:
-            if dataset.is_data:
-                results.append(
-                    df_plusTrig.HistoBoost(
-                        f"nominal_{obs}_plusTrig", [all_axes[obs]], [obs]
-                    )
-                )
-                results.append(
-                    df_minusTrig.HistoBoost(
-                        f"nominal_{obs}_minusTrig", [all_axes[obs]], [obs]
-                    )
-                )
-                results.append(
-                    df_bothTrig.HistoBoost(
-                        f"nominal_{obs}_bothTrig", [all_axes[obs]], [obs]
-                    )
-                )
-                results.append(
-                    df_plusTrigOnly.HistoBoost(
-                        f"nominal_{obs}_plusTrigOnly", [all_axes[obs]], [obs]
-                    )
-                )
-                results.append(
-                    df_minusTrigOnly.HistoBoost(
-                        f"nominal_{obs}_minusTrigOnly", [all_axes[obs]], [obs]
-                    )
-                )
-            else:
-                results.append(
-                    df_plusTrig.HistoBoost(
-                        f"nominal_{obs}_plusTrig",
-                        [all_axes[obs]],
-                        [obs, "nominal_weight"],
-                    )
-                )
-                results.append(
-                    df_minusTrig.HistoBoost(
-                        f"nominal_{obs}_minusTrig",
-                        [all_axes[obs]],
-                        [obs, "nominal_weight"],
-                    )
-                )
-                results.append(
-                    df_bothTrig.HistoBoost(
-                        f"nominal_{obs}_bothTrig",
-                        [all_axes[obs]],
-                        [obs, "nominal_weight"],
-                    )
-                )
-                results.append(
-                    df_plusTrigOnly.HistoBoost(
-                        f"nominal_{obs}_plusTrigOnly",
-                        [all_axes[obs]],
-                        [obs, "nominal_weight"],
-                    )
-                )
-                results.append(
-                    df_minusTrigOnly.HistoBoost(
-                        f"nominal_{obs}_minusTrigOnly",
-                        [all_axes[obs]],
-                        [obs, "nominal_weight"],
-                    )
-                )
-
-    if not dataset.is_data:
-
         df = df.Define(
             "Mupluscor_mom4",
-            "trigMuons_charge0 == 1 ? trigMuons_mom4 : nonTrigMuons_mom4",
+            "firstMuons_charge0 == 1 ? firstMuons_mom4 : secondMuons_mom4",
         )
         df = df.Define(
             "Muminuscor_mom4",
-            "trigMuons_charge0 == -1 ? trigMuons_mom4 : nonTrigMuons_mom4",
+            "firstMuons_charge0 == -1 ? firstMuons_mom4 : secondMuons_mom4",
         )
 
         df = df.Define(
@@ -1244,277 +1102,565 @@ def build_graph(df, dataset):
             "ptv", "std::array<double, 2>{Mupluscor_mom4.pt(), Muminuscor_mom4.pt()}"
         )
 
-        axis_corr_eta = hist.axis.Regular(48, -2.4, 2.4, name="corr_eta")
-        axis_corr_phi = hist.axis.Regular(
-            1, -np.pi, np.pi, circular=True, name="corr_phi"
+    df = df.Define("firstMuons_tag0", "firstMuons_passID0 && firstMuons_passTrigger0")
+    df = df.Define(
+        "secondMuons_tag0", "secondMuons_passID0 && secondMuons_passTrigger0"
+    )
+
+    # Select events with exactly one muon that passes ID and HLT
+    df_1HLT = df.Filter("firstMuons_tag0 != secondMuons_tag0")
+
+    df_1HLT = df_1HLT.Define("probeMuons", "firstMuons_tag0 ? secondMuons : firstMuons")
+    df_1HLT = df_1HLT.Define(
+        "probeMuons_passID0",
+        "firstMuons_tag0 ? secondMuons_passID0 : firstMuons_passID0",
+    )
+    df_1HLT = df_1HLT.Define(
+        "probeMuons_pt0", "firstMuons_tag0 ? secondMuons_pt0 : firstMuons_pt0"
+    )
+    df_1HLT = df_1HLT.Define(
+        "probeMuons_eta0", "firstMuons_tag0 ? secondMuons_eta0 : firstMuons_eta0"
+    )
+    df_1HLT = df_1HLT.Define(
+        "probeMuons_charge0",
+        "firstMuons_tag0 ? secondMuons_charge0 : firstMuons_charge0",
+    )
+    # tag is the other leg (always passes ID & HLT)
+    df_1HLT = df_1HLT.Define(
+        "tagMuons_pt0", "firstMuons_tag0 ? firstMuons_pt0 : secondMuons_pt0"
+    )
+    df_1HLT = df_1HLT.Define(
+        "tagMuons_eta0", "firstMuons_tag0 ? firstMuons_eta0 : secondMuons_eta0"
+    )
+    df_1HLT = df_1HLT.Define(
+        "tagMuons_charge0", "firstMuons_tag0 ? firstMuons_charge0 : secondMuons_charge0"
+    )
+
+    df_1HLT_passID = df_1HLT.Filter("probeMuons_passID0 == 1")
+    df_1HLT_failID = df_1HLT.Filter("probeMuons_passID0 == 0")
+
+    df_2HLT = df.Filter("firstMuons_tag0 && secondMuons_tag0")
+    # the two muons are indistinguishable and valid tag muons, take randomly one or the other as probe
+    df_2HLT = df_2HLT.Define("probeMuons", "isEvenEvent ? firstMuons : secondMuons")
+    df_2HLT = df_2HLT.Define(
+        "probeMuons_passIso0", f"{isoBranch}[probeMuons][0] < {isoThreshold}"
+    )
+    df_2HLT = df_2HLT.Define(
+        "probeMuons_pt0", "isEvenEvent ? firstMuons_pt0 : secondMuons_pt0"
+    )
+    df_2HLT = df_2HLT.Define(
+        "probeMuons_eta0", "isEvenEvent ? firstMuons_eta0 : secondMuons_eta0"
+    )
+    df_2HLT = df_2HLT.Define(
+        "probeMuons_charge0", "isEvenEvent ? firstMuons_charge0 : secondMuons_charge0"
+    )
+    # tag is the other leg (also passes ID & HLT in the 2HLT category)
+    df_2HLT = df_2HLT.Define(
+        "tagMuons_pt0", "isEvenEvent ? secondMuons_pt0 : firstMuons_pt0"
+    )
+    df_2HLT = df_2HLT.Define(
+        "tagMuons_eta0", "isEvenEvent ? secondMuons_eta0 : firstMuons_eta0"
+    )
+    df_2HLT = df_2HLT.Define(
+        "tagMuons_charge0", "isEvenEvent ? secondMuons_charge0 : firstMuons_charge0"
+    )
+
+    df_2HLT_passIso = df_2HLT.Filter("probeMuons_passIso0 == 1")
+    df_2HLT_failIso = df_2HLT.Filter("probeMuons_passIso0 == 0")
+
+    dfs = {
+        "nominal": {"df": df_2HLT_passIso, "axes": axes, "cols": cols},
+        "failIso": {
+            "df": df_2HLT_failIso,
+            "axes": axes_probe_HLT,
+            "cols": cols_probe_HLT,
+        },
+        "failHLT": {
+            "df": df_1HLT_passID,
+            "axes": axes_probe_HLT,
+            "cols": cols_probe_HLT,
+        },
+        "failID": {"df": df_1HLT_failID, "axes": axes_probe_ID, "cols": cols_probe_ID},
+    }
+
+    # In-situ effMC measurement (MC only): emit the probe (eta, pt, charge)
+    # spectrum of each of the 4 categories. make_insitu_effMC.py recombines
+    # these into per-step MC efficiencies (idip/trigger/iso), e.g.
+    #   eff_iso     = nominal / (nominal + failIso)
+    #   eff_trigger = (nominal + failIso) / (nominal + failIso + failHLT)
+    #   eff_idip    = (nominal + failIso + failHLT)
+    #                 / (nominal + failIso + failHLT + failID)
+    if not dataset.is_data:
+        for _cat, _info in dfs.items():
+            results.append(
+                _info["df"].HistoBoost(
+                    f"effMCprobe_{_cat}",
+                    axes_insitu_effMC,
+                    [*cols_insitu_effMC, "nominal_weight"],
+                )
+            )
+
+    for channel, info in dfs.items():
+        df = info["df"]
+        axes = info["axes"]
+        cols = info["cols"]
+
+        if dataset.is_data:
+            if args.nToysMC > 0:
+                axes = [*axes, axis_toys]
+                cols = [*cols, "toyIdxs"]
+
+            results.append(df.HistoBoost(channel, axes, cols))
+        else:
+            results.append(
+                df.HistoBoost(
+                    "weight",
+                    [hist.axis.Regular(100, -2, 2)],
+                    ["nominal_weight"],
+                    storage=hist.storage.Double(),
+                )
+            )
+
+            if args.nToysMC > 0 or args.splitSampleInN > 1 or args.jackknifeN > 1:
+                results.append(
+                    df.HistoBoost(f"{channel}_asimov", axes, [*cols, "nominal_weight"])
+                )
+            if args.nToysMC > 0:
+                axes = [*axes, axis_toys]
+                cols = [*cols, "toyIdxs"]
+            if args.splitSampleInN > 1:
+                axes = [*axes, axis_split]
+                cols = [*cols, "sample_n"]
+            if args.jackknifeN > 1:
+                axes = [*axes, axis_jackknife]
+                cols = [*cols, "jackknife_sample"]
+
+            results.append(df.HistoBoost(channel, axes, [*cols, "nominal_weight"]))
+
+            if isZ:
+                # theory agnostic stuff
+                theoryAgnostic_axes, theoryAgnostic_cols = (
+                    binning.get_theoryAgnostic_axes(
+                        ptV_bins=[],
+                        absYV_bins=[],
+                        ptV_flow=True,
+                        absYV_flow=True,
+                        wlike=True,
+                    )
+                )
+                axis_helicity = binning.axis_helicity_multidim
+
+                df_theory_agnostic = theoryAgnostic_tools.define_helicity_weights(
+                    df, is_z=True
+                )
+                noiAsPoiHistName = common.hist_name(
+                    channel, syst="yieldsTheoryAgnostic"
+                )
+                logger.debug(
+                    f"Creating special histogram '{noiAsPoiHistName}' for theory agnostic to treat POIs as NOIs"
+                )
+                results.append(
+                    df_theory_agnostic.HistoBoost(
+                        noiAsPoiHistName,
+                        [*axes, *theoryAgnostic_axes],
+                        [*cols, *theoryAgnostic_cols, "nominal_weight_helicity"],
+                        tensor_axes=[axis_helicity],
+                    )
+                )
+
+            if args.unfolding and args.poiAsNoi and dataset.group == "Zmumu":
+                unfolder_z.add_poi_as_noi_histograms(
+                    df, results, axes, cols, channel=channel
+                )
+
+        # histograms for corrections/uncertainties for pixel hit multiplicity
+
+        # valid-pixel-hit spectra per muon leg (inputs to make_pixel_corrections.py).
+        # first/second are the negative/positive muon; the pixel correction's
+        # triggering/nonTriggering slots are filled positionally from first/second
+        # (see make_pixel_corrections.py and the note above).
+        hNValidPixelHitsFirst = df.HistoBoost(
+            f"{channel}_hNValidPixelHitsFirst",
+            [axis_eta, axis_pt, axis_charge, axis_nvalidpixel],
+            [
+                "firstMuons_eta0",
+                "firstMuons_pt0",
+                "firstMuons_charge0",
+                f"firstMuons_{cvhName}NValidPixelHits0",
+                "nominal_weight",
+            ],
         )
-        axis_corr_parms = hist.axis.StrCategory(
-            ["A_k", "e_k", "M_k", "M_lambda", "A_phi", "e_phi", "M_phi"],
-            name="corr_parms",
+        results.append(hNValidPixelHitsFirst)
+
+        hNValidPixelHitsSecond = df.HistoBoost(
+            f"{channel}_hNValidPixelHitsSecond",
+            [axis_eta, axis_pt, axis_charge, axis_nvalidpixel],
+            [
+                "secondMuons_eta0",
+                "secondMuons_pt0",
+                "secondMuons_charge0",
+                f"secondMuons_{cvhName}NValidPixelHits0",
+                "nominal_weight",
+            ],
         )
-        axis_res_parms = hist.axis.StrCategory(["a", "c", "b"], name="res_parms")
+        results.append(hNValidPixelHitsSecond)
 
-        parmgrad_axes = [*axes[:-1], axis_corr_eta, axis_corr_phi]
-        parmgrad_cols = [*cols[:-1], "etav", "phiv", "parmgrads_k7"]
+        if args.makeCSQuantileHists:
+            results.append(
+                df.HistoBoost(
+                    f"{channel}_csQuantiles",
+                    [
+                        all_axes[o]
+                        for o in ["ptll", "absYll", "phiStarll", "cosThetaStarll"]
+                    ],
+                    ["ptll", "absYll", "phiStarll", "cosThetaStarll"],
+                )
+            )
 
-        hparmgrads = df.HistoBoost(
-            "hparmgrads", parmgrad_axes, parmgrad_cols, tensor_axes=[axis_corr_parms]
-        )
-        results.append(hparmgrads)
+        if not args.noAuxiliaryHistograms:
+            for obs in [
+                ["ptll", "yll"],
+                "mll",
+                "cosThetaStarll",
+                "phiStarll",
+                "etaPlus",
+                "etaMinus",
+                "ptPlus",
+                "ptMinus",
+            ]:
+                if isinstance(obs, str):
+                    obs = [obs]
+                obs_name = "_".join([channel, *obs])
+                obs_axes = [all_axes[o] for o in obs]
 
-        parmgradres_axes = parmgrad_axes
-        parmgradres_cols = [*cols[:-1], "etav", "phiv", "parmgradsres_k3"]
+                if dataset.is_data:
+                    results.append(df.HistoBoost(obs_name, obs_axes, obs))
+                else:
+                    results.append(
+                        df.HistoBoost(obs_name, obs_axes, [*obs, "nominal_weight"])
+                    )
+                    if isWorZ and not args.onlyMainHistograms:
+                        df = systematics.add_theory_hists(
+                            results,
+                            df,
+                            args,
+                            dataset.name,
+                            corr_helpers,
+                            helicity_smoothing_helpers,
+                            obs_axes,
+                            obs,
+                            base_name=obs_name,
+                            for_wmass=False,
+                        )
 
-        hparmgradsres = df.HistoBoost(
-            "hparmgradsres",
-            parmgradres_axes,
-            parmgradres_cols,
-            tensor_axes=[axis_res_parms],
-        )
-        results.append(hparmgradsres)
+        if not args.noAuxiliaryHistograms and isZ:
+            # gen level variables
+            for obs in auxiliary_gen_axes:
+                results.append(
+                    df.HistoBoost(
+                        f"{channel}_{obs}", [all_axes[obs]], [obs, "nominal_weight"]
+                    )
+                )
+                if not args.onlyMainHistograms:
+                    df = systematics.add_theory_hists(
+                        results,
+                        df,
+                        args,
+                        dataset.name,
+                        corr_helpers,
+                        helicity_smoothing_helpers,
+                        [all_axes[obs]],
+                        [obs],
+                        base_name=f"{channel}_{obs}",
+                        for_wmass=False,
+                    )
 
-    if not dataset.is_data and not args.onlyMainHistograms:
+        if not dataset.is_data:
+            parmgrad_axes = [*axes[:-1], axis_corr_eta, axis_corr_phi]
+            parmgrad_cols = [*cols[:-1], "etav", "phiv", "parmgrads_k7"]
 
-        df = systematics.add_muon_efficiency_unc_hists(
-            results,
-            df,
-            muon_efficiency_helper_stat,
-            muon_efficiency_helper_syst,
-            axes,
-            cols,
-            what_analysis=thisAnalysis,
-            smooth3D=args.smooth3dsf,
-        )
-        for es in common.muonEfficiency_altBkgSyst_effSteps:
-            df = systematics.add_muon_efficiency_unc_hists_altBkg(
+            hparmgrads = df.HistoBoost(
+                f"{channel}_hparmgrads",
+                parmgrad_axes,
+                parmgrad_cols,
+                tensor_axes=[axis_corr_parms],
+            )
+            results.append(hparmgrads)
+
+            parmgradres_axes = parmgrad_axes
+            parmgradres_cols = [*cols[:-1], "etav", "phiv", "parmgradsres_k3"]
+
+            hparmgradsres = df.HistoBoost(
+                f"{channel}_hparmgradsres",
+                parmgradres_axes,
+                parmgradres_cols,
+                tensor_axes=[axis_res_parms],
+            )
+            results.append(hparmgradsres)
+
+        if not dataset.is_data and not args.onlyMainHistograms:
+
+            # reco/tracking efficiency uncertainties stay from the external SF
+            # measurement (ID/HLT/Iso are handled in-situ instead)
+            df = systematics.add_muon_efficiency_unc_hists(
                 results,
                 df,
-                muon_efficiency_helper_syst_altBkg[es],
+                muon_efficiency_helper_stat,
+                muon_efficiency_helper_syst,
                 axes,
                 cols,
                 what_analysis=thisAnalysis,
-                step=es,
+                smooth3D=args.smooth3dsf,
+                base_name=channel,
             )
 
-        df = systematics.add_L1Prefire_unc_hists(
-            results,
-            df,
-            axes,
-            cols,
-            helper_stat=muon_prefiring_helper_stat,
-            helper_syst=muon_prefiring_helper_syst,
-        )
-
-        if isWorZ:
-
-            df = systematics.add_theory_hists(
-                results,
-                df,
-                args,
-                dataset.name,
-                corr_helpers,
-                helicity_smoothing_helpers,
-                axes,
-                cols,
-                for_wmass=False,
-            )
-
-            reco_sel = "vetoMuonsPre"
-            require_prompt = "tau" not in dataset.name
-            df = muon_calibration.define_genFiltered_recoMuonSel(
-                df, reco_sel, require_prompt
-            )
-            reco_sel_GF = muon_calibration.getColName_genFiltered_recoMuonSel(
-                reco_sel, require_prompt
-            )
-            df = muon_calibration.define_matched_gen_muons_kinematics(df, reco_sel_GF)
-            df = muon_calibration.calculate_matched_gen_muon_kinematics(df, reco_sel_GF)
-            df = muon_calibration.define_matched_reco_muon_kinematics(df, reco_sel_GF)
-
-            ####################################################
-            # nuisances from the muon momemtum scale calibration
-            if args.muonCorrData in ["massfit", "lbl_massfit"]:
-                input_kinematics = [
-                    f"{reco_sel_GF}_recoPt",
-                    f"{reco_sel_GF}_recoEta",
-                    f"{reco_sel_GF}_recoCharge",
-                    f"{reco_sel_GF}_genPt",
-                    f"{reco_sel_GF}_genEta",
-                    f"{reco_sel_GF}_genCharge",
-                ]
-                if diff_weights_helper:
-                    df = df.Define(
-                        f"{reco_sel_GF}_response_weight",
-                        diff_weights_helper,
-                        [*input_kinematics],
-                    )
-                    input_kinematics.append(f"{reco_sel_GF}_response_weight")
-
-                # muon scale variation from stats. uncertainty on the jpsi massfit
-                df = df.Define(
-                    "nominal_muonScaleSyst_responseWeights_tensor",
-                    data_jpsi_crctn_unc_helper,
-                    [*input_kinematics, "nominal_weight"],
-                )
-                muonScaleSyst_responseWeights = df.HistoBoost(
-                    "nominal_muonScaleSyst_responseWeights",
-                    axes,
-                    [*cols, "nominal_muonScaleSyst_responseWeights_tensor"],
-                    tensor_axes=data_jpsi_crctn_unc_helper.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(muonScaleSyst_responseWeights)
-
-                df = muon_calibration.add_resolution_uncertainty(
-                    df, axes, results, cols, smearing_uncertainty_helper, reco_sel_GF
-                )
-
-                # add pixel multiplicity uncertainties
-                df = df.Define(
-                    "nominal_pixelMultiplicitySyst_tensor",
-                    pixel_multiplicity_uncertainty_helper,
-                    [*pixel_multiplicity_cols, "nominal_weight"],
-                )
-                hist_pixelMultiplicitySyst = df.HistoBoost(
-                    "nominal_pixelMultiplicitySyst",
-                    axes,
-                    [*cols, "nominal_pixelMultiplicitySyst_tensor"],
-                    tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(hist_pixelMultiplicitySyst)
-
-                if args.pixelMultiplicityStat:
-                    df = df.Define(
-                        "nominal_pixelMultiplicityStat_tensor",
-                        pixel_multiplicity_uncertainty_helper_stat,
-                        [*pixel_multiplicity_cols, "nominal_weight"],
-                    )
-                    hist_pixelMultiplicityStat = df.HistoBoost(
-                        "nominal_pixelMultiplicityStat",
-                        axes,
-                        [*cols, "nominal_pixelMultiplicityStat_tensor"],
-                        tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
-                        storage=hist.storage.Double(),
-                    )
-                    results.append(hist_pixelMultiplicityStat)
-
-                if args.nonClosureScheme in ["A-M-separated", "A-only"]:
-                    # add the ad-hoc Z non-closure nuisances from the jpsi massfit to muon scale unc
-                    df = df.DefinePerSample("AFlag", "0x01")
-                    df = df.Define(
-                        "Z_non_closure_parametrized_A",
-                        z_non_closure_parametrized_helper,
-                        [*input_kinematics, "nominal_weight", "AFlag"],
-                    )
-                    hist_Z_non_closure_parametrized_A = df.HistoBoost(
-                        "nominal_Z_non_closure_parametrized_A",
-                        axes,
-                        [*cols, "Z_non_closure_parametrized_A"],
-                        tensor_axes=z_non_closure_parametrized_helper.tensor_axes,
-                        storage=hist.storage.Double(),
-                    )
-                    results.append(hist_Z_non_closure_parametrized_A)
-
-                if args.nonClosureScheme in [
-                    "A-M-separated",
-                    "binned-plus-M",
-                    "M-only",
-                ]:
-                    df = df.DefinePerSample("MFlag", "0x04")
-                    df = df.Define(
-                        "Z_non_closure_parametrized_M",
-                        z_non_closure_parametrized_helper,
-                        [*input_kinematics, "nominal_weight", "MFlag"],
-                    )
-                    hist_Z_non_closure_parametrized_M = df.HistoBoost(
-                        "nominal_Z_non_closure_parametrized_M",
-                        axes,
-                        [*cols, "Z_non_closure_parametrized_M"],
-                        tensor_axes=z_non_closure_parametrized_helper.tensor_axes,
-                        storage=hist.storage.Double(),
-                    )
-                    results.append(hist_Z_non_closure_parametrized_M)
-
-                if args.nonClosureScheme == "A-M-combined":
-                    df = df.DefinePerSample("AMFlag", "0x01 | 0x04")
-                    df = df.Define(
-                        "Z_non_closure_parametrized",
-                        z_non_closure_parametrized_helper,
-                        [*input_kinematics, "nominal_weight", "AMFlag"],
-                    )
-                    hist_Z_non_closure_parametrized = df.HistoBoost(
-                        (
-                            "Z_non_closure_parametrized_gaus"
-                            if args.muonScaleVariation == "smearingWeightsGaus"
-                            else "nominal_Z_non_closure_parametrized"
-                        ),
-                        axes,
-                        [*cols, "Z_non_closure_parametrized"],
-                        tensor_axes=z_non_closure_parametrized_helper.tensor_axes,
-                        storage=hist.storage.Double(),
-                    )
-                    results.append(hist_Z_non_closure_parametrized)
-
-                # extra uncertainties from non-closure stats
-                df = df.Define(
-                    "muonScaleClosSyst_responseWeights_tensor_splines",
-                    closure_unc_helper,
-                    [*input_kinematics, "nominal_weight"],
-                )
-                nominal_muonScaleClosSyst_responseWeights = df.HistoBoost(
-                    "nominal_muonScaleClosSyst_responseWeights",
-                    axes,
-                    [*cols, "muonScaleClosSyst_responseWeights_tensor_splines"],
-                    tensor_axes=closure_unc_helper.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(nominal_muonScaleClosSyst_responseWeights)
-
-                # extra uncertainties for A (fully correlated)
-                df = df.Define(
-                    "muonScaleClosASyst_responseWeights_tensor_splines",
-                    closure_unc_helper_A,
-                    [*input_kinematics, "nominal_weight"],
-                )
-                nominal_muonScaleClosASyst_responseWeights = df.HistoBoost(
-                    "nominal_muonScaleClosASyst_responseWeights",
-                    axes,
-                    [*cols, "muonScaleClosASyst_responseWeights_tensor_splines"],
-                    tensor_axes=closure_unc_helper_A.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(nominal_muonScaleClosASyst_responseWeights)
-
-                # extra uncertainties for M (fully correlated)
-                df = df.Define(
-                    "muonScaleClosMSyst_responseWeights_tensor_splines",
-                    closure_unc_helper_M,
-                    [*input_kinematics, "nominal_weight"],
-                )
-                nominal_muonScaleClosMSyst_responseWeights = df.HistoBoost(
-                    "nominal_muonScaleClosMSyst_responseWeights",
-                    axes,
-                    [*cols, "muonScaleClosMSyst_responseWeights_tensor_splines"],
-                    tensor_axes=closure_unc_helper_M.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(nominal_muonScaleClosMSyst_responseWeights)
-
-            ####################################################
-
-            # Don't think it makes sense to apply the mass weights to scale leptons from tau decays
-            if not "tau" in dataset.name:
-                systematics.add_muonscale_hist(
+            if muon_insitu_efficiency_helper is not None:
+                # in-situ ID/HLT/Iso efficiency: per-category Chebyshev
+                # coefficient variations (unconstrained nuisances in the fit)
+                df = systematics.add_muon_insitu_efficiency_hists(
                     results,
                     df,
-                    args.muonCorrEtaBins,
-                    args.muonCorrMag,
-                    isW,
+                    muon_insitu_efficiency_helper,
                     axes,
                     cols,
-                    muon_eta="trigMuons_eta0",
-                )  ## FIXME: what muon to choose ?
+                    category=channel,
+                    base_name=channel,
+                )
+
+            df = systematics.add_L1Prefire_unc_hists(
+                results,
+                df,
+                axes,
+                cols,
+                helper_stat=muon_prefiring_helper_stat,
+                helper_syst=muon_prefiring_helper_syst,
+                base_name=channel,
+            )
+
+            if isWorZ:
+
+                df = systematics.add_theory_hists(
+                    results,
+                    df,
+                    args,
+                    dataset.name,
+                    corr_helpers,
+                    helicity_smoothing_helpers,
+                    axes,
+                    cols,
+                    for_wmass=False,
+                    base_name=channel,
+                )
+
+                reco_sel = "vetoMuonsPre"
+                require_prompt = "tau" not in dataset.name
+                df = muon_calibration.define_genFiltered_recoMuonSel(
+                    df, reco_sel, require_prompt
+                )
+                reco_sel_GF = muon_calibration.getColName_genFiltered_recoMuonSel(
+                    reco_sel, require_prompt
+                )
+                df = muon_calibration.define_matched_gen_muons_kinematics(
+                    df, reco_sel_GF
+                )
+                df = muon_calibration.calculate_matched_gen_muon_kinematics(
+                    df, reco_sel_GF
+                )
+                df = muon_calibration.define_matched_reco_muon_kinematics(
+                    df, reco_sel_GF
+                )
+
+                ####################################################
+                # nuisances from the muon momemtum scale calibration
+                if args.muonCorrData in ["massfit", "lbl_massfit"]:
+                    input_kinematics = [
+                        f"{reco_sel_GF}_recoPt",
+                        f"{reco_sel_GF}_recoEta",
+                        f"{reco_sel_GF}_recoCharge",
+                        f"{reco_sel_GF}_genPt",
+                        f"{reco_sel_GF}_genEta",
+                        f"{reco_sel_GF}_genCharge",
+                    ]
+                    if diff_weights_helper:
+                        df = df.Define(
+                            f"{reco_sel_GF}_response_weight",
+                            diff_weights_helper,
+                            [*input_kinematics],
+                        )
+                        input_kinematics.append(f"{reco_sel_GF}_response_weight")
+
+                    # muon scale variation from stats. uncertainty on the jpsi massfit
+                    df = df.Define(
+                        "nominal_muonScaleSyst_responseWeights_tensor",
+                        data_jpsi_crctn_unc_helper,
+                        [*input_kinematics, "nominal_weight"],
+                    )
+                    muonScaleSyst_responseWeights = df.HistoBoost(
+                        f"{channel}_muonScaleSyst_responseWeights",
+                        axes,
+                        [*cols, "nominal_muonScaleSyst_responseWeights_tensor"],
+                        tensor_axes=data_jpsi_crctn_unc_helper.tensor_axes,
+                        storage=hist.storage.Double(),
+                    )
+                    results.append(muonScaleSyst_responseWeights)
+
+                    df = muon_calibration.add_resolution_uncertainty(
+                        df,
+                        axes,
+                        results,
+                        cols,
+                        smearing_uncertainty_helper,
+                        reco_sel_GF,
+                        base_name=channel,
+                    )
+
+                    # add pixel multiplicity uncertainties
+                    df = df.Define(
+                        "nominal_pixelMultiplicitySyst_tensor",
+                        pixel_multiplicity_uncertainty_helper,
+                        [*pixel_multiplicity_cols, "nominal_weight"],
+                    )
+                    hist_pixelMultiplicitySyst = df.HistoBoost(
+                        f"{channel}_pixelMultiplicitySyst",
+                        axes,
+                        [*cols, "nominal_pixelMultiplicitySyst_tensor"],
+                        tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
+                        storage=hist.storage.Double(),
+                    )
+                    results.append(hist_pixelMultiplicitySyst)
+
+                    if args.pixelMultiplicityStat:
+                        df = df.Define(
+                            "nominal_pixelMultiplicityStat_tensor",
+                            pixel_multiplicity_uncertainty_helper_stat,
+                            [*pixel_multiplicity_cols, "nominal_weight"],
+                        )
+                        hist_pixelMultiplicityStat = df.HistoBoost(
+                            f"{channel}_pixelMultiplicityStat",
+                            axes,
+                            [*cols, "nominal_pixelMultiplicityStat_tensor"],
+                            tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
+                            storage=hist.storage.Double(),
+                        )
+                        results.append(hist_pixelMultiplicityStat)
+
+                    if args.nonClosureScheme in ["A-M-separated", "A-only"]:
+                        # add the ad-hoc Z non-closure nuisances from the jpsi massfit to muon scale unc
+                        df = df.DefinePerSample("AFlag", "0x01")
+                        df = df.Define(
+                            "Z_non_closure_parametrized_A",
+                            z_non_closure_parametrized_helper,
+                            [*input_kinematics, "nominal_weight", "AFlag"],
+                        )
+                        hist_Z_non_closure_parametrized_A = df.HistoBoost(
+                            f"{channel}_Z_non_closure_parametrized_A",
+                            axes,
+                            [*cols, "Z_non_closure_parametrized_A"],
+                            tensor_axes=z_non_closure_parametrized_helper.tensor_axes,
+                            storage=hist.storage.Double(),
+                        )
+                        results.append(hist_Z_non_closure_parametrized_A)
+
+                    if args.nonClosureScheme in [
+                        "A-M-separated",
+                        "binned-plus-M",
+                        "M-only",
+                    ]:
+                        df = df.DefinePerSample("MFlag", "0x04")
+                        df = df.Define(
+                            "Z_non_closure_parametrized_M",
+                            z_non_closure_parametrized_helper,
+                            [*input_kinematics, "nominal_weight", "MFlag"],
+                        )
+                        hist_Z_non_closure_parametrized_M = df.HistoBoost(
+                            f"{channel}_Z_non_closure_parametrized_M",
+                            axes,
+                            [*cols, "Z_non_closure_parametrized_M"],
+                            tensor_axes=z_non_closure_parametrized_helper.tensor_axes,
+                            storage=hist.storage.Double(),
+                        )
+                        results.append(hist_Z_non_closure_parametrized_M)
+
+                    if args.nonClosureScheme == "A-M-combined":
+                        df = df.DefinePerSample("AMFlag", "0x01 | 0x04")
+                        df = df.Define(
+                            "Z_non_closure_parametrized",
+                            z_non_closure_parametrized_helper,
+                            [*input_kinematics, "nominal_weight", "AMFlag"],
+                        )
+                        hist_Z_non_closure_parametrized = df.HistoBoost(
+                            (
+                                f"{channel}_Z_non_closure_parametrized_gaus"
+                                if args.muonScaleVariation == "smearingWeightsGaus"
+                                else f"{channel}_Z_non_closure_parametrized"
+                            ),
+                            axes,
+                            [*cols, "Z_non_closure_parametrized"],
+                            tensor_axes=z_non_closure_parametrized_helper.tensor_axes,
+                            storage=hist.storage.Double(),
+                        )
+                        results.append(hist_Z_non_closure_parametrized)
+
+                    # extra uncertainties from non-closure stats
+                    df = df.Define(
+                        "muonScaleClosSyst_responseWeights_tensor_splines",
+                        closure_unc_helper,
+                        [*input_kinematics, "nominal_weight"],
+                    )
+                    nominal_muonScaleClosSyst_responseWeights = df.HistoBoost(
+                        f"{channel}_muonScaleClosSyst_responseWeights",
+                        axes,
+                        [*cols, "muonScaleClosSyst_responseWeights_tensor_splines"],
+                        tensor_axes=closure_unc_helper.tensor_axes,
+                        storage=hist.storage.Double(),
+                    )
+                    results.append(nominal_muonScaleClosSyst_responseWeights)
+
+                    # extra uncertainties for A (fully correlated)
+                    df = df.Define(
+                        "muonScaleClosASyst_responseWeights_tensor_splines",
+                        closure_unc_helper_A,
+                        [*input_kinematics, "nominal_weight"],
+                    )
+                    nominal_muonScaleClosASyst_responseWeights = df.HistoBoost(
+                        f"{channel}_muonScaleClosASyst_responseWeights",
+                        axes,
+                        [*cols, "muonScaleClosASyst_responseWeights_tensor_splines"],
+                        tensor_axes=closure_unc_helper_A.tensor_axes,
+                        storage=hist.storage.Double(),
+                    )
+                    results.append(nominal_muonScaleClosASyst_responseWeights)
+
+                    # extra uncertainties for M (fully correlated)
+                    df = df.Define(
+                        "muonScaleClosMSyst_responseWeights_tensor_splines",
+                        closure_unc_helper_M,
+                        [*input_kinematics, "nominal_weight"],
+                    )
+                    nominal_muonScaleClosMSyst_responseWeights = df.HistoBoost(
+                        f"{channel}_muonScaleClosMSyst_responseWeights",
+                        axes,
+                        [*cols, "muonScaleClosMSyst_responseWeights_tensor_splines"],
+                        tensor_axes=closure_unc_helper_M.tensor_axes,
+                        storage=hist.storage.Double(),
+                    )
+                    results.append(nominal_muonScaleClosMSyst_responseWeights)
+
+                ####################################################
+
+                # Don't think it makes sense to apply the mass weights to scale leptons from tau decays
+                if not "tau" in dataset.name:
+                    systematics.add_muonscale_hist(
+                        results,
+                        df,
+                        args.muonCorrEtaBins,
+                        args.muonCorrMag,
+                        isW,
+                        axes,
+                        cols,
+                        muon_eta="firstMuons_eta0",
+                        base_name=channel,
+                    )  ## FIXME: what muon to choose ?
 
     if hasattr(dataset, "out_of_acceptance"):
         # Rename dataset to not overwrite the original one

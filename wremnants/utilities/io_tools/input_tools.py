@@ -330,6 +330,12 @@ def read_dyturbo_hist(filenames, path="", axes=("y", "pt"), charge=None, coeff=N
 
     hists = []
     for fn in filenames:
+
+        if "-mur0p5-" in fn.split("/")[-1]:
+            fn = fn.replace("-mur0p5-", "-murH-")
+        if "-muf0p5-" in fn.split("/")[-1]:
+            fn = fn.replace("-muf0p5-", "-mufH-")
+
         expandedf = fn.split("+")
 
         hs = []
@@ -664,13 +670,16 @@ def read_matched_scetlib_hist(
         def translate_slice(ax, s):
             if not isinstance(s, slice):
                 return s
+            # values(flow=True) prepends the underflow bin (if present), so shift
+            # axis-coordinate indices by ax.traits.underflow to address real bins.
+            uflow = int(ax.traits.underflow)
             start = (
-                int(ax.index(s.start.imag) + s.start.real)
+                int(ax.index(s.start.imag) + s.start.real + uflow)
                 if isinstance(s.start, complex)
                 else s.start
             )
             stop = (
-                int(ax.index(s.stop.imag) + s.stop.real + 1)
+                int(ax.index(s.stop.imag) + s.stop.real + uflow)
                 if isinstance(s.stop, complex)
                 else s.stop
             )

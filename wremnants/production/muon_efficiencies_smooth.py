@@ -58,6 +58,10 @@ def make_muon_efficiency_helpers_smooth(
     isoEfficiencySmoothing=False,
     smooth3D=False,
     isoDefinition="iso04vtxAgn",
+    baseEff_types=["reco", "tracking", "idip"],
+    # antitrigger is P(failTrigger|IDIP), SF obtained from trigger SF as (1-SF*effMC)/(1-effMC), similarly to antiiso
+    trigEff_types=["trigger", "antitrigger"],
+    isoEff_types=["iso", "isonotrig", "antiiso", "isoantitrig"],
 ):
 
     logger.debug("Make efficiency helper smooth")
@@ -92,12 +96,8 @@ def make_muon_efficiency_helpers_smooth(
     axis_charge_inclusive = hist.axis.Regular(
         1, -2.0, 2.0, underflow=False, overflow=False, name="SF charge"
     )  # for isolation and effStat only
-    isoEff_types = ["iso", "isonotrig", "antiiso", "isoantitrig"]
-    trigEff_types = [
-        "trigger",
-        "antitrigger",
-    ]  # antitrigger is P(failTrigger|IDIP), SF obtained from trigger SF as (1-SF*effMC)/(1-effMC), similarly to antiiso
-    allEff_types = ["reco", "tracking", "idip"] + trigEff_types + isoEff_types
+
+    allEff_types = baseEff_types + trigEff_types + isoEff_types
     eff_types_3D = (
         [] if not smooth3D else [x for x in trigEff_types] + [x for x in isoEff_types]
     )
@@ -436,9 +436,17 @@ def make_muon_efficiency_helpers_smooth(
         helper_syst = ROOT.wrem.muon_efficiency_smooth_helper_syst[
             templateAnalysisArg, Nsyst, type(sf_syst_2D_pyroot)
         ](helper)
+
+        eff_parts = baseEff_types[:]
+        if len(trigEff_types):
+            eff_parts.append("trigger")
+        if len(isoEff_types):
+            eff_parts.append("iso")
+        eff_name = "-".join(eff_parts)
+
         # define axis for syst variations with all steps
         axis_all = hist.axis.Integer(
-            0, 5, underflow=False, overflow=False, name="reco-tracking-idip-trigger-iso"
+            0, len(eff_parts), underflow=False, overflow=False, name=eff_name
         )
         axis_nsyst = hist.axis.Integer(
             0, Nsyst, underflow=False, overflow=False, name="n_syst_variations"
@@ -457,70 +465,57 @@ def make_muon_efficiency_helpers_smooth(
 
     # when smooth3D = True we read histograms from root or boost depending on how they were made (some steps are still from previous root files since they have no uT dependence)
     # however, we always add the uT axis to the boost histogram in input to the tensor, to simplify the usage, but when is3D = False a dummy ut axis with 1 bin is created
-    effStat_manager = {
-        "sf_reco": {
+    effStat_manager = {}
+    for t in baseEff_types:
+        effStat_manager[f"sf_{t}"] = {
             "nPtEigenBins": None,
             "nCharges": None,
-            "axisLabels": ["reco"],
+            "axisLabels": [t],
             "boostHist": None,
             "helper": None,
             "is3D": False,
-        },
-        "sf_tracking": {
-            "nPtEigenBins": None,
-            "nCharges": None,
-            "axisLabels": ["tracking"],
-            "boostHist": None,
-            "helper": None,
-            "is3D": False,
-        },
-        "sf_idip": {
-            "nPtEigenBins": None,
-            "nCharges": None,
-            "axisLabels": ["idip"],
-            "boostHist": None,
-            "helper": None,
-            "is3D": False,
-        },
-        "sf_trigger": {
+        }
+
+    if len(trigEff_types):
+        effStat_manager["sf_trigger"] = {
             "nPtEigenBins": None,
             "nCharges": None,
             "axisLabels": ["trigger", "antitrigger"],
             "boostHist": None,
             "helper": None,
             "is3D": smooth3D,
-        },
-    }
-    if not isoEfficiencySmoothing:
-        effStat_manager["sf_iso"] = {
-            "nPtEigenBins": None,
-            "nCharges": None,
-            "axisLabels": ["iso", "isonotrig", "antiiso", "isoantitrig"],
-            "boostHist": None,
-            "helper": None,
-            "is3D": smooth3D,
         }
 
-    else:
-        # these were never done in 3D, so can stay with is3D = False
-        effStat_manager["sf_iso_effData"] = (
-            {
+    if len(isoEff_types):
+        if not isoEfficiencySmoothing:
+            effStat_manager["sf_iso"] = {
+                "nPtEigenBins": None,
+                "nCharges": None,
+                "axisLabels": ["iso", "isonotrig", "antiiso", "isoantitrig"],
+                "boostHist": None,
+                "helper": None,
+                "is3D": smooth3D,
+            }
+        else:
+            # these were never done in 3D, so can stay with is3D = False
+            effStat_manager["sf_iso_effData"] = (
+                {
+                    "nPtEigenBins": None,
+                    "nCharges": None,
+                    "axisLabels": ["iso", "isonotrig", "antiiso", "isoantitrig"],
+                    "boostHist": None,
+                    "helper": None,
+                    "is3D": False,
+                },
+            )
+            effStat_manager["sf_iso_effMC"] = {
                 "nPtEigenBins": None,
                 "nCharges": None,
                 "axisLabels": ["iso", "isonotrig", "antiiso", "isoantitrig"],
                 "boostHist": None,
                 "helper": None,
                 "is3D": False,
-            },
-        )
-        effStat_manager["sf_iso_effMC"] = {
-            "nPtEigenBins": None,
-            "nCharges": None,
-            "axisLabels": ["iso", "isonotrig", "antiiso", "isoantitrig"],
-            "boostHist": None,
-            "helper": None,
-            "is3D": False,
-        }
+            }
 
     for effStatKey in effStat_manager.keys():
         nom_up_effStat_axis = None

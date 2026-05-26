@@ -838,6 +838,52 @@ def add_theory_corr_hists(
             )
 
 
+insitu_category_index = {"nominal": 0, "failIso": 1, "failHLT": 2, "failID": 3}
+
+
+def add_muon_insitu_efficiency_hists(
+    results,
+    df,
+    helper,
+    axes,
+    cols,
+    category,
+    base_name="nominal",
+    **kwargs,
+):
+    """Book the in-situ muon efficiency systematic histogram for one category.
+
+    ``helper`` is the C++ in-situ helper (see
+    wremnants/production/muon_efficiencies_insitu.py) returning, per event, a
+    flat tensor of Chebyshev-coefficient weight variations. ``category`` is one
+    of {nominal, failIso, failHLT, failID}; it selects which steps are tested on
+    the probe leg. The tag leg always passes ID & HLT.
+    """
+    cat_idx = insitu_category_index[category]
+    cat_col = f"{base_name}_insituEffCategory"
+    df = df.Define(cat_col, f"(int){cat_idx}")
+    tensor_name = f"{base_name}_insituEff_tensor"
+    df = df.Define(
+        tensor_name,
+        helper,
+        [
+            "probeMuons_pt0",
+            "probeMuons_eta0",
+            "probeMuons_charge0",
+            "tagMuons_pt0",
+            "tagMuons_eta0",
+            "tagMuons_charge0",
+            cat_col,
+            "nominal_weight",
+        ],
+    )
+    name = common.hist_name(base_name, syst="muonInsituEff")
+    add_syst_hist(
+        results, df, name, axes, cols, tensor_name, helper.tensor_axes, **kwargs
+    )
+    return df
+
+
 def add_muon_efficiency_unc_hists(
     results,
     df,
@@ -855,8 +901,7 @@ def add_muon_efficiency_unc_hists(
 
     if what_analysis == ROOT.wrem.AnalysisType.Wmass:
         muon_columns_stat = [
-            f"{singleMuonCollection}_{v}"
-            for v in ["tnpPt0", "tnpEta0", "tnpUT0", "tnpCharge0"]
+            f"{singleMuonCollection}_{v}" for v in ["tnpPt0", "tnpEta0", "tnpCharge0"]
         ]
         muon_columns_syst = [
             f"{singleMuonCollection}_{v}"
@@ -865,63 +910,31 @@ def add_muon_efficiency_unc_hists(
                 "tnpEta0",
                 "SApt0",
                 "SAeta0",
-                "tnpUT0",
                 "tnpCharge0",
-                "passIso0",
             ]
         ]
     else:
         muvars_stat = [
             "tnpPt0",
             "tnpEta0",
-            "tnpUT0",
             "tnpCharge0",
-        ]  # passIso0 required only for iso stat variations, added later
-        if not smooth3D:
-            muvars_stat.remove("tnpUT0")
-        muon_columns_stat_trig = [f"trigMuons_{v}" for v in muvars_stat]
-        muon_columns_stat_nonTrig = [f"nonTrigMuons_{v}" for v in muvars_stat]
-
+        ]
         muvars_syst = [
             "tnpPt0",
             "tnpEta0",
             "SApt0",
             "SAeta0",
-            "tnpUT0",
             "tnpCharge0",
-            "passIso0",
         ]
-        if not smooth3D:
-            muvars_syst.remove("tnpUT0")
-        muon_columns_syst_trig = [f"trigMuons_{v}" for v in muvars_syst]
-        muon_columns_syst_nonTrig = [f"nonTrigMuons_{v}" for v in muvars_syst]
 
-        # muon_columns_stat in the following does not include passIso yet, added later for iso helper
-        if what_analysis == ROOT.wrem.AnalysisType.Wlike:
-            muon_columns_stat = [*muon_columns_stat_trig, *muon_columns_stat_nonTrig]
-            muon_columns_syst = [*muon_columns_syst_trig, *muon_columns_syst_nonTrig]
-        elif what_analysis == ROOT.wrem.AnalysisType.Dilepton:
-            muon_columns_stat = [
-                *muon_columns_stat_trig,
-                "trigMuons_passTrigger0",
-                *muon_columns_stat_nonTrig,
-                "nonTrigMuons_passTrigger0",
-            ]
-            muon_columns_syst = [
-                *muon_columns_syst_trig,
-                "trigMuons_passTrigger0",
-                *muon_columns_syst_nonTrig,
-                "nonTrigMuons_passTrigger0",
-            ]
-        else:
-            raise NotImplementedError(
-                f"add_muon_efficiency_unc_hists: analysis {what_analysis} not implemented."
-            )
+        muon_columns_stat_first = [f"firstMuons_{v}" for v in muvars_stat]
+        muon_columns_stat_second = [f"secondMuons_{v}" for v in muvars_stat]
 
-    if not smooth3D:
-        # will use different helpers and member functions
-        muon_columns_stat = [x for x in muon_columns_stat if "_tnpUT0" not in x]
-        muon_columns_syst = [x for x in muon_columns_syst if "_tnpUT0" not in x]
+        muon_columns_syst_first = [f"firstMuons_{v}" for v in muvars_syst]
+        muon_columns_syst_second = [f"secondMuons_{v}" for v in muvars_syst]
+
+        muon_columns_stat = [*muon_columns_stat_first, *muon_columns_stat_second]
+        muon_columns_syst = [*muon_columns_syst_first, *muon_columns_syst_second]
 
     # change variables for tracking, to use standalone variables
     muon_columns_stat_tracking = [
@@ -932,29 +945,6 @@ def add_muon_efficiency_unc_hists(
     for key, helper in helper_stat.items():
         if "tracking" in key:
             muon_columns_stat_step = muon_columns_stat_tracking
-        elif "iso" in key:
-            if what_analysis == ROOT.wrem.AnalysisType.Wmass:
-                # iso variable called passIso rather than goodMuons_passIso0 in W histmaker
-                muon_columns_stat_step = [
-                    *muon_columns_stat,
-                    f"{singleMuonCollection}_passIso0",
-                ]
-            elif what_analysis == ROOT.wrem.AnalysisType.Wlike:
-                muon_columns_stat_step = [
-                    *muon_columns_stat_trig,
-                    "trigMuons_passIso0",
-                    *muon_columns_stat_nonTrig,
-                    "nonTrigMuons_passIso0",
-                ]
-            elif what_analysis == ROOT.wrem.AnalysisType.Dilepton:
-                muon_columns_stat_step = [
-                    *muon_columns_stat_trig,
-                    "trigMuons_passIso0",
-                    "trigMuons_passTrigger0",
-                    *muon_columns_stat_nonTrig,
-                    "nonTrigMuons_passIso0",
-                    "nonTrigMuons_passTrigger0",
-                ]
         else:
             muon_columns_stat_step = muon_columns_stat
 
@@ -1021,8 +1011,8 @@ def add_muon_efficiency_unc_hists_altBkg(
     if what_analysis == ROOT.wrem.AnalysisType.Wmass:
         muon_columns_syst = [f"{singleMuonCollection}_{x}" for x in muon_vars]
     else:
-        muon_columns_syst_trig = [f"trigMuons_{v}" for v in muon_vars]
-        muon_columns_syst_nonTrig = [f"nonTrigMuons_{v}" for v in muon_vars]
+        muon_columns_syst_trig = [f"firstMuons_{v}" for v in muon_vars]
+        muon_columns_syst_nonTrig = [f"secondMuons_{v}" for v in muon_vars]
 
         if what_analysis == ROOT.wrem.AnalysisType.Wlike:
             muon_columns_syst = [*muon_columns_syst_trig, *muon_columns_syst_nonTrig]
