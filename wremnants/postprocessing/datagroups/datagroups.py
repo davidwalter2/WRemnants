@@ -144,6 +144,13 @@ class Datagroups(object):
         # ValueError.
         self.scale_params_patterns = []
 
+        # List of compiled regex patterns. For each systematic variation
+        # written via addSystematic, if its per-direction name matches any
+        # pattern (re.search), the Gaussian prior on that nuisance is
+        # removed (noConstraint=True). Mirrors the --scaleParams /
+        # --noSymmetrize wiring.
+        self.no_constraint_patterns = []
+
         self.writer = None
 
     def get_members_from_results(self, startswith=[], not_startswith=[], is_data=False):
@@ -1391,7 +1398,9 @@ class Datagroups(object):
             else:
                 name = histname
 
-        logger.info(f"Now in channel {self.channel} at shape systematic group {name}")
+        logger.info(
+            f"Now in channel {self.channel} at shape systematic group {name} (constraint: {not noConstraint})"
+        )
 
         if self.isExcludedNuisance(name):
             return
@@ -1522,6 +1531,18 @@ class Datagroups(object):
                         f"{effective_scale} (pattern '{pat.pattern}' x {fac})"
                     )
 
+                # --noConstrainParams: remove Gaussian prior for matching
+                # nuisances. Mirrors --scaleParams / --noSymmetrize.
+                effective_noConstraint = noConstraint
+                no_const_patterns = getattr(self, "no_constraint_patterns", [])
+                nc_matched = [p for p in no_const_patterns if p.search(var_name)]
+                if nc_matched and not noConstraint:
+                    effective_noConstraint = True
+                    logger.info(
+                        f"noConstrainParams: removing prior on {var_name} "
+                        f"(pattern(s) {[p.pattern for p in nc_matched]})"
+                    )
+
                 if lastAction is not None:
                     if lastActionRequiresNomi:
                         hnom = self.groups[proc].hists[self.nominalName]
@@ -1546,7 +1567,7 @@ class Datagroups(object):
                     symmetrize=effective_symmetrize,
                     kfactor=effective_scale,
                     noi=noi,
-                    constrained=not noConstraint,
+                    constrained=not effective_noConstraint,
                     add_to_data_covariance=self.isAbsorbedNuisance(name),
                 )
 

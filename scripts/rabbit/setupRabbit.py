@@ -768,6 +768,18 @@ def make_parser(parser=None, argv=None):
         "Example: --scaleParams 'lambda4=5' 'mb_up|pdfMSHT20mbrange=10'",
     )
     parser.add_argument(
+        "--noConstrainParams",
+        nargs="*",
+        default=None,
+        metavar="REGEX",
+        help="Remove the Gaussian prior on shape systematics whose "
+        "per-direction name matches REGEX (re.search), turning them into "
+        "free-floating nuisances. Multiple regexes may be supplied. "
+        "Mirrors --scaleParams / --noSymmetrize wiring. "
+        "Example: --noConstrainParams 'scetlibNP' "
+        "(unconstrains all SCETlib NP nuisances).",
+    )
+    parser.add_argument(
         "--symmetrizePdfUnc",
         default="quadratic",
         type=str,
@@ -934,6 +946,12 @@ def make_parser(parser=None, argv=None):
         default=1.05,
         type=float,
         help="Specify normalization uncertainty for Fake background (for W analysis). If negative, treat as free floating, if 0 nothing is added",
+    )
+    parser.add_argument(
+        "--fakelumi",
+        type=float,
+        default=0,
+        help="fake, unconstrained lumi.",
     )
     # pseudodata
     parser.add_argument(
@@ -1190,6 +1208,18 @@ def setup(
             + ", ".join(f"'{p.pattern}'×{f}" for p, f in scale_params_pairs)
         )
     datagroups.scale_params_patterns = scale_params_pairs
+
+    # --noConstrainParams: list of compiled regexes applied at
+    # add_systematic time. Mirrors --scaleParams.
+    no_constraint_patterns = []
+    if args.noConstrainParams:
+        no_constraint_patterns = [re.compile(p) for p in args.noConstrainParams]
+        logger.info(
+            f"--noConstrainParams: {len(no_constraint_patterns)} pattern(s) "
+            f"registered: "
+            + ", ".join(f"'{p.pattern}'" for p in no_constraint_patterns)
+        )
+    datagroups.no_constraint_patterns = no_constraint_patterns
 
     preselection_specs = _build_preselection_specs(args.presel, fitvar)
     if preselection_specs:
@@ -1972,6 +2002,16 @@ def setup(
                 if args.lumiUncertainty is None
                 else args.lumiUncertainty
             ),
+        )
+
+    if args.fakelumi:
+        datagroups.addNormSystematic(
+            name="fakelumi",
+            processes=["MCwithLumiNorm"],
+            groups=["fakelumi", "experiment", "expNoCalib"],
+            passToFakes=passSystToFakes,
+            norm=args.fakelumi,
+            noConstraint=True,
         )
 
     # add norm variations for decorrelated variable bins on each process

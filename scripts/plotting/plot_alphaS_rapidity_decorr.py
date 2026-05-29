@@ -132,6 +132,10 @@ if __name__ == "__main__":
     lumi = sum([c["lumi"] for c in meta["meta_info_input"]["channel_info"].values()])
 
     nll = fitresult["nllvalreduced"]
+    try:
+        nll_full = fitresult["nllvalfull"]
+    except (KeyError, IndexError):
+        nll_full = None
 
     yll_edges = get_yll_bin_edges(meta)
     if yll_edges is not None:
@@ -147,6 +151,10 @@ if __name__ == "__main__":
         )
         fInclusive = rabbit.io_tools.get_fitresult(args.infileInclusive)
         nll_inclusive = fInclusive["nllvalreduced"]
+        try:
+            nll_inclusive_full = fInclusive["nllvalfull"]
+        except (KeyError, IndexError):
+            nll_inclusive_full = None
 
     df = get_values_and_impacts_as_panda(
         args.infile,
@@ -235,6 +243,39 @@ if __name__ == "__main__":
             fontsize=args.legSize,
         )
 
+        if nll_full is not None and nll_inclusive_full is not None:
+            logger.info(
+                f"nll_inclusive_full = {nll_inclusive_full}; nll_full = {nll_full}"
+            )
+
+            chi2_stat_full = 2 * (nll_inclusive_full - nll_full)
+            chi2_label_full = r"\chi^2_\mathrm{full}/\mathrm{ndf}"
+            if args.result == "asimov":
+                chi2_stat_full = 0
+            elif not args.data:
+                chi2_stat_full += ndf
+                chi2_label_full = rf"\langle {chi2_label_full} \rangle"
+
+            p_value_full = 1 - chi2.cdf(chi2_stat_full, ndf)
+            logger.info(
+                f"ndf = {ndf}; Chi2 (full) = {chi2_stat_full}; p-value={p_value_full}"
+            )
+
+            ax1.text(
+                1.01,
+                0.65,
+                "\n".join(
+                    [
+                        rf"${chi2_label_full} = {chi2_stat_full:.1f}/{ndf}$",
+                        rf"$\mathit{{p}}_\mathrm{{full}} = {p_value_full * 100:.0f}\,\%$",
+                    ]
+                ),
+                ha="left",
+                va="center",
+                transform=ax1.transAxes,
+                fontsize=args.legSize,
+            )
+
         c = dfInclusive["value"].values[0]
         c_err = dfInclusive["err_Total"].values[0]
         c_err_stat = dfInclusive["err_stat"].values[0]
@@ -259,7 +300,7 @@ if __name__ == "__main__":
         )
         ax1.plot([c, c], ylim, color="black", linewidth=2, linestyle="-")
 
-        val -= c
+        # val -= c # TODO I don't think this should be here
 
     yticks = df["yticks"].values
     ax1.set_yticks(y, labels=yticks)
@@ -298,6 +339,7 @@ if __name__ == "__main__":
         capsize=10,
         linewidth=3,
     )
+    print(val, y)
     ax1.plot(val, y, color="black", marker="o", linestyle="", zorder=4)
 
     extra_handles = [
