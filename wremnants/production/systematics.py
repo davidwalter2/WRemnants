@@ -855,35 +855,59 @@ def add_muon_insitu_efficiency_hists(
     helper,
     axes,
     cols,
-    category,
+    category=None,
+    category_expr=None,
     base_name="nominal",
+    single_leg=False,
+    probe_collection="probeMuons",
+    tag_collection="tagMuons",
     **kwargs,
 ):
-    """Book the in-situ muon efficiency systematic histogram for one category.
+    """Book the in-situ muon efficiency systematic histogram.
 
     ``helper`` is the C++ in-situ helper (see
     wremnants/production/muon_efficiencies_insitu.py) returning, per event, a
-    flat tensor of Chebyshev-coefficient weight variations. ``category`` is one
-    of {nominal, failIso, failHLT, failID}; it selects which steps are tested on
-    the probe leg. The tag leg always passes ID & HLT.
+    flat tensor of Chebyshev-coefficient weight variations. The probe category
+    is one of {nominal, failIso, failHLT, failID} and selects which steps are
+    tested on the probe leg. Provide either ``category`` (a fixed key, e.g. per
+    dilepton channel) or ``category_expr`` (a C++ expression evaluated per event,
+    e.g. ``"passIso ? 0 : 1"`` for the W where iso is a fit axis).
+
+    Two-leg (Z dilepton): both ``probe_collection`` and ``tag_collection`` legs
+    enter; the tag leg always passes ID & HLT. Single-leg (``single_leg=True``,
+    W single muon): only the ``probe_collection`` (the single good muon) leg
+    enters, matching the single-leg C++ helper signature.
     """
-    cat_idx = insitu_category_index[category]
+    if (category is None) == (category_expr is None):
+        raise ValueError("Provide exactly one of category or category_expr")
     cat_col = f"{base_name}_insituEffCategory"
-    df = df.Define(cat_col, f"(int){cat_idx}")
+    cat_def = (
+        category_expr
+        if category_expr is not None
+        else str(insitu_category_index[category])
+    )
+    df = df.Define(cat_col, f"(int)({cat_def})")
     tensor_name = f"{base_name}_insituEff_tensor"
+    probe_cols = [
+        f"{probe_collection}_pt0",
+        f"{probe_collection}_eta0",
+        f"{probe_collection}_charge0",
+        f"{probe_collection}_tnpUT0",
+    ]
+    tag_cols = (
+        []
+        if single_leg
+        else [
+            f"{tag_collection}_pt0",
+            f"{tag_collection}_eta0",
+            f"{tag_collection}_charge0",
+            f"{tag_collection}_tnpUT0",
+        ]
+    )
     df = df.Define(
         tensor_name,
         helper,
-        [
-            "probeMuons_pt0",
-            "probeMuons_eta0",
-            "probeMuons_charge0",
-            "tagMuons_pt0",
-            "tagMuons_eta0",
-            "tagMuons_charge0",
-            cat_col,
-            "nominal_weight",
-        ],
+        [*probe_cols, *tag_cols, cat_col, "nominal_weight"],
     )
     name = common.hist_name(base_name, syst="muonInsituEff")
     add_syst_hist(

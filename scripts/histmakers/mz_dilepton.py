@@ -57,6 +57,28 @@ parser.add_argument(
     "histograms needed to produce that file are written.",
 )
 parser.add_argument(
+    "--makeInsituEffMC",
+    action="store_true",
+    help="Emit the effMCprobe_* probe spectra (both tag-and-probe legs per "
+    "2HLT event) used by scripts/corrections/make_insitu_effMC.py to compute "
+    "the in-situ MC efficiencies. Only needed for that one-time pre-step.",
+)
+parser.add_argument(
+    "--makeUTQuantileHists",
+    action="store_true",
+    help="Emit fine-binned recoUT input histograms in (eta, pt, [charge]) for "
+    "failIso/failHLT, used to compute per-cell uT quantile edges in a follow-up "
+    "make_quantile_helper pass.",
+)
+parser.add_argument(
+    "--utQuantileFile",
+    type=str,
+    default=None,
+    help="Path to the histmaker output produced with --makeUTQuantileHists; when "
+    "set, the failIso/failHLT recoUT fit axis is replaced by a per-(eta, pt, "
+    "[charge]) 7-quantile axis.",
+)
+parser.add_argument(
     "--noAuxiliaryHistograms",
     action="store_true",
     help="Remove auxiliary histograms to save memory (removed by default with --unfolding or --theoryAgnostic)",
@@ -313,16 +335,100 @@ auxiliary_gen_axes = [
     "ewLogDeltaM",  # ew variables
 ]
 
-# axis order must match cols order (HistoBoost fills positionally): eta, pt, charge
-axes_probe_ID = [axis_eta, axis_pt, axis_charge]
+# failID has falling probe-pt stats above ~45 GeV (few/empty bins on the 1 GeV grid
+# at high pt × forward eta). Use a variable-width pt axis: 1 GeV up to 38 GeV, then
+# coarser bins toward 60 GeV. effMC and the Chebyshev x̃ stay on the underlying
+# args.pt grid (34×1 GeV) and are unaffected by this binning choice.
+axis_pt_failID = hist.axis.Variable(
+    [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 42, 45, 50, 60],
+    name="pt",
+    underflow=False,
+    overflow=False,
+)
+
+# reco-uT axis for the failHLT and failIso fit histograms. Range matches the
+# SMP-23-002 smoothSF3D_uTm30to100 convention. Coarsened in the tails relative
+# to the original 10-bin grid because the Z-pT distribution makes |uT| > 20 GeV
+# rare -> avoid empty bins in the high-|uT| corners.
+axis_recoUT = hist.axis.Variable(
+    [-30, -10, -5, 0, 5, 10, 20, 40, 100],
+    name="recoUT",
+    underflow=False,
+    overflow=False,
+)
+# Fine-binned recoUT axis used only as the *target axis* of the quantile
+# pre-step (--makeUTQuantileHists); a Regular 1 GeV grid gives enough
+# resolution for the per-cell CDF interpolation that make_quantile_helper does.
+axis_recoUT_fine = hist.axis.Regular(
+    130,
+    -30,
+    100,
+    name="recoUT",
+    underflow=False,
+    overflow=False,
+)
+# 7-quantile axis used as the *fit axis* when --utQuantileFile is set: events
+# are mapped to a quantile fraction in [0, 1) by the per-cell CDF helper.
+n_ut_quantiles = 7
+axis_recoUT_quantile = hist.axis.Regular(
+    n_ut_quantiles,
+    0,
+    1,
+    name="recoUT_quantile",
+    underflow=False,
+    overflow=False,
+)
+# Gen-uT axis for the effMC probe spectra: same coarse 8-bin grid as recoUT.
+axis_genUT = hist.axis.Variable(
+    [-30, -10, -5, 0, 5, 10, 20, 40, 100],
+    name="genUT",
+    underflow=False,
+    overflow=False,
+)
+
+# axis order must match cols order (HistoBoost fills positionally)
+# failID: eta, pt(variable), charge -> IDIP has no uT dependence
+axes_probe_ID = [axis_eta, axis_pt_failID, axis_charge]
 cols_probe_ID = ["probeMuons_eta0", "probeMuons_pt0", "probeMuons_charge0"]
 
-axes_probe_HLT = [axis_eta, axis_pt]
-cols_probe_HLT = ["probeMuons_eta0", "probeMuons_pt0"]
+if args.utQuantileFile is not None:
+    # Per-(eta, pt, [charge]) uT quantiles: each cell has its own 7 equal-
+    # population uT bins. The recoUT_quantile column is defined per-category
+    # in the dfs block via make_quantile_helper.
+    axes_probe_failHLT = [axis_eta, axis_pt_failID, axis_recoUT_quantile, axis_charge]
+    cols_probe_failHLT = [
+        "probeMuons_eta0",
+        "probeMuons_pt0",
+        "probeMuons_recoUT_quantile",
+        "probeMuons_charge0",
+    ]
+    axes_probe_failIso = [axis_eta, axis_pt_failID, axis_recoUT_quantile]
+    cols_probe_failIso = [
+        "probeMuons_eta0",
+        "probeMuons_pt0",
+        "probeMuons_recoUT_quantile",
+    ]
+else:
+    # failHLT: eta, pt(variable), recoUT, charge -> Trigger is 2D (pt, uT), charge-dep.
+    # Variable pt axis (same as failID) avoids empty bins at high probe pt.
+    axes_probe_failHLT = [axis_eta, axis_pt_failID, axis_recoUT, axis_charge]
+    cols_probe_failHLT = [
+        "probeMuons_eta0",
+        "probeMuons_pt0",
+        "probeMuons_recoUT0",
+        "probeMuons_charge0",
+    ]
+    # failIso: eta, pt(variable), recoUT -> Iso is 2D (pt, uT), charge-inclusive.
+    axes_probe_failIso = [axis_eta, axis_pt_failID, axis_recoUT]
+    cols_probe_failIso = [
+        "probeMuons_eta0",
+        "probeMuons_pt0",
+        "probeMuons_recoUT0",
+    ]
 
 # Probe binning used to measure our own MC efficiency (effMC) for the in-situ
-# muon efficiency method: args.eta x args.pt x charge, matching the Chebyshev
-# decorrelation grid and probe pt window (see make_insitu_effMC.py).
+# muon efficiency method. The genUT axis is needed for HLT and Iso effMC
+# (sliced/summed appropriately in make_insitu_effMC.py).
 axes_insitu_effMC = [
     hist.axis.Regular(
         int(args.eta[0]),
@@ -341,8 +447,35 @@ axes_insitu_effMC = [
         overflow=False,
     ),
     hist.axis.Regular(2, -2.0, 2.0, name="charge", underflow=False, overflow=False),
+    axis_genUT,
 ]
-cols_insitu_effMC = ["probeMuons_eta0", "probeMuons_pt0", "probeMuons_charge0"]
+cols_insitu_effMC = [
+    "probeMuons_eta0",
+    "probeMuons_pt0",
+    "probeMuons_charge0",
+    "probeMuons_tnpUT0",
+]
+
+# Per-cell uT quantile helpers (made once from the pre-step file). Each helper
+# returns a quantile fraction in [0, 1) for the event's recoUT, given the
+# event's (eta, pt[variable], [charge]) cell.
+quantile_helper_failIso = None
+quantile_helper_failHLT = None
+if args.utQuantileFile is not None:
+    quantile_helper_failIso = make_quantile_helper(
+        args.utQuantileFile,
+        ["recoUT"],
+        ["eta", "pt"],
+        name="utQuantileInput_failIso",
+        processes=["Zmumu_2016PostVFP"],
+    )[0]
+    quantile_helper_failHLT = make_quantile_helper(
+        args.utQuantileFile,
+        ["recoUT"],
+        ["eta", "pt", "charge"],
+        name="utQuantileInput_failHLT",
+        processes=["Zmumu_2016PostVFP"],
+    )[0]
 
 
 nominal_cols = args.axes
@@ -779,6 +912,8 @@ def build_graph(df, dataset):
     df = df.Define("ptll", "ll_mom4.pt()")
     df = df.Define("yll", "ll_mom4.Rapidity()")
     df = df.Define("absYll", "std::fabs(yll)")
+    # reco Z phi for the reco-uT fit axis on failHLT/failIso histograms.
+    df = df.Define("phill", "ll_mom4.Phi()")
     # "renaming" to write out corresponding axis
     df = df.Alias("ptMinus", "muonsMinus_pt0")
     df = df.Alias("ptPlus", "muonsPlus_pt0")
@@ -894,28 +1029,29 @@ def build_graph(df, dataset):
             f"{t}Muons_{v}" for t in ["first", "second"] for v in muonVarsForSF
         ]
 
+        # Always define uT (gen-level projection of the boson onto the muon
+        # pT direction). Needed by the in-situ helper for the (pT, uT) HLT/Iso
+        # Chebyshev terms (matches SMP-23-002 convention). Force smooth3dsf=True
+        # so the real uT is computed and not the dummy 0.0f fallback.
         df = muon_selections.define_muon_uT_variable(
             df,
             isWorZ,
-            smooth3dsf=args.smooth3dsf,
+            smooth3dsf=True,
             colNamePrefix="firstMuons",
             addWithTnpMuonVar=useTnpMuonVarForSF,
         )
         df = muon_selections.define_muon_uT_variable(
             df,
             isWorZ,
-            smooth3dsf=args.smooth3dsf,
+            smooth3dsf=True,
             colNamePrefix="secondMuons",
             addWithTnpMuonVar=useTnpMuonVarForSF,
         )
-        # # ut is defined in muon_selections.define_muon_uT_variable
-        # if not useTnpMuonVarForSF:
-        #     df = df.Alias("firstMuons_tnpUT0", "firstMuons_uT0")
-        #     df = df.Alias("secondMuons_tnpUT0", "secondMuons_uT0")
-
-        # if not args.smooth3dsf:
-        #     columnsForSF.remove("firstMuons_tnpUT0")
-        #     columnsForSF.remove("secondMuons_tnpUT0")
+        if not useTnpMuonVarForSF:
+            # When useTnpMuonVarForSF is False, only _uT0 is defined by
+            # define_muon_uT_variable. Alias so _tnpUT0 always exists.
+            df = df.Alias("firstMuons_tnpUT0", "firstMuons_uT0")
+            df = df.Alias("secondMuons_tnpUT0", "secondMuons_uT0")
 
         # reco + tracking scale factors stay from the external measurement
         # (ID/HLT/Iso are determined in-situ instead). Applied to the nominal
@@ -1035,6 +1171,18 @@ def build_graph(df, dataset):
         "probeMuons_charge0",
         "firstMuons_tag0 ? secondMuons_charge0 : firstMuons_charge0",
     )
+    df_1HLT = df_1HLT.Define(
+        "probeMuons_phi0",
+        "firstMuons_tag0 ? secondMuons_phi0 : firstMuons_phi0",
+    )
+    # reco-uT for the probe leg: project probe onto the reco Z (mu1+mu2)
+    # direction. Same physical quantity as the gen-level uT used in
+    # SMP-23-002 (since p_T_had ~= -p_T(Z)), but computable from reco
+    # variables only -> available on Data as well as MC.
+    df_1HLT = df_1HLT.Define(
+        "probeMuons_recoUT0",
+        "static_cast<double>(wrem::zqtproj0_boson(probeMuons_pt0, probeMuons_phi0, ptll, phill))",
+    )
     # tag is the other leg (always passes ID & HLT)
     df_1HLT = df_1HLT.Define(
         "tagMuons_pt0", "firstMuons_tag0 ? firstMuons_pt0 : secondMuons_pt0"
@@ -1045,6 +1193,17 @@ def build_graph(df, dataset):
     df_1HLT = df_1HLT.Define(
         "tagMuons_charge0", "firstMuons_tag0 ? firstMuons_charge0 : secondMuons_charge0"
     )
+    if not dataset.is_data:
+        # gen-level uT used by the in-situ helper (matches SMP-23-002 SF
+        # parameterisation; only MC events are reweighted)
+        df_1HLT = df_1HLT.Define(
+            "probeMuons_tnpUT0",
+            "firstMuons_tag0 ? secondMuons_tnpUT0 : firstMuons_tnpUT0",
+        )
+        df_1HLT = df_1HLT.Define(
+            "tagMuons_tnpUT0",
+            "firstMuons_tag0 ? firstMuons_tnpUT0 : secondMuons_tnpUT0",
+        )
 
     df_1HLT_passID = df_1HLT.Filter("probeMuons_passID0 == 1")
     df_1HLT_failID = df_1HLT.Filter("probeMuons_passID0 == 0")
@@ -1064,6 +1223,13 @@ def build_graph(df, dataset):
     df_2HLT = df_2HLT.Define(
         "probeMuons_charge0", "isEvenEvent ? firstMuons_charge0 : secondMuons_charge0"
     )
+    df_2HLT = df_2HLT.Define(
+        "probeMuons_phi0", "isEvenEvent ? firstMuons_phi0 : secondMuons_phi0"
+    )
+    df_2HLT = df_2HLT.Define(
+        "probeMuons_recoUT0",
+        "static_cast<double>(wrem::zqtproj0_boson(probeMuons_pt0, probeMuons_phi0, ptll, phill))",
+    )
     # tag is the other leg (also passes ID & HLT in the 2HLT category)
     df_2HLT = df_2HLT.Define(
         "tagMuons_pt0", "isEvenEvent ? secondMuons_pt0 : firstMuons_pt0"
@@ -1074,36 +1240,191 @@ def build_graph(df, dataset):
     df_2HLT = df_2HLT.Define(
         "tagMuons_charge0", "isEvenEvent ? secondMuons_charge0 : firstMuons_charge0"
     )
+    if not dataset.is_data:
+        df_2HLT = df_2HLT.Define(
+            "probeMuons_tnpUT0",
+            "isEvenEvent ? firstMuons_tnpUT0 : secondMuons_tnpUT0",
+        )
+        df_2HLT = df_2HLT.Define(
+            "tagMuons_tnpUT0",
+            "isEvenEvent ? secondMuons_tnpUT0 : firstMuons_tnpUT0",
+        )
 
     df_2HLT_passIso = df_2HLT.Filter("probeMuons_passIso0 == 1")
     df_2HLT_failIso = df_2HLT.Filter("probeMuons_passIso0 == 0")
+
+    # Per-cell uT quantile column: helper trained on Zmumu MC (eta, pt, [q])
+    # CDF of recoUT; applied to *every* event (Data + MC) so that the failIso
+    # / failHLT fit histograms are coherent across processes. Same pattern as
+    # the cs-quantile helper (see cosThetaStarll_quantile usage upstream),
+    # which works directly because its inputs (ptll, phiStarll, ...) are
+    # intrinsically `double`. Our probeMuons_*0 columns are `float`/`int`, so
+    # wrap them in `_q` columns cast to `double` to match the narf helper
+    # signature (one-line, side effect free — the original columns keep their
+    # types and downstream consumers are unaffected).
+    # The quantile helper (narf make_hist_helper) does *unchecked* axis
+    # indexing, and its recoUT axis is flow-less (Regular(130,-30,100)). recoUT
+    # is unbounded (high-pt Z tails exceed +/-the window), so clamp it strictly
+    # inside [-30, 100) before the lookup to avoid an out-of-bounds segfault.
+    # eta/pt are already in range by the good-muon selection.
+    _recoUT_clamp = (
+        "std::min(std::max(probeMuons_recoUT0, "
+        f"{axis_recoUT_fine.edges[0]}), {axis_recoUT_fine.edges[-1]} - 1e-4)"
+    )
+    if quantile_helper_failIso is not None:
+        df_2HLT_failIso = (
+            df_2HLT_failIso.Define("probeMuons_recoUT0_q", _recoUT_clamp)
+            .Define("probeMuons_eta0_q", "static_cast<double>(probeMuons_eta0)")
+            .Define("probeMuons_pt0_q", "static_cast<double>(probeMuons_pt0)")
+            .Define(
+                "probeMuons_recoUT_quantile",
+                quantile_helper_failIso,
+                [
+                    "probeMuons_recoUT0_q",
+                    "probeMuons_eta0_q",
+                    "probeMuons_pt0_q",
+                ],
+            )
+        )
+    if quantile_helper_failHLT is not None:
+        df_1HLT_passID = (
+            df_1HLT_passID.Define("probeMuons_recoUT0_q", _recoUT_clamp)
+            .Define("probeMuons_eta0_q", "static_cast<double>(probeMuons_eta0)")
+            .Define("probeMuons_pt0_q", "static_cast<double>(probeMuons_pt0)")
+            .Define("probeMuons_charge0_q", "static_cast<double>(probeMuons_charge0)")
+            .Define(
+                "probeMuons_recoUT_quantile",
+                quantile_helper_failHLT,
+                [
+                    "probeMuons_recoUT0_q",
+                    "probeMuons_eta0_q",
+                    "probeMuons_pt0_q",
+                    "probeMuons_charge0_q",
+                ],
+            )
+        )
 
     dfs = {
         "nominal": {"df": df_2HLT_passIso, "axes": axes, "cols": cols},
         "failIso": {
             "df": df_2HLT_failIso,
-            "axes": axes_probe_HLT,
-            "cols": cols_probe_HLT,
+            "axes": axes_probe_failIso,
+            "cols": cols_probe_failIso,
         },
         "failHLT": {
             "df": df_1HLT_passID,
-            "axes": axes_probe_HLT,
-            "cols": cols_probe_HLT,
+            "axes": axes_probe_failHLT,
+            "cols": cols_probe_failHLT,
         },
         "failID": {"df": df_1HLT_failID, "axes": axes_probe_ID, "cols": cols_probe_ID},
     }
 
-    # In-situ effMC measurement (MC only): emit the probe (eta, pt, charge)
+    if args.makeUTQuantileHists and not dataset.is_data:
+        # Fine-binned recoUT input hists used by make_quantile_helper to derive
+        # per-cell (eta, pt[variable], [charge]) uT CDFs. Order of axes must be
+        # (target, *dependent_axes) -- this is what make_quantile_helper expects.
+        results.append(
+            df_2HLT_failIso.HistoBoost(
+                "utQuantileInput_failIso",
+                [axis_recoUT_fine, axis_eta, axis_pt_failID],
+                [
+                    "probeMuons_recoUT0",
+                    "probeMuons_eta0",
+                    "probeMuons_pt0",
+                    "nominal_weight",
+                ],
+            )
+        )
+        results.append(
+            df_1HLT_passID.HistoBoost(
+                "utQuantileInput_failHLT",
+                [axis_recoUT_fine, axis_eta, axis_pt_failID, axis_charge],
+                [
+                    "probeMuons_recoUT0",
+                    "probeMuons_eta0",
+                    "probeMuons_pt0",
+                    "probeMuons_charge0",
+                    "nominal_weight",
+                ],
+            )
+        )
+
+    # In-situ effMC measurement (MC only): emit the probe (eta, pt, charge, uT)
     # spectrum of each of the 4 categories. make_insitu_effMC.py recombines
     # these into per-step MC efficiencies (idip/trigger/iso), e.g.
     #   eff_iso     = nominal / (nominal + failIso)
     #   eff_trigger = (nominal + failIso) / (nominal + failIso + failHLT)
     #   eff_idip    = (nominal + failIso + failHLT)
     #                 / (nominal + failIso + failHLT + failID)
-    if not dataset.is_data:
-        for _cat, _info in dfs.items():
+    #
+    # Dilepton tag-and-probe counting: a 2HLT event provides TWO valid
+    # (tag, probe) pairs -- either leg can be the probe (both pass ID &
+    # trigger) -- whereas a 1HLT event provides a single valid probe (the
+    # non-tag leg; the triggering leg is not a valid probe since its tag would
+    # have to pass the trigger, which the other leg fails). We therefore fill
+    # BOTH legs of each 2HLT event into the nominal/failIso histograms, each
+    # routed by ITS OWN isolation at ITS OWN (eta, pt, charge, uT); 1HLT events
+    # fill the single probe leg. The two 2HLT legs always have opposite charge,
+    # so they never share a (eta, pt, charge, uT) bin -> clean per-bin stats,
+    # and no double-counting factor is needed in the producer.
+    if args.makeInsituEffMC and not dataset.is_data:
+        # both legs of the 2HLT events, split into iso-pass (nominal) and
+        # iso-fail (failIso) probe sets via per-leg isolation masks.
+        df_2HLT_eff = df_2HLT.Define(
+            "firstMuons_passIso0", f"{isoBranch}[firstMuons][0] < {isoThreshold}"
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "secondMuons_passIso0", f"{isoBranch}[secondMuons][0] < {isoThreshold}"
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "effProbe2HLT_isoMask",
+            "ROOT::VecOps::RVec<bool>{firstMuons_passIso0, secondMuons_passIso0}",
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "effProbe2HLT_failIsoMask",
+            "ROOT::VecOps::RVec<bool>{!firstMuons_passIso0, !secondMuons_passIso0}",
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "effProbe2HLT_eta",
+            "ROOT::VecOps::RVec<float>{firstMuons_eta0, secondMuons_eta0}",
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "effProbe2HLT_pt",
+            "ROOT::VecOps::RVec<float>{firstMuons_pt0, secondMuons_pt0}",
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "effProbe2HLT_charge",
+            "ROOT::VecOps::RVec<int>{firstMuons_charge0, secondMuons_charge0}",
+        )
+        df_2HLT_eff = df_2HLT_eff.Define(
+            "effProbe2HLT_uT",
+            "ROOT::VecOps::RVec<float>{firstMuons_tnpUT0, secondMuons_tnpUT0}",
+        )
+        for _cat, _mask in (
+            ("nominal", "effProbe2HLT_isoMask"),
+            ("failIso", "effProbe2HLT_failIsoMask"),
+        ):
+            for _v in ("eta", "pt", "charge", "uT"):
+                df_2HLT_eff = df_2HLT_eff.Define(
+                    f"effProbe_{_cat}_{_v}", f"effProbe2HLT_{_v}[{_mask}]"
+                )
             results.append(
-                _info["df"].HistoBoost(
+                df_2HLT_eff.HistoBoost(
+                    f"effMCprobe_{_cat}",
+                    axes_insitu_effMC,
+                    [
+                        f"effProbe_{_cat}_eta",
+                        f"effProbe_{_cat}_pt",
+                        f"effProbe_{_cat}_charge",
+                        f"effProbe_{_cat}_uT",
+                        "nominal_weight",
+                    ],
+                )
+            )
+        # 1HLT categories: single valid probe (the non-tag leg), scalar fill.
+        for _cat, _df in (("failHLT", df_1HLT_passID), ("failID", df_1HLT_failID)):
+            results.append(
+                _df.HistoBoost(
                     f"effMCprobe_{_cat}",
                     axes_insitu_effMC,
                     [*cols_insitu_effMC, "nominal_weight"],

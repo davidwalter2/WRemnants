@@ -4,7 +4,8 @@ import numpy as np
 from wremnants.postprocessing import histselections
 from wremnants.postprocessing.datagroups.datagroup import Datagroup_member
 from wremnants.production.muon_efficiencies_insitu import (
-    insitu_n_coeff,
+    insitu_n_coeff_pt,
+    insitu_n_coeff_ut,
     insitu_parameter_labels,
     insitu_step_group,
 )
@@ -30,10 +31,19 @@ def add_muon_insitu_efficiency_systs(datagroups, inputBaseName, passSystToFakes=
     histname = common.hist_name(inputBaseName, syst="muonInsituEff")
 
     def relabel(h):
-        # n_eta follows the histmaker --eta binning: NSF = n_eta * n_coeff * 4
+        # n_eta follows the histmaker --eta binning:
+        # NSF = n_eta*(2*kPt + 2*kPt*kUt + kPt*kUt) = n_eta * kPt * (2 + 3*kUt)
         n_sf = h.axes["insituEffParm"].size
-        n_eta = n_sf // (insitu_n_coeff * 4)
-        labels = insitu_parameter_labels(n_eta=n_eta, n_coeff=insitu_n_coeff)
+        denom = insitu_n_coeff_pt * (2 + 3 * insitu_n_coeff_ut)
+        n_eta, rem = divmod(n_sf, denom)
+        assert rem == 0, (
+            f"insituEffParm size {n_sf} not divisible by " f"kPt*(2+3*kUt)={denom}"
+        )
+        labels = insitu_parameter_labels(
+            n_eta=n_eta,
+            n_coeff_pt=insitu_n_coeff_pt,
+            n_coeff_ut=insitu_n_coeff_ut,
+        )
         assert len(labels) == n_sf, (len(labels), n_sf)
         axes = [
             (

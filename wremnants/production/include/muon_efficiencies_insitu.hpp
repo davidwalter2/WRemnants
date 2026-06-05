@@ -9,56 +9,81 @@
 
 namespace wrem {
 
-// In-situ muon efficiency helper for the Z->mumu dilepton analysis.
+// In-situ muon efficiency helper for the W/Z muon analyses.
 //
 // Floats the ID (idip), HLT (trigger) and Iso efficiency data/MC scale
-// factors as (NCoeff-1)-order Chebyshev polynomials in muon pt, decorrelated
-// per NEta-bin probe-eta (and per charge for idip). The scale factor of step
-// X for a leg is
-//   SF_X = exp( sum_{k=0..NCoeff-1} theta_{X,etaBin,[q],k} * T_k(xtilde) )
-// with xtilde = 2*(clamp(pt,ptmin,ptmax)-ptmin)/(ptmax-ptmin) - 1.
-// A leg PASSING step X contributes a factor SF_X; a leg FAILING contributes
-//   (1 - SF_X * eMC) / (1 - eMC),   eMC = effMC_X(pt, eta, q).
-// At theta = 0 every factor equals 1, so the nominal event weight is
-// unchanged automatically.
+// factors as Chebyshev polynomials, decorrelated per NEta-bin probe-eta:
+//   IDIP    : 1D in pt, charge-dependent  -> NCoeffPt per (eta, q)
+//   Trigger : 2D in (pt, ut), charge-dep  -> NCoeffPt*NCoeffUt per (eta, q)
+//   Iso     : 2D in (pt, ut), charge-incl -> NCoeffPt*NCoeffUt per (eta)
+// matching the SMP-23-002 measurement variables.
+//
+//   xtilde_pt = 2*(clamp(pt,ptmin,ptmax)-ptmin)/(ptmax-ptmin) - 1
+//   xtilde_ut = 2*(clamp(ut,utmin,utmax)-utmin)/(utmax-utmin) - 1
+//   SF_X = exp( sum_k [, m] theta_{X,etaBin,[q],k[,m]} T_k(x_pt) [T_m(x_ut)] )
+// A leg PASSING step X contributes a factor SF_X; FAILING contributes
+//   (1 - SF_X * eMC) / (1 - eMC),   eMC = effMC_X(pt, eta, q[, ut]).
+// At theta = 0 every factor = 1 -> nominal unchanged.
 //
 // rabbit treats every output-tensor bin as an independent linearised
-// (log-normal) nuisance around the nominal. We therefore store, per
-// coefficient c, the analytic first-order response of the event weight:
+// (log-normal) nuisance around the nominal. We store per coefficient the
+// analytic first-order response:
 //   res(c) = w_nom * exp( delta * d lnW / d theta_c )
-// with d ln f / d s = +1 (pass) or -eMC/(1-eMC) (fail). The coefficients are
-// unconstrained, so "delta" only sets the units of the nuisance: the fitted
-// nuisance n_c corresponds to a Chebyshev coefficient theta_c = delta * n_c
-// (physical results are delta independent). delta is kept small because the
-// fail-leg derivative -eMC/(1-eMC) is large for high-efficiency steps
-// (eMC ~ 0.99 for idip), which would otherwise overflow exp(). effMC is also
-// clamped to [0, effMC_max] to keep the derivative finite.
-// Bins that no leg/step touches stay at w_nom (exp(0) = 1).
+// with d ln f / d s = +1 (pass) or -eMC/(1-eMC) (fail). Coefficients are
+// unconstrained, so delta only sets nuisance units (theta_c = delta * n_c).
+// delta is kept small because the fail-leg derivative is large for high
+// efficiency (idip eMC ~ 0.99). effMC clamped to [0, effMC_max].
 //
-// category: 0 = nominal, 1 = failIso, 2 = failHLT, 3 = failID. The tag leg
-// always passes idip and trigger; iso is never tested on the tag.
+// category: 0 = nominal, 1 = failIso, 2 = failHLT, 3 = failID.
+//
+// Two concrete helpers share the same implementation through a common base:
+//   - muon_insitu_efficiency_helper          (two-leg, Z dilepton): probe +
+//       tag muon variables; the tag leg always passes idip & trigger (the
+//       dilepton tag-and-probe topology), iso is never tested on the tag.
+//   - muon_insitu_efficiency_helper_singleleg (single-leg, W single muon):
+//       only the probe (the single good muon) contributes; there is no tag
+//       leg. Use category 0 (nominal) for signal muons that pass idip,
+//       trigger and iso.
+// Each derived class exposes a single operator() (distinct signatures) so the
+// RDF backend dispatches unambiguously.
 
-template <int NEta, int NCoeff, typename HIST_EFFMC>
-class muon_insitu_efficiency_helper {
+template <int NEta, int NCoeffPt, int NCoeffUt, typename HIST_IDIP,
+          typename HIST_TRIG, typename HIST_ISO>
+class muon_insitu_efficiency_helper_base {
 public:
-  static_assert(NCoeff <= 4, "Chebyshev order > 3 not implemented");
+  static_assert(NCoeffPt <= 4, "Chebyshev pt order > 3 not implemented");
+  static_assert(NCoeffUt <= 4, "Chebyshev ut order > 3 not implemented");
 
   // flat index layout: [ idip | trigger | iso ]
-  static constexpr int nID = NEta * 2 * NCoeff; // idip is charge split
-  static constexpr int nHLT = NEta * NCoeff;    // trigger charge inclusive
-  static constexpr int nIso = NEta * NCoeff;    // iso charge inclusive
+  static constexpr int NCoeff2D = NCoeffPt * NCoeffUt;
+  static constexpr int nID = NEta * 2 * NCoeffPt;  // (eta, q) x pt
+  static constexpr int nHLT = NEta * 2 * NCoeff2D; // (eta, q) x pt x ut
+  static constexpr int nIso = NEta * NCoeff2D;     // eta x pt x ut
   static constexpr int NSF = nID + nHLT + nIso;
 
   using tensor_t = Eigen::TensorFixedSize<double, Eigen::Sizes<NSF>>;
 
-  muon_insitu_efficiency_helper(HIST_EFFMC &&effMC, double ptmin, double ptmax,
-                                double delta = 0.01, double effMC_max = 0.999)
-      : effMC_(std::make_shared<const HIST_EFFMC>(std::move(effMC))),
-        ptmin_(ptmin), ptmax_(ptmax), delta_(delta), effMC_max_(effMC_max) {}
+  muon_insitu_efficiency_helper_base(HIST_IDIP &&effMC_idip,
+                                     HIST_TRIG &&effMC_trig,
+                                     HIST_ISO &&effMC_iso, double ptmin,
+                                     double ptmax, double utmin, double utmax,
+                                     double delta = 0.01,
+                                     double effMC_max = 0.999)
+      : effMC_idip_(std::make_shared<const HIST_IDIP>(std::move(effMC_idip))),
+        effMC_trig_(std::make_shared<const HIST_TRIG>(std::move(effMC_trig))),
+        effMC_iso_(std::make_shared<const HIST_ISO>(std::move(effMC_iso))),
+        ptmin_(ptmin), ptmax_(ptmax), utmin_(utmin), utmax_(utmax),
+        delta_(delta), effMC_max_(effMC_max) {}
 
-  tensor_t operator()(float probe_pt, float probe_eta, int probe_charge,
-                      float tag_pt, float tag_eta, int tag_charge, int category,
-                      double nominal_weight) const {
+protected:
+  enum Step { IDIP = 0, TRIG = 1, ISO = 2 };
+
+  // Shared response computation. WithTag adds the (always-passing idip &
+  // trigger) tag leg at compile time; for the single-leg helper it is elided.
+  template <bool WithTag>
+  tensor_t compute(float probe_pt, float probe_eta, int probe_charge,
+                   float probe_ut, float tag_pt, float tag_eta, int tag_charge,
+                   float tag_ut, int category, double nominal_weight) const {
 
     tensor_t res;
     res.setConstant(nominal_weight);
@@ -66,27 +91,31 @@ public:
     std::array<double, NSF> grad;
     grad.fill(0.0);
 
-    // tag leg always passes idip and trigger
-    accumulate(grad, tag_pt, tag_eta, tag_charge, IDIP, true);
-    accumulate(grad, tag_pt, tag_eta, tag_charge, TRIG, true);
+    // tag leg always passes idip and trigger (two-leg topology only)
+    if constexpr (WithTag) {
+      accumulate(grad, tag_pt, tag_eta, tag_charge, tag_ut, IDIP, true);
+      accumulate(grad, tag_pt, tag_eta, tag_charge, tag_ut, TRIG, true);
+    }
 
     switch (category) {
     case 0: // nominal: probe passes idip, trigger, iso
-      accumulate(grad, probe_pt, probe_eta, probe_charge, IDIP, true);
-      accumulate(grad, probe_pt, probe_eta, probe_charge, TRIG, true);
-      accumulate(grad, probe_pt, probe_eta, probe_charge, ISO, true);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, IDIP, true);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, TRIG, true);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, ISO, true);
       break;
     case 1: // failIso: probe passes idip, trigger, fails iso
-      accumulate(grad, probe_pt, probe_eta, probe_charge, IDIP, true);
-      accumulate(grad, probe_pt, probe_eta, probe_charge, TRIG, true);
-      accumulate(grad, probe_pt, probe_eta, probe_charge, ISO, false);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, IDIP, true);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, TRIG, true);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, ISO, false);
       break;
     case 2: // failHLT: probe passes idip, fails trigger
-      accumulate(grad, probe_pt, probe_eta, probe_charge, IDIP, true);
-      accumulate(grad, probe_pt, probe_eta, probe_charge, TRIG, false);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, IDIP, true);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, TRIG,
+                 false);
       break;
     case 3: // failID: probe fails idip
-      accumulate(grad, probe_pt, probe_eta, probe_charge, IDIP, false);
+      accumulate(grad, probe_pt, probe_eta, probe_charge, probe_ut, IDIP,
+                 false);
       break;
     default:
       break;
@@ -95,7 +124,6 @@ public:
     for (int i = 0; i < NSF; ++i) {
       if (grad[i] != 0.0) {
         double dlogk = delta_ * grad[i];
-        // last-resort guard against exp overflow for pathological bins
         if (dlogk > 30.0)
           dlogk = 30.0;
         if (dlogk < -30.0)
@@ -106,29 +134,39 @@ public:
     return res;
   }
 
-private:
-  enum Step { IDIP = 0, TRIG = 1, ISO = 2 };
-
   void accumulate(std::array<double, NSF> &grad, float pt, float eta,
-                  int charge, Step step, bool pass) const {
+                  int charge, float ut, Step step, bool pass) const {
 
-    // Chebyshev argument on the probe pt window
+    // Chebyshev arguments
     double p = pt;
     if (p < ptmin_)
       p = ptmin_;
     if (p > ptmax_)
       p = ptmax_;
-    const double x = 2.0 * (p - ptmin_) / (ptmax_ - ptmin_) - 1.0;
-    double T[4];
-    T[0] = 1.0;
-    T[1] = x;
-    T[2] = 2.0 * x * x - 1.0;
-    T[3] = 4.0 * x * x * x - 3.0 * x;
+    const double xpt = 2.0 * (p - ptmin_) / (ptmax_ - ptmin_) - 1.0;
+    double Tpt[4];
+    Tpt[0] = 1.0;
+    Tpt[1] = xpt;
+    Tpt[2] = 2.0 * xpt * xpt - 1.0;
+    Tpt[3] = 4.0 * xpt * xpt * xpt - 3.0 * xpt;
 
-    // eta axis index (may be flow); the parameter decorrelation bin is the
-    // same axis clamped into [0, NEta)
-    const int eta_idx = effMC_->template axis<0>().index(eta);
-    int b = eta_idx;
+    double Tut[4] = {1.0, 0.0, 0.0, 0.0};
+    if (step != IDIP) {
+      double u = ut;
+      if (u < utmin_)
+        u = utmin_;
+      if (u > utmax_)
+        u = utmax_;
+      const double xut = 2.0 * (u - utmin_) / (utmax_ - utmin_) - 1.0;
+      Tut[0] = 1.0;
+      Tut[1] = xut;
+      Tut[2] = 2.0 * xut * xut - 1.0;
+      Tut[3] = 4.0 * xut * xut * xut - 3.0 * xut;
+    }
+
+    // eta decorrelation bin (clamped, NEta-grid)
+    const int eta_idx_idip = effMC_idip_->template axis<0>().index(eta);
+    int b = eta_idx_idip;
     if (b < 0)
       b = 0;
     if (b >= NEta)
@@ -136,57 +174,120 @@ private:
 
     const int qbit = (charge > 0) ? 1 : 0;
 
+    // effMC lookup per step
     double dlnf_ds;
     if (pass) {
       dlnf_ds = 1.0;
     } else {
-      const int pt_idx = effMC_->template axis<1>().index(pt);
-      const int charge_idx = effMC_->template axis<2>().index(charge);
-      double e =
-          effMC_->at(eta_idx, pt_idx, charge_idx, stepIndex(step)).value();
+      double e = 0.0;
+      if (step == IDIP) {
+        const int eta_i = effMC_idip_->template axis<0>().index(eta);
+        const int pt_i = effMC_idip_->template axis<1>().index(pt);
+        const int q_i = effMC_idip_->template axis<2>().index(charge);
+        e = effMC_idip_->at(eta_i, pt_i, q_i).value();
+      } else if (step == TRIG) {
+        const int eta_i = effMC_trig_->template axis<0>().index(eta);
+        const int pt_i = effMC_trig_->template axis<1>().index(pt);
+        const int q_i = effMC_trig_->template axis<2>().index(charge);
+        const int ut_i = effMC_trig_->template axis<3>().index(ut);
+        e = effMC_trig_->at(eta_i, pt_i, q_i, ut_i).value();
+      } else { // ISO (charge-inclusive)
+        const int eta_i = effMC_iso_->template axis<0>().index(eta);
+        const int pt_i = effMC_iso_->template axis<1>().index(pt);
+        const int ut_i = effMC_iso_->template axis<2>().index(ut);
+        e = effMC_iso_->at(eta_i, pt_i, ut_i).value();
+      }
       if (!(e > 0.0)) {
         return; // empty effMC -> no variation for this step
       }
       if (e > effMC_max_)
-        e = effMC_max_; // bound the fail-leg derivative for eMC -> 1
+        e = effMC_max_;
       dlnf_ds = -e / (1.0 - e);
     }
 
-    int base;
-    int blockBin;
+    // index layout per step block
     if (step == IDIP) {
-      base = 0;
-      blockBin = qbit * NEta + b; // idip is charge split
+      // (q, eta) x pt
+      const int blockBin = qbit * NEta + b;
+      const int off = 0 + blockBin * NCoeffPt;
+      for (int k = 0; k < NCoeffPt; ++k) {
+        grad[off + k] += Tpt[k] * dlnf_ds;
+      }
     } else if (step == TRIG) {
-      base = nID;
-      blockBin = b;
-    } else {
-      base = nID + nHLT;
-      blockBin = b;
-    }
-    const int off = base + blockBin * NCoeff;
-    for (int k = 0; k < NCoeff; ++k) {
-      grad[off + k] += T[k] * dlnf_ds;
+      // (q, eta) x pt x ut
+      const int blockBin = qbit * NEta + b;
+      const int off = nID + blockBin * NCoeff2D;
+      for (int k = 0; k < NCoeffPt; ++k) {
+        for (int m = 0; m < NCoeffUt; ++m) {
+          grad[off + k * NCoeffUt + m] += Tpt[k] * Tut[m] * dlnf_ds;
+        }
+      }
+    } else { // ISO
+      // eta x pt x ut (charge-inclusive)
+      const int blockBin = b;
+      const int off = nID + nHLT + blockBin * NCoeff2D;
+      for (int k = 0; k < NCoeffPt; ++k) {
+        for (int m = 0; m < NCoeffUt; ++m) {
+          grad[off + k * NCoeffUt + m] += Tpt[k] * Tut[m] * dlnf_ds;
+        }
+      }
     }
   }
 
-  int stepIndex(Step step) const {
-    if (step == IDIP)
-      return idx_idip_;
-    if (step == TRIG)
-      return idx_trig_;
-    return idx_iso_;
-  }
-
-  std::shared_ptr<const HIST_EFFMC> effMC_;
+  std::shared_ptr<const HIST_IDIP> effMC_idip_;
+  std::shared_ptr<const HIST_TRIG> effMC_trig_;
+  std::shared_ptr<const HIST_ISO> effMC_iso_;
   double ptmin_;
   double ptmax_;
+  double utmin_;
+  double utmax_;
   double delta_;
   double effMC_max_;
-  // cache the slow string-category lookups
-  int idx_idip_ = effMC_->template axis<3>().index("idip");
-  int idx_trig_ = effMC_->template axis<3>().index("trigger");
-  int idx_iso_ = effMC_->template axis<3>().index("iso");
+};
+
+// Two-leg helper (Z dilepton tag-and-probe).
+template <int NEta, int NCoeffPt, int NCoeffUt, typename HIST_IDIP,
+          typename HIST_TRIG, typename HIST_ISO>
+class muon_insitu_efficiency_helper
+    : public muon_insitu_efficiency_helper_base<
+          NEta, NCoeffPt, NCoeffUt, HIST_IDIP, HIST_TRIG, HIST_ISO> {
+public:
+  using Base =
+      muon_insitu_efficiency_helper_base<NEta, NCoeffPt, NCoeffUt, HIST_IDIP,
+                                         HIST_TRIG, HIST_ISO>;
+  using Base::Base;
+  using typename Base::tensor_t;
+
+  tensor_t operator()(float probe_pt, float probe_eta, int probe_charge,
+                      float probe_ut, float tag_pt, float tag_eta,
+                      int tag_charge, float tag_ut, int category,
+                      double nominal_weight) const {
+    return this->template compute<true>(probe_pt, probe_eta, probe_charge,
+                                        probe_ut, tag_pt, tag_eta, tag_charge,
+                                        tag_ut, category, nominal_weight);
+  }
+};
+
+// Single-leg helper (W single muon): no tag leg.
+template <int NEta, int NCoeffPt, int NCoeffUt, typename HIST_IDIP,
+          typename HIST_TRIG, typename HIST_ISO>
+class muon_insitu_efficiency_helper_singleleg
+    : public muon_insitu_efficiency_helper_base<
+          NEta, NCoeffPt, NCoeffUt, HIST_IDIP, HIST_TRIG, HIST_ISO> {
+public:
+  using Base =
+      muon_insitu_efficiency_helper_base<NEta, NCoeffPt, NCoeffUt, HIST_IDIP,
+                                         HIST_TRIG, HIST_ISO>;
+  using Base::Base;
+  using typename Base::tensor_t;
+
+  tensor_t operator()(float probe_pt, float probe_eta, int probe_charge,
+                      float probe_ut, int category,
+                      double nominal_weight) const {
+    return this->template compute<false>(probe_pt, probe_eta, probe_charge,
+                                         probe_ut, 0.0f, 0.0f, 0, 0.0f,
+                                         category, nominal_weight);
+  }
 };
 
 } // namespace wrem
