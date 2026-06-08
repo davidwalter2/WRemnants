@@ -57,6 +57,17 @@ parser.add_argument(
     "histograms needed to produce that file are written.",
 )
 parser.add_argument(
+    "--insituSFFile",
+    type=str,
+    default=None,
+    help="Accumulated central in-situ Chebyshev coefficients (theta_central) "
+    ".pkl.lz4 from scripts/corrections/make_insitu_effSF.py, for the iterative "
+    "fit. The MC nominal is reweighted by the post-fit central SF before all "
+    "category templates and syst tensors are filled, and the in-situ variations "
+    "are re-linearised around it. Default None = iteration 0 (theta_central=0, "
+    "== SF=1, current behaviour).",
+)
+parser.add_argument(
     "--makeInsituEffMC",
     action="store_true",
     help="Emit the effMCprobe_* probe spectra (both tag-and-probe legs per "
@@ -337,10 +348,32 @@ auxiliary_gen_axes = [
 
 # failID has falling probe-pt stats above ~45 GeV (few/empty bins on the 1 GeV grid
 # at high pt × forward eta). Use a variable-width pt axis: 1 GeV up to 38 GeV, then
-# coarser bins toward 60 GeV. effMC and the Chebyshev x̃ stay on the underlying
-# args.pt grid (34×1 GeV) and are unaffected by this binning choice.
+# coarser bins toward the configured upper pt cut args.pt[2] (last edge follows the
+# cut, so --pt 44 26 70 widens the top bin to [50, 70]; args.pt[2] == 60 reproduces
+# the original axis). This same axis is reused for the in-situ effMC grid
+# (axes_insitu_effMC) so effMC and the fit share binning; the Chebyshev x̃ window is
+# set separately from (args.pt[1], args.pt[2]).
 axis_pt_failID = hist.axis.Variable(
-    [26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 40, 42, 45, 50, 60],
+    [
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        40,
+        42,
+        45,
+        50,
+        int(round(args.pt[2])),
+    ],
     name="pt",
     underflow=False,
     overflow=False,
@@ -367,11 +400,22 @@ axis_recoUT_fine = hist.axis.Regular(
     underflow=False,
     overflow=False,
 )
-# 7-quantile axis used as the *fit axis* when --utQuantileFile is set: events
-# are mapped to a quantile fraction in [0, 1) by the per-cell CDF helper.
-n_ut_quantiles = 7
-axis_recoUT_quantile = hist.axis.Regular(
-    n_ut_quantiles,
+# Quantile axes used as the *fit axis* when --utQuantileFile is set: events are
+# mapped to a quantile fraction in [0, 1) by the per-cell CDF helper, then binned
+# here. failHLT (trigger) uses 10 quantiles for finer reco-uT resolution (the
+# trigger uT/pt coefficients are the under-constrained ones); failIso stays at 7.
+n_ut_quantiles_failHLT = 10
+n_ut_quantiles_failIso = 7
+axis_recoUT_quantile_failHLT = hist.axis.Regular(
+    n_ut_quantiles_failHLT,
+    0,
+    1,
+    name="recoUT_quantile",
+    underflow=False,
+    overflow=False,
+)
+axis_recoUT_quantile_failIso = hist.axis.Regular(
+    n_ut_quantiles_failIso,
     0,
     1,
     name="recoUT_quantile",
@@ -395,14 +439,19 @@ if args.utQuantileFile is not None:
     # Per-(eta, pt, [charge]) uT quantiles: each cell has its own 7 equal-
     # population uT bins. The recoUT_quantile column is defined per-category
     # in the dfs block via make_quantile_helper.
-    axes_probe_failHLT = [axis_eta, axis_pt_failID, axis_recoUT_quantile, axis_charge]
+    axes_probe_failHLT = [
+        axis_eta,
+        axis_pt_failID,
+        axis_recoUT_quantile_failHLT,
+        axis_charge,
+    ]
     cols_probe_failHLT = [
         "probeMuons_eta0",
         "probeMuons_pt0",
         "probeMuons_recoUT_quantile",
         "probeMuons_charge0",
     ]
-    axes_probe_failIso = [axis_eta, axis_pt_failID, axis_recoUT_quantile]
+    axes_probe_failIso = [axis_eta, axis_pt_failID, axis_recoUT_quantile_failIso]
     cols_probe_failIso = [
         "probeMuons_eta0",
         "probeMuons_pt0",
@@ -438,14 +487,9 @@ axes_insitu_effMC = [
         underflow=False,
         overflow=False,
     ),
-    hist.axis.Regular(
-        int(args.pt[0]),
-        args.pt[1],
-        args.pt[2],
-        name="pt",
-        underflow=False,
-        overflow=False,
-    ),
+    # reuse the fail-category variable pt axis so effMC and the fit share binning
+    # (the helper looks up effMC via boost-hist axis.index(), variable-safe)
+    axis_pt_failID,
     hist.axis.Regular(2, -2.0, 2.0, name="charge", underflow=False, overflow=False),
     axis_genUT,
 ]
@@ -595,14 +639,30 @@ logger.info(f"SF file: {args.sfFile}")
 # Built only when the MC-efficiency file is provided; the first pass that
 # produces that file (via the effMCprobe_* histograms) runs without it.
 muon_insitu_efficiency_helper = None
+muon_insitu_central_helper = None
 insitu_parameter_labels = None
+# The in-situ central reweight folds W(theta_central) into nominal_weight, which
+# also feeds the effMCprobe_* spectra. effMC must stay iteration-independent, so
+# the effMC pre-step and an iteration reweight cannot run together.
+if args.makeInsituEffMC and args.insituSFFile is not None:
+    raise ValueError(
+        "--makeInsituEffMC and --insituSFFile are mutually exclusive: the central "
+        "reweight would distort the (iteration-independent) effMC. Compute effMC at "
+        "iteration 0 (no --insituSFFile), then reuse it for all iterations."
+    )
 if args.insituEffMCFile is not None:
-    muon_insitu_efficiency_helper, insitu_parameter_labels = (
-        muon_efficiencies_insitu.make_muon_insitu_efficiency_helper(
-            args.insituEffMCFile, pt_range=(args.pt[1], args.pt[2])
-        )
+    (
+        muon_insitu_efficiency_helper,
+        muon_insitu_central_helper,
+        insitu_parameter_labels,
+    ) = muon_efficiencies_insitu.make_muon_insitu_efficiency_helper(
+        args.insituEffMCFile,
+        pt_range=(args.pt[1], args.pt[2]),
+        central_sf_file=args.insituSFFile,
     )
     logger.info(f"In-situ effMC file: {args.insituEffMCFile}")
+    if args.insituSFFile is not None:
+        logger.info(f"In-situ central SF file (iteration): {args.insituSFFile}")
 
 muon_efficiency_helper_syst_altBkg = {}
 for es in common.muonEfficiency_altBkgSyst_effSteps:
@@ -1109,6 +1169,78 @@ def build_graph(df, dataset):
             )
             weight_expr += "*weight_pixel_multiplicity"
 
+        # Iterative in-situ SF (iteration >= 1): fold the post-fit central
+        # reweight W(theta_central) into the *experimental* weight here -- exactly
+        # like the reco/tracking SF above -- so it is part of nominal_weight
+        # BEFORE define_theory_weights_and_corrs builds the pdf/scetlib/EW weight
+        # tensors. Those tensors bake in nominal_weight, so they must see W too;
+        # otherwise syst/nominal (= logk) is distorted by 1/W per bin. Compute the
+        # per-event probe/tag + 4-category assignment on the parent df (same logic
+        # as the tag-and-probe split below) with insituW_-prefixed columns to
+        # avoid colliding with the split's probeMuons_*/firstMuons_tag0. Events
+        # with no tag muon (dropped from every category downstream) get W = 1.
+        # Gated on --insituSFFile (iteration 0 has theta_central=0 -> W=1, so we
+        # skip and stay bit-identical to the un-iterated run).
+        if args.insituSFFile is not None and muon_insitu_central_helper is not None:
+            _ci = systematics.insitu_category_index
+            df = df.Define(
+                "insituW_firstTag", "firstMuons_passID0 && firstMuons_passTrigger0"
+            )
+            df = df.Define(
+                "insituW_secondTag", "secondMuons_passID0 && secondMuons_passTrigger0"
+            )
+            df = df.Define(
+                "insituW_firstIso", f"{isoBranch}[firstMuons][0] < {isoThreshold}"
+            )
+            df = df.Define(
+                "insituW_secondIso", f"{isoBranch}[secondMuons][0] < {isoThreshold}"
+            )
+            # probe leg: 2HLT -> random (isEvenEvent); 1HLT -> the non-tag leg
+            df = df.Define(
+                "insituW_probeIsFirst",
+                "(insituW_firstTag && insituW_secondTag) ? isEvenEvent "
+                ": static_cast<bool>(!insituW_firstTag)",
+            )
+            for _v in ["pt0", "eta0", "charge0", "tnpUT0"]:
+                df = df.Define(
+                    f"insituW_probe_{_v}",
+                    f"insituW_probeIsFirst ? firstMuons_{_v} : secondMuons_{_v}",
+                )
+                df = df.Define(
+                    f"insituW_tag_{_v}",
+                    f"insituW_probeIsFirst ? secondMuons_{_v} : firstMuons_{_v}",
+                )
+            # 4-category index (matches systematics.insitu_category_index)
+            df = df.Define(
+                "insituW_cat",
+                "static_cast<int>((insituW_firstTag && insituW_secondTag) ? "
+                "((insituW_probeIsFirst ? insituW_firstIso : insituW_secondIso) ? "
+                f"{_ci['nominal']} : {_ci['failIso']}) : "
+                "((insituW_probeIsFirst ? firstMuons_passID0 : secondMuons_passID0) ? "
+                f"{_ci['failHLT']} : {_ci['failID']}))",
+            )
+            df = df.Define(
+                "insituCentralW_raw",
+                muon_insitu_central_helper,
+                [
+                    "insituW_probe_pt0",
+                    "insituW_probe_eta0",
+                    "insituW_probe_charge0",
+                    "insituW_probe_tnpUT0",
+                    "insituW_tag_pt0",
+                    "insituW_tag_eta0",
+                    "insituW_tag_charge0",
+                    "insituW_tag_tnpUT0",
+                    "insituW_cat",
+                ],
+            )
+            # events with no tag muon are dropped from every category -> W = 1
+            df = df.Define(
+                "insituCentralW",
+                "(insituW_firstTag + insituW_secondTag) >= 1 ? insituCentralW_raw : 1.0",
+            )
+            weight_expr += "*insituCentralW"
+
         logger.debug(f"Experimental weight defined: {weight_expr}")
         df = df.Define("exp_weight", weight_expr)
         df = theory_corrections.define_theory_weights_and_corrs(
@@ -1431,6 +1563,9 @@ def build_graph(df, dataset):
                 )
             )
 
+    # NOTE: the in-situ central reweight W(theta_central) is applied upstream as
+    # part of nominal_weight (see the insituCentralW block before exp_weight), so
+    # by here every category's templates AND theory/syst tensors already carry it.
     for channel, info in dfs.items():
         df = info["df"]
         axes = info["axes"]

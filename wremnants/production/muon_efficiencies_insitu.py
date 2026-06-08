@@ -30,10 +30,15 @@ insitu_n_coeff_ut = 3  # 2nd-order Chebyshev in ut (HLT, Iso only)
 insitu_pt_range = (26.0, 60.0)
 insitu_ut_range = (-30.0, 100.0)
 # variation step folded into the stored response (units of the unconstrained
-# nuisance: theta_c = delta * n_c). Small to avoid exp() overflow from the
-# large fail-leg derivative of high-efficiency steps.
+# nuisance: theta_c = delta * n_c). Under the logit parameterisation the
+# per-leg derivatives are bounded in [-1,1], so delta only sets the nuisance
+# units (the physics is delta-independent for unconstrained coefficients).
 insitu_delta = 0.01
-insitu_effMC_max = 0.999
+# effMC is clamped to (0, effMC_max] so that 1-e > 0 (the fail denominator
+# D = e*expS + (1-e) stays positive) and to absorb e >= 1 low-stats MC bins.
+# 0.9999 sits above the largest genuine effMC (idip peaks at ~0.99976), so no
+# real efficiency is clamped while e >= 1 fluctuations still are.
+insitu_effMC_max = 0.9999
 
 # group-name prefix per step (used for nuisance grouping in setupRabbit)
 insitu_step_group = {
@@ -205,6 +210,50 @@ def insitu_parameter_labels(
     return labels
 
 
+def load_insitu_central(
+    sf_file,
+    n_eta=insitu_n_eta,
+    n_coeff_pt=insitu_n_coeff_pt,
+    n_coeff_ut=insitu_n_coeff_ut,
+):
+    """Flat ``theta_central`` array (NSF doubles, in insitu_parameter_labels
+    order) for the iterative fit. ``sf_file`` is the accumulated-coefficient
+    pkl written by scripts/corrections/make_insitu_effSF.py; ``None`` -> all
+    zeros (iteration 0, SF = 1).
+
+    The pkl stores theta as a *label-keyed dict* (not a bare array) so the
+    label<->flat-index mapping round-trips through insitu_parameter_labels() on
+    both write and read, robust against eta-binning / ordering changes. Both
+    the histmaker and the producer import this loader (single source of truth).
+    """
+    labels = insitu_parameter_labels(n_eta, n_coeff_pt, n_coeff_ut)
+    if sf_file is None:
+        return [0.0] * len(labels)
+    with lz4.frame.open(sf_file, "rb") as fin:
+        payload = pickle.load(fin)
+    content = next(
+        v
+        for k, v in payload.items()
+        if k not in ("meta_data", "file_meta_data", "meta_info")
+    )
+    theta = content["theta_central"]
+    assert isinstance(
+        theta, dict
+    ), f"theta_central must be a label-keyed dict, got {type(theta)}"
+    missing = [lbl for lbl in labels if lbl not in theta]
+    if missing:
+        raise KeyError(
+            f"theta_central pkl {sf_file} missing {len(missing)} labels, "
+            f"e.g. {missing[:3]}"
+        )
+    arr = [float(theta[lbl]) for lbl in labels]
+    logger.info(
+        f"Loaded in-situ central theta from {sf_file} ({len(labels)} coeffs, "
+        f"max|theta|={max(abs(x) for x in arr):.4g})"
+    )
+    return arr
+
+
 def make_muon_insitu_efficiency_helper(
     effMCFile,
     n_coeff_pt=insitu_n_coeff_pt,
@@ -214,14 +263,22 @@ def make_muon_insitu_efficiency_helper(
     delta=insitu_delta,
     effMC_max=insitu_effMC_max,
     single_leg=False,
+    central_sf_file=None,
 ):
-    """Build the RDF helper that emits the in-situ efficiency syst tensor.
+    """Build the RDF helpers for the in-situ efficiency method.
 
     The number of eta bins is inferred from the effMC histograms so it follows
-    the histmaker --eta binning automatically. Returns (helper, labels).
+    the histmaker --eta binning automatically. Returns
+    ``(tensor_helper, central_helper, labels)``:
+      - ``tensor_helper`` emits the per-event 2112-bin variation tensor,
+      - ``central_helper`` returns the scalar central reweight W(theta_central)
+        to fold into nominal_weight before the templates are filled.
 
-    ``single_leg=True`` selects the W single-muon helper (no tag leg); the
-    default two-leg helper is used for the Z dilepton tag-and-probe topology.
+    ``single_leg=True`` selects the W single-muon helpers (no tag leg); the
+    default two-leg helpers are used for the Z dilepton tag-and-probe topology.
+    ``central_sf_file`` is the accumulated theta_central pkl (None -> zeros, i.e.
+    iteration 0, SF = 1, == previous behaviour with W(theta)=1 and the gradient
+    evaluated at SF=1).
     """
     effMC = make_muon_insitu_effMC_helper(effMCFile)
     h_idip = effMC["idip"]
@@ -234,33 +291,41 @@ def make_muon_insitu_efficiency_helper(
         h_iso.axes[0].size,
     )
 
-    idip_pyroot = narf.hist_to_pyroot_boost(h_idip)
-    trig_pyroot = narf.hist_to_pyroot_boost(h_trig)
-    iso_pyroot = narf.hist_to_pyroot_boost(h_iso)
+    theta_central = load_insitu_central(central_sf_file, n_eta, n_coeff_pt, n_coeff_ut)
+    theta_vec = ROOT.std.vector("double")(theta_central)
 
-    helper_class = (
+    def _instantiate(helper_class):
+        # fresh pyroot copies per helper (the boost hists are std::move'd in)
+        ip = narf.hist_to_pyroot_boost(h_idip)
+        tp = narf.hist_to_pyroot_boost(h_trig)
+        sp = narf.hist_to_pyroot_boost(h_iso)
+        return helper_class[
+            n_eta, n_coeff_pt, n_coeff_ut, type(ip), type(tp), type(sp)
+        ](
+            ROOT.std.move(ip),
+            ROOT.std.move(tp),
+            ROOT.std.move(sp),
+            pt_range[0],
+            pt_range[1],
+            ut_range[0],
+            ut_range[1],
+            delta,
+            effMC_max,
+            theta_vec,
+        )
+
+    tensor_class = (
         ROOT.wrem.muon_insitu_efficiency_helper_singleleg
         if single_leg
         else ROOT.wrem.muon_insitu_efficiency_helper
     )
-    helper = helper_class[
-        n_eta,
-        n_coeff_pt,
-        n_coeff_ut,
-        type(idip_pyroot),
-        type(trig_pyroot),
-        type(iso_pyroot),
-    ](
-        ROOT.std.move(idip_pyroot),
-        ROOT.std.move(trig_pyroot),
-        ROOT.std.move(iso_pyroot),
-        pt_range[0],
-        pt_range[1],
-        ut_range[0],
-        ut_range[1],
-        delta,
-        effMC_max,
+    central_class = (
+        ROOT.wrem.muon_insitu_central_weight_helper_singleleg
+        if single_leg
+        else ROOT.wrem.muon_insitu_central_weight_helper
     )
+    helper = _instantiate(tensor_class)
+    central_helper = _instantiate(central_class)
 
     n_id = n_eta * 2 * n_coeff_pt
     n_hlt = n_eta * 2 * n_coeff_pt * n_coeff_ut
@@ -277,6 +342,7 @@ def make_muon_insitu_efficiency_helper(
         f"Built in-situ efficiency helper with {n_sf} unconstrained "
         f"Chebyshev coefficients "
         f"(eta={n_eta}, order_pt={n_coeff_pt - 1}, order_ut={n_coeff_ut - 1}; "
-        f"idip={n_id}, trigger={n_hlt}, iso={n_iso_p})"
+        f"idip={n_id}, trigger={n_hlt}, iso={n_iso_p}); "
+        f"central theta {'from ' + central_sf_file if central_sf_file else '= 0'}"
     )
-    return helper, labels
+    return helper, central_helper, labels
