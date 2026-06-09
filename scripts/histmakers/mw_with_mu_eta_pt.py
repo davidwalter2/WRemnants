@@ -457,7 +457,6 @@ else:
         )
     )
 
-
 if args.theoryAgnostic:
     theoryAgnostic_axes, theoryAgnostic_cols = binning.get_theoryAgnostic_axes(
         ptV_bins=args.theoryAgnosticGenPtVbinEdges,
@@ -737,12 +736,11 @@ def build_graph(df, dataset):
         hist.storage.Double()
     )  # turn off sum weight square for systematic histograms
 
+    helicity_smoothing_helpers = {}
     if isWorZ:
         label = dataset.name[0] if isW else "Z"
         if label in helicity_smoothing_helpers_procs.keys():
             helicity_smoothing_helpers = helicity_smoothing_helpers_procs[label]
-    else:
-        helicity_smoothing_helpers = {}
 
     # disable auxiliary histograms when unfolding to reduce memory consumptions, or when doing the original theory agnostic without --poiAsNoi
     auxiliary_histograms = True
