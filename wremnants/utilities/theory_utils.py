@@ -276,7 +276,7 @@ def widthWeightNames(matches=None, proc="", exclude=[]):
         exclude = [
             exclude,
         ]
-    if any(proc.startswith(x) for x in ("Z", "DY")):
+    if proc[0] == "Z":
         widths = (2.49333, 2.49493, 2.4929, 2.4952, 2.4975)
     elif proc[0] == "W":
         widths = (2.09053, 2.09173, 2.043, 2.085, 2.127)

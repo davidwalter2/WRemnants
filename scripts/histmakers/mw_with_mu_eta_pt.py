@@ -737,10 +737,8 @@ def build_graph(df, dataset):
         hist.storage.Double()
     )  # turn off sum weight square for systematic histograms
 
-    if isWorZ:
-        label = dataset.name[0] if isW else "Z"
-        if label in helicity_smoothing_helpers_procs.keys():
-            helicity_smoothing_helpers = helicity_smoothing_helpers_procs[label]
+    if isWorZ and dataset.name[0] in helicity_smoothing_helpers_procs.keys():
+        helicity_smoothing_helpers = helicity_smoothing_helpers_procs[dataset.name[0]]
     else:
         helicity_smoothing_helpers = {}
 
@@ -2353,7 +2351,9 @@ def build_graph(df, dataset):
 
         # n.b. this is the W analysis so mass weights shouldn't be propagated
         # on the Z samples (but can still use it for dummy muon scale)
+
         if isWorZ:
+
             df = systematics.add_theory_hists(
                 results,
                 df,
@@ -2367,7 +2367,6 @@ def build_graph(df, dataset):
                 storage_type=storage_type,
             )
 
-        if isWorZ:
             # Don't think it makes sense to apply the mass weights to scale leptons from tau decays
             if (
                 "massWeight_tensor" in df.GetColumnNames()

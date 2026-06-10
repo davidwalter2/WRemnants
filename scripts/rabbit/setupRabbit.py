@@ -1483,7 +1483,6 @@ def setup(
                 startsWith=ZMatch,
                 excludeMatch=dibosonMatch,
             )
-
     datagroups.addProcessGroup(
         "single_vmu_samples",
         startsWith=[*WMatch, *ZMatch],
