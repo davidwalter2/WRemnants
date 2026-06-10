@@ -255,7 +255,7 @@ jobs:
         run: >- 
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run.sh rabbit_fit.py 
           '$WREMNANTS_OUTDIR/WMass_eta_pt_charge/WMass.hdf5'
-          -t -1 --doImpacts -o '$WREMNANTS_OUTDIR/WMass_eta_pt_charge/'
+          -t -1 --doImpacts --globalImpacts -o '$WREMNANTS_OUTDIR/WMass_eta_pt_charge/'
 
       - name: wmass rabbit impacts
         run: >-
@@ -327,14 +327,14 @@ jobs:
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run.sh rabbit_fit.py
           '$WREMNANTS_OUTDIR/simultaneousABCD/WMass_eta_pt_charge_relIso_mt/WMass.hdf5'
           --paramModel SmoothExtendedABCDIsoMT 'params:$WREMNANTS_OUTDIR/simultaneousABCD/params.hdf5' Fake ch0
-          -t -1 --doImpacts -o '$WREMNANTS_OUTDIR/simultaneousABCD/WMass_eta_pt_charge_relIso_mt/'
+          -t -1 --doImpacts --globalImpacts -o '$WREMNANTS_OUTDIR/simultaneousABCD/WMass_eta_pt_charge_relIso_mt/'
 
       - name: wmass abcd impacts comparison
         run: >-
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run.sh rabbit_plot_pulls_and_impacts.py
           ${WREMNANTS_OUTDIR}/simultaneousABCD/WMass_eta_pt_charge_relIso_mt/fitresults.hdf5
           -r ${WREMNANTS_OUTDIR}/WMass_eta_pt_charge/fitresults.hdf5
-          --name simultaneousABCD --refName nominal
+          --name simultaneousABCD --refName nominal --impactType global
           --showNumbers --oneSidedImpacts --grouping max --config wremnants/utilities/styles/styles.py
           -o $WEB_DIR/$PLOT_DIR --otherExtensions pdf png -n 50 --postfix simultaneousABCD --scaleImpacts 100
           --title CMS --subtitle Preliminary
