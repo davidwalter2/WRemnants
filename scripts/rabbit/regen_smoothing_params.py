@@ -85,6 +85,12 @@ def make_parser():
         help="Polynomial type for the spectrum smoothing.",
     )
     parser.add_argument(
+        "--lumiScale",
+        type=float,
+        default=1.0,
+        help="Rescale equivalent luminosity by this value (must match the value used in setupRabbit).",
+    )
+    parser.add_argument(
         "--excludeProcGroups",
         type=str,
         nargs="*",
@@ -245,6 +251,7 @@ def main():
         filterGroups=args.filterProcGroups if args.filterProcGroups else None,
     )
 
+    dg.lumiScale = args.lumiScale
     dg.fakerate_axes = args.fakerateAxes
     dg.set_histselectors(
         dg.getNames(),
