@@ -1306,7 +1306,8 @@ jobs:
         run: >-
           scripts/ci/run_with_singularity.sh scripts/ci/setup_and_run.sh rabbit_fit.py 
           $WREMNANTS_OUTDIR/ZMassDilepton_ptll/ZMassDilepton.hdf5 --saveHists --saveHistsPerProcess --computeHistErrors 
-          --externalPostfit $WREMNANTS_OUTDIR/ZMassWLike_eta_pt_charge/fitresults_uncorr.hdf5 --externalPostfitResult uncorr --noPostfitProfileBB
+          --externalPostfit $WREMNANTS_OUTDIR/ZMassWLike_eta_pt_charge/fitresults_uncorr.hdf5 
+          --externalPostfitResult uncorr --noPostfitProfileBB --noFit
           -o $WREMNANTS_OUTDIR/ZMassDilepton_ptll/ --postfix from_ZMassWLike_eta_pt_charge --pseudoData uncorr
 
       - name: dilepton ptll from wlike postfit
