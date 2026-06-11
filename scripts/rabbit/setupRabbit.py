@@ -1470,12 +1470,6 @@ def setup(
         startsWith=ZMatch,
         excludeMatch=dibosonMatch,
     )
-    if wmass or wlike_vetoValidation:
-        datagroups.addProcessGroup(
-            "Zveto_samples",
-            startsWith=[*ZMatch, "DYlowMass"],
-            excludeMatch=dibosonMatch,
-        )
     if wmass:
         datagroups.addProcessGroup(
             "w_samples",
@@ -2677,7 +2671,7 @@ def setup(
                         systAxes=axes,
                         labelsByAxis=axlabels,
                         baseName=name + "_",
-                        processes=["Zveto_samples"],
+                        processes=["z_samples"],
                         passToFakes=passSystToFakes if wmass else False,
                         systNameReplace=nameReplace,
                         scale=scale,

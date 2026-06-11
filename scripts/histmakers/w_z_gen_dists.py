@@ -175,7 +175,7 @@ axis_chargel_gen = hist.axis.Regular(
 
 # axis_massWgen = hist.axis.Variable([4.0, 13000.0], name="massVgen")
 axis_massWgen = hist.axis.Variable([0, 75, 80, 85, 120.0, 13000], name="massVgen")
-axis_massZgen = hist.axis.Variable([60.0, 120.0, 13000], name="massVgen")
+axis_massZgen = hist.axis.Variable([10, 60.0, 120.0, 13000], name="massVgen")
 
 theory_corrs = [*args.theoryCorr, *args.ewTheoryCorr]
 procsWithTheoryCorr = [d.name for d in datasets if d.name in samples.vprocs]
@@ -225,7 +225,7 @@ def build_graph(df, dataset):
     axis_ptV_thag = theoryAgnostic_axes[0]
     axis_yV_thag = theoryAgnostic_axes[1]
 
-    if args.useUnfoldingBinning and "Z" in dataset.name:
+    if args.useUnfoldingBinning and isZ:
         unfolding_axes, unfolding_cols, unfolding_selections = (
             binning.get_unfolding_dilepton_axes(
                 ["ptVGen", "absYVGen"],
@@ -319,9 +319,7 @@ def build_graph(df, dataset):
         df, dataset.name, corr_helpers, args, helicity_smoothing_helpers
     )
 
-    if isZ or dataset.group in [
-        "DYlowMass",
-    ]:
+    if isZ:
         nominal_axes = [
             axis_massZgen,
             axis_rapidity,
@@ -1020,11 +1018,11 @@ def build_graph(df, dataset):
 
 
 resultdict = narf.build_and_run(datasets, build_graph)
+if not args.noScaleToData:
+    # weight to cross section / sum(weights) * lumi with lumi=1 w/o data
+    scale_to_data(resultdict)
+
 if len(args.aggregateGroups) > 0:
-    if not args.noScaleToData:
-        scale_to_data(
-            resultdict
-        )  # weight to cross section / sum(weights) * lumi with lumi=1 w/o data
     aggregate_groups(datasets, resultdict, args.aggregateGroups)
 write_analysis_output(
     resultdict, f"{os.path.basename(__file__).replace('py', 'hdf5')}", args
