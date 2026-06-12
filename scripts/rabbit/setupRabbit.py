@@ -375,7 +375,7 @@ def make_parser(parser=None, argv=None):
     parser.add_argument(
         "--lumiUncertainty",
         type=float,
-        help=r"Uncertainty for luminosity in excess to 1 (e.g. 1.012 means 1.2%%); automatic by default",
+        help=r"Uncertainty for luminosity in excess to 1 (e.g. 1.012 means 1.2%%); automatic by default; if 0, treat as unconstrained with the automatic uncertainty as the size of the variation",
         default=None,
     )
     parser.add_argument(
@@ -948,12 +948,6 @@ def make_parser(parser=None, argv=None):
         default=1.05,
         type=float,
         help="Specify normalization uncertainty for Fake background (for W analysis). If negative, treat as free floating, if 0 nothing is added",
-    )
-    parser.add_argument(
-        "--fakelumi",
-        type=float,
-        default=0,
-        help="fake, unconstrained lumi.",
     )
     # pseudodata
     parser.add_argument(
@@ -1952,6 +1946,14 @@ def setup(
 
     # Below: experimental uncertainties
 
+    # lumiUncertainty of 0 means unconstrained, with the automatic uncertainty as the size of the variation
+    lumi_unconstrained = args.lumiUncertainty == 0
+    lumi_uncertainty = (
+        datagroups.lumi_uncertainty
+        if args.lumiUncertainty is None or lumi_unconstrained
+        else args.lumiUncertainty
+    )
+
     if wmass:
         # mirror hist in linear scale, this was done in the old definition of luminosity uncertainty from a histogram
         if "lumi" in args.decorrSystByVar and decorr_syst_var in fitvar:
@@ -1970,13 +1972,8 @@ def setup(
                     newDecorrAxesNames=[f"{decorr_syst_var}_"],
                 ),
                 preOp=scale_hist_up_down,
-                preOpArgs={
-                    "scale": (
-                        datagroups.lumi_uncertainty
-                        if args.lumiUncertainty is None
-                        else args.lumiUncertainty
-                    )
-                },
+                preOpArgs={"scale": lumi_uncertainty},
+                noConstraint=lumi_unconstrained,
             )
         else:
             datagroups.addSystematic(
@@ -1988,13 +1985,8 @@ def setup(
                 systAxes=["downUpVar"],
                 labelsByAxis=["downUpVar"],
                 preOp=scale_hist_up_down,
-                preOpArgs={
-                    "scale": (
-                        datagroups.lumi_uncertainty
-                        if args.lumiUncertainty is None
-                        else args.lumiUncertainty
-                    )
-                },
+                preOpArgs={"scale": lumi_uncertainty},
+                noConstraint=lumi_unconstrained,
             )
     else:
         datagroups.addNormSystematic(
@@ -2002,21 +1994,8 @@ def setup(
             processes=["MCwithLumiNorm"],
             groups=[f"luminosity", "experiment", "expNoCalib"],
             passToFakes=passSystToFakes,
-            norm=(
-                datagroups.lumi_uncertainty
-                if args.lumiUncertainty is None
-                else args.lumiUncertainty
-            ),
-        )
-
-    if args.fakelumi:
-        datagroups.addNormSystematic(
-            name="fakelumi",
-            processes=["MCwithLumiNorm"],
-            groups=["fakelumi", "experiment", "expNoCalib"],
-            passToFakes=passSystToFakes,
-            norm=args.fakelumi,
-            noConstraint=True,
+            norm=lumi_uncertainty,
+            noConstraint=lumi_unconstrained,
         )
 
     # add norm variations for decorrelated variable bins on each process
