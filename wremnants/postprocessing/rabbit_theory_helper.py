@@ -1079,7 +1079,14 @@ class TheoryHelper(object):
                     **tmp_pdf_args,
                 )
 
-    def add_pdf_alphas_variation(self, noi=False, fitAlphaSRapidityDecorr=False):
+    def add_pdf_alphas_variation(
+        self,
+        noi=False,
+        decorr_axes=[],
+        decorr_axlim=[],
+        decorr_rebin=[],
+        decorr_absval=[],
+    ):
         pdf = self.datagroups.args_from_metadata("pdfs")[0]
         pdfInfo = theory_utils.pdf_info_map("Zmumu_2016PostVFP", pdf)
         pdfName = pdfInfo["name"]
@@ -1148,31 +1155,29 @@ class TheoryHelper(object):
             as_args["systNameReplace"] = as_replace
             as_args["skipEntries"] = [{"alphasVar": "as0118"}]
 
-        if fitAlphaSRapidityDecorr:
-            rapidity_axes = {"yll", "absYVGen", "absEtaGen", "absY", "yVGen"}
-            rapidity_axis = next(
-                (v for v in self.datagroups.fit_axes if v in rapidity_axes), None
-            )
-            if rapidity_axis is None:
+        if decorr_axes:
+            missing = [a for a in decorr_axes if a not in self.datagroups.fit_axes]
+            if missing:
                 raise ValueError(
-                    f"Cannot decorrelate alphaS by rapidity: no rapidity axis found in fit variables {self.datagroups.fit_axes}"
+                    f"Cannot decorrelate alphaS: axes {missing} not found in fit variables {self.datagroups.fit_axes}"
                 )
-            new_name = f"{rapidity_axis}_decorr"
-            as_args["systAxes"] = [*as_args["systAxes"], new_name]
-            as_args["name"] = "pdfAlphaSDecorrRapidity"
+            suffix = "".join([a.capitalize() for a in decorr_axes])
+            new_names = [f"{a}_decorr" for a in decorr_axes]
+            as_args["systAxes"] = [*as_args["systAxes"], *new_names]
+            as_args["name"] = f"pdfAlphaSDecorr{suffix}"
             as_args["group"] = "pdfAlphaSDecorr"
-            as_args["isPoiHistDecorr"] = 1
+            as_args["isPoiHistDecorr"] = len(decorr_axes)
             as_args["actionRequiresNomi"] = True
             as_args["action"] = decorrelateByAxes
             as_args["actionArgs"] = dict(
-                axesToDecorrNames=[rapidity_axis],
-                newDecorrAxesNames=[new_name],
-                axlim=[],
-                rebin=[],
-                absval=[],
+                axesToDecorrNames=decorr_axes,
+                newDecorrAxesNames=new_names,
+                axlim=decorr_axlim,
+                rebin=decorr_rebin,
+                absval=decorr_absval,
             )
             # outNames is positional (fixed length 3) and can't handle the
-            # expanded rapidity bins; switch to systNameReplace + skipEntries
+            # expanded decorrelation bins; switch to systNameReplace + skipEntries
             # which work with any number of variations
             if self.as_from_corr:
                 as_args.pop("outNames")

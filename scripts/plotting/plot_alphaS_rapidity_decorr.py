@@ -1,55 +1,14 @@
 import numpy as np
-import pandas as pd
 from matplotlib.patches import Polygon
 from scipy.stats import chi2
 
 import rabbit.io_tools
+from scripts.plotting.plot_decorr_params import get_values_and_impacts_as_panda
 from wremnants.utilities import parsing
 from wremnants.utilities.io_tools import rabbit_input
 from wums import logging, output_tools, plot_tools
 
 ALPHA_S_SCALE_IMPACTS = 2
-
-
-def get_values_and_impacts_as_panda(
-    input_file,
-    partial_impacts_to_read=None,
-    global_impacts=False,
-    scale=1.0,
-    result=None,
-):
-    fitres, meta = rabbit.io_tools.get_fitresult(input_file, meta=True, result=result)
-    poi_names = rabbit.io_tools.get_poi_names(meta)
-    poi_values = []
-    totals = []
-    uncertainties = {}
-    for poi in poi_names:
-        impacts, labels = rabbit.io_tools.read_impacts_poi(
-            fitres,
-            poi,
-            grouped=True,
-            impact_type="global" if global_impacts else "traditional",
-        )
-        impacts = scale * impacts
-        totals.append([impacts[i] for i, k in enumerate(labels) if k == "Total"][0])
-        if uncertainties == {}:
-            uncertainties = {
-                f"err_{k}": [impacts[i]]
-                for i, k in enumerate(labels)
-                if (partial_impacts_to_read is None or k in partial_impacts_to_read)
-            }
-        else:
-            for i, k in enumerate(labels):
-                if partial_impacts_to_read and k not in partial_impacts_to_read:
-                    continue
-                uncertainties[f"err_{k}"].append(impacts[i])
-        poi_values.append(scale * fitres["parms"].get()[poi].value)
-
-    df = pd.DataFrame(
-        {"Name": poi_names, "value": poi_values, "err_Total": totals, **uncertainties}
-    )
-    print(df)
-    return df
 
 
 def get_yll_bin_edges(meta):
