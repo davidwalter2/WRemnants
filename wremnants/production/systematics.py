@@ -31,7 +31,7 @@ def add_syst_hist(
     axes,
     cols,
     tensor_name=None,
-    tensor_axes=None,
+    tensor_axes=[],
     addhelicity=False,
     propagateToHelicity=False,
     nhelicity=6,
@@ -53,9 +53,7 @@ def add_syst_hist(
           2) templates corresponding to each helicity cross section differential in relevant quantities that are sensitive to polarization (e.g. cos(theta*), phi*, lepton eta)
             -> Reweight event by event via "helWeight_tensor"
     """
-    if tensor_axes is None:
-        tensor_axes = []
-    elif not isinstance(tensor_axes, (list, tuple)):
+    if not isinstance(tensor_axes, (list, tuple)):
         tensor_axes = [tensor_axes]
     if addhelicity:
         if len(tensor_axes) == 0:
@@ -287,15 +285,12 @@ def define_mass_width_sin2theta_weights(df, proc):
 def add_massweights_hist(
     results, df, axes, cols, base_name="nominal", proc="", **kwargs
 ):
-    if len(proc) == 0:
-        label = None
-    elif proc.startswith("DY"):
-        label = "Z"
-    else:
-        label = proc[0]
-
-    name = common.hist_name(base_name, syst="massWeight" + label)
-    name_widthdecor = common.hist_name(base_name, syst="massWeight_widthdecor" + label)
+    name = common.hist_name(
+        base_name, syst="massWeight" + (proc[0] if len(proc) else proc)
+    )
+    name_widthdecor = common.hist_name(
+        base_name, syst="massWeight_widthdecor" + (proc[0] if len(proc) else proc)
+    )
     mass_axis = hist.axis.StrCategory(
         theory_utils.massWeightNames(proc=proc), name="massShift"
     )
@@ -318,14 +313,9 @@ def add_massweights_hist(
 def add_widthweights_hist(
     results, df, axes, cols, base_name="nominal", proc="", **kwargs
 ):
-    if len(proc) == 0:
-        label = None
-    elif proc.startswith("DY"):
-        label = "Z"
-    else:
-        label = proc[0]
-
-    name = common.hist_name(base_name, syst="widthWeight" + label)
+    name = common.hist_name(
+        base_name, syst="widthWeight" + (proc[0] if len(proc) else proc)
+    )
     axis_width = hist.axis.StrCategory(
         theory_utils.widthWeightNames(proc=proc), name="width"
     )
@@ -1486,13 +1476,12 @@ def add_theory_hists(
             )
             add_pdfAlphaSByHelicity_hist(results, df, v, axes, cols, name=k, **info)
 
-        if any(dataset_name.startswith(x) for x in ["W", "Z"]):
-            add_breit_wigner_mass_weights_hist(
-                results, df, axes, cols, proc=dataset_name, **info
-            )
-            add_breit_wigner_width_weights_hist(
-                results, df, axes, cols, proc=dataset_name, **info
-            )
+        add_breit_wigner_mass_weights_hist(
+            results, df, axes, cols, proc=dataset_name, **info
+        )
+        add_breit_wigner_width_weights_hist(
+            results, df, axes, cols, proc=dataset_name, **info
+        )
 
         # TODO: Should have consistent order here with the scetlib correction function
         if df.HasColumn("massWeight_tensor_wnom"):
