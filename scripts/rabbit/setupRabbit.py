@@ -382,7 +382,7 @@ def make_parser(parser=None, argv=None):
     parser.add_argument(
         "--lumiUncertainty",
         type=float,
-        help=r"Uncertainty for luminosity in excess to 1 (e.g. 1.012 means 1.2%%); automatic by default",
+        help=r"Uncertainty for luminosity in excess to 1 (e.g. 1.012 means 1.2%%); automatic by default; if 0, treat as unconstrained with the automatic uncertainty as the size of the variation",
         default=None,
     )
     parser.add_argument(
@@ -483,6 +483,13 @@ def make_parser(parser=None, argv=None):
     )
     parser.add_argument(
         "--fitWidthDecorr",
+        type=str,
+        default=[],
+        nargs="*",
+        help="Decorrelate POI for given axes, fit multiple POIs for the different POIs",
+    )
+    parser.add_argument(
+        "--fitAlphasDecorr",
         type=str,
         default=[],
         nargs="*",
@@ -781,6 +788,18 @@ def make_parser(parser=None, argv=None):
         "Multiple REGEX=FACTOR pairs may be supplied. Overlapping "
         "patterns matching the same nuisance name raise an error. "
         "Example: --scaleParams 'lambda4=5' 'mb_up|pdfMSHT20mbrange=10'",
+    )
+    parser.add_argument(
+        "--noConstrainParams",
+        nargs="*",
+        default=None,
+        metavar="REGEX",
+        help="Remove the Gaussian prior on shape systematics whose "
+        "per-direction name matches REGEX (re.search), turning them into "
+        "free-floating nuisances. Multiple regexes may be supplied. "
+        "Mirrors --scaleParams / --noSymmetrize wiring. "
+        "Example: --noConstrainParams 'scetlibNP' "
+        "(unconstrains all SCETlib NP nuisances).",
     )
     parser.add_argument(
         "--symmetrizePdfUnc",
@@ -1206,6 +1225,18 @@ def setup(
             + ", ".join(f"'{p.pattern}'×{f}" for p, f in scale_params_pairs)
         )
     datagroups.scale_params_patterns = scale_params_pairs
+
+    # --noConstrainParams: list of compiled regexes applied at
+    # add_systematic time. Mirrors --scaleParams.
+    no_constraint_patterns = []
+    if args.noConstrainParams:
+        no_constraint_patterns = [re.compile(p) for p in args.noConstrainParams]
+        logger.info(
+            f"--noConstrainParams: {len(no_constraint_patterns)} pattern(s) "
+            f"registered: "
+            + ", ".join(f"'{p.pattern}'" for p in no_constraint_patterns)
+        )
+    datagroups.no_constraint_patterns = no_constraint_patterns
 
     preselection_specs = _build_preselection_specs(args.presel, fitvar)
     if preselection_specs:
@@ -1878,6 +1909,10 @@ def setup(
 
         theory_helper.add_pdf_alphas_variation(
             noi="alphaS" in args.noi,
+            decorr_axes=args.fitAlphasDecorr,
+            decorr_axlim=args.decorrAxlim,
+            decorr_rebin=args.decorrRebin,
+            decorr_absval=args.decorrAbsval,
         )
         if add_theory_uncertainties:
             theory_helper.add_all_theory_unc()
@@ -1946,6 +1981,14 @@ def setup(
 
     # Below: experimental uncertainties
 
+    # lumiUncertainty of 0 means unconstrained, with the automatic uncertainty as the size of the variation
+    lumi_unconstrained = args.lumiUncertainty == 0
+    lumi_uncertainty = (
+        datagroups.lumi_uncertainty
+        if args.lumiUncertainty is None or lumi_unconstrained
+        else args.lumiUncertainty
+    )
+
     if wmass:
         # mirror hist in linear scale, this was done in the old definition of luminosity uncertainty from a histogram
         if "lumi" in args.decorrSystByVar and decorr_syst_var in fitvar:
@@ -1964,13 +2007,8 @@ def setup(
                     newDecorrAxesNames=[f"{decorr_syst_var}_"],
                 ),
                 preOp=scale_hist_up_down,
-                preOpArgs={
-                    "scale": (
-                        datagroups.lumi_uncertainty
-                        if args.lumiUncertainty is None
-                        else args.lumiUncertainty
-                    )
-                },
+                preOpArgs={"scale": lumi_uncertainty},
+                noConstraint=lumi_unconstrained,
             )
         else:
             datagroups.addSystematic(
@@ -1982,13 +2020,8 @@ def setup(
                 systAxes=["downUpVar"],
                 labelsByAxis=["downUpVar"],
                 preOp=scale_hist_up_down,
-                preOpArgs={
-                    "scale": (
-                        datagroups.lumi_uncertainty
-                        if args.lumiUncertainty is None
-                        else args.lumiUncertainty
-                    )
-                },
+                preOpArgs={"scale": lumi_uncertainty},
+                noConstraint=lumi_unconstrained,
             )
     else:
         datagroups.addNormSystematic(
@@ -1996,11 +2029,8 @@ def setup(
             processes=["MCwithLumiNorm"],
             groups=[f"luminosity", "experiment", "expNoCalib"],
             passToFakes=passSystToFakes,
-            norm=(
-                datagroups.lumi_uncertainty
-                if args.lumiUncertainty is None
-                else args.lumiUncertainty
-            ),
+            norm=lumi_uncertainty,
+            noConstraint=lumi_unconstrained,
         )
 
     # add norm variations for decorrelated variable bins on each process

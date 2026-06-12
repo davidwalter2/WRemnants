@@ -4,6 +4,7 @@ import hist
 import numpy as np
 
 from wremnants.postprocessing import syst_tools
+from wremnants.postprocessing.rabbit_helpers import decorrelateByAxes
 from wremnants.postprocessing.theory_variation_labels import (
     BC_QUARK_MASS_VARIATIONS,
     LATTICE_GAMMA_NP_UNCERTAINTIES,
@@ -1117,7 +1118,14 @@ class TheoryHelper(object):
                     **tmp_pdf_args,
                 )
 
-    def add_pdf_alphas_variation(self, noi=False):
+    def add_pdf_alphas_variation(
+        self,
+        noi=False,
+        decorr_axes=[],
+        decorr_axlim=[],
+        decorr_rebin=[],
+        decorr_absval=[],
+    ):
         pdf = self.datagroups.args_from_metadata("pdfs")[0]
         pdfInfo = theory_utils.pdf_info_map("Zmumu_2016PostVFP", pdf)
         pdfName = pdfInfo["name"]
@@ -1185,6 +1193,40 @@ class TheoryHelper(object):
         else:
             as_args["systNameReplace"] = as_replace
             as_args["skipEntries"] = [{"alphasVar": "as0118"}]
+
+        if decorr_axes:
+            missing = [a for a in decorr_axes if a not in self.datagroups.fit_axes]
+            if missing:
+                raise ValueError(
+                    f"Cannot decorrelate alphaS: axes {missing} not found in fit variables {self.datagroups.fit_axes}"
+                )
+            suffix = "".join([a.capitalize() for a in decorr_axes])
+            new_names = [f"{a}_decorr" for a in decorr_axes]
+            as_args["systAxes"] = [*as_args["systAxes"], *new_names]
+            as_args["name"] = f"pdfAlphaSDecorr{suffix}"
+            as_args["group"] = "pdfAlphaSDecorr"
+            as_args["isPoiHistDecorr"] = len(decorr_axes)
+            as_args["actionRequiresNomi"] = True
+            as_args["action"] = decorrelateByAxes
+            as_args["actionArgs"] = dict(
+                axesToDecorrNames=decorr_axes,
+                newDecorrAxesNames=new_names,
+                axlim=decorr_axlim,
+                rebin=decorr_rebin,
+                absval=decorr_absval,
+            )
+            # outNames is positional (fixed length 3) and can't handle the
+            # expanded decorrelation bins; switch to systNameReplace + skipEntries
+            # which work with any number of variations
+            if self.as_from_corr:
+                as_args.pop("outNames")
+                if as_range == "002":
+                    as_corr_replace = [("0116", "Down"), ("0120", "Up")]
+                elif as_range == "001":
+                    as_corr_replace = [("0117", "Down"), ("0119", "Up")]
+                as_args["systNameReplace"] = as_corr_replace
+                as_args["skipEntries"] = [{"vars": ".*0118"}]
+
         logger.info(f"Using alphaS variation {asname}, applying scaling of {scale}")
         self.datagroups.addSystematic(**as_args)
 
