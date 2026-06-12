@@ -586,7 +586,6 @@ def build_graph(df, dataset):
         cols = [*cols, "run"]
 
     if args.unfolding and dataset.group == "Zmumu":
-        print(f"name = {dataset.name}; group = {dataset.group}")
         df = unfolder_z.add_gen_histograms(
             args,
             df,
