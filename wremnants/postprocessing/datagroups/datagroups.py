@@ -309,8 +309,11 @@ class Datagroups(object):
                 raise RuntimeError(f"No member found for group {g}")
             base_member = members[0].name
             h = self.results[base_member]["output"][histToRead].get()
-            self.groups[g].histselector = sel.OnesSelector(h)
-
+            if forceGlobalScaleFakes is not None:
+                scale = forceGlobalScaleFakes
+            else:
+                scale = 0.85
+            self.groups[g].histselector = sel.OnesSelector(h, global_scalefactor=scale)
             return
 
         auxiliary_info = {"ABCDmode": mode}

@@ -154,7 +154,7 @@ class HistselectorABCD(object):
             "pt": [26, 28, 30],
             "mt": [0, 40, np.inf] if self.ABCDmode == "simple" else [0, 20, 40, np.inf],
             "iso": [0, 4, 8, 12],
-            "relIso": [0, 0.15, np.inf],
+            "relIso": [0, 0.15, 0.3, np.inf],
             "relJetLeptonDiff": [0, 0.2, 0.35, 0.5],
             "dxy": [0, 0.01, 0.02, 0.03],
         }
@@ -404,7 +404,7 @@ class OnesSelector(HistselectorABCD):
     """
     Flat-ones fake template for the simultaneous (extended)ABCD fit, where the
     rabbit model carries the absolute scale and per-region polynomial shape.
-    The (sel_x, sel_y) signal-region slice is scaled by 0.85 as a closure-test
+    The (sel_x, sel_y) signal-region slice is scaled by 'global_scalefactor' as a closure-test
     correction.
 
     Setting ``external_params`` to a Chebyshev coefficient vector before calling
@@ -415,9 +415,16 @@ class OnesSelector(HistselectorABCD):
     with FakeSelector*ExtendedABCD.
     """
 
-    def __init__(self, h, *args, **kwargs):
+    def __init__(
+        self,
+        h,
+        *args,
+        global_scalefactor=1,  # apply global correction factor on prediction
+        **kwargs,
+    ):
         super().__init__(h, *args, **kwargs)
         self.external_params = None
+        self.global_scalefactor = global_scalefactor
 
     @staticmethod
     def _uhi_to_numpy(sel, axis):
@@ -464,8 +471,8 @@ class OnesSelector(HistselectorABCD):
         h_new = h.copy()
         h_new.values()[...] = 1.0
         h_new.variances()[...] = 0.0
-        # Closure-test correction: scale the signal region template by 0.85.
-        h_new.values()[self._signal_region_slice(h_new)] = 0.85
+        # Closure-test correction: scale the signal region template.
+        h_new.values()[self._signal_region_slice(h_new)] = self.global_scalefactor
         self._apply_cheb_reweight(h_new)
         return h_new
 
@@ -1629,8 +1636,7 @@ class FakeSelector2DExtendedABCD(FakeSelector1DExtendedABCD):
                         else h.axes[self.name_x].edges
                     )
                     all_edges = extend_edges(h.axes[self.name_x].traits, edges)
-                    finite_edges = all_edges[np.isfinite(all_edges)]
-                    axis_x_max = finite_edges[-1] if len(finite_edges) > 0 else 100.0
+                    axis_x_max = all_edges[np.isfinite(all_edges)][-1]
                 elif self.name_x in ["iso", "relIso", "relJetLeptonDiff", "dxy"]:
                     # iso and dxy have a finite lower and upper bound in the application region
                     axis_x_max = self.abcd_thresholds[self.name_x][1]
