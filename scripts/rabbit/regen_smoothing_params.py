@@ -91,6 +91,18 @@ def make_parser():
         help="Rescale equivalent luminosity by this value (must match the value used in setupRabbit).",
     )
     parser.add_argument(
+        "--flowToExplicitBins",
+        type=str,
+        nargs="*",
+        default=["mt", "relIso", "iso"],
+        help="""
+        Axes for which under-/overflow bins are converted into explicit bins with an infinite outer edge,
+        must match the value used in setupRabbit. Needed for histograms from older histmakers, where the
+        open ended ABCD regions were stored in the overflow bin, instead of an explicit last bin.
+        Axes that are not in the histogram, or that have no flow bins, are ignored. Pass no argument to disable.
+        """,
+    )
+    parser.add_argument(
         "--excludeProcGroups",
         type=str,
         nargs="*",
@@ -253,6 +265,9 @@ def main():
 
     dg.lumiScale = args.lumiScale
     dg.fakerate_axes = args.fakerateAxes
+    # older histmakers stored the open ended ABCD regions in the overflow bins,
+    # turn them into explicit bins with an infinite outer edge, as done in setupRabbit
+    dg.flowToExplicitBinsAxes = args.flowToExplicitBins or []
     dg.set_histselectors(
         dg.getNames(),
         args.inputBaseName,

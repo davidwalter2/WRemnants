@@ -6,8 +6,8 @@ import sys
 
 import hist
 import numpy as np
-
 import rabbit.io_tools
+
 from rabbit import tensorwriter
 from wremnants.postprocessing import (
     rabbit_helpers,
@@ -653,6 +653,18 @@ def make_parser(parser=None, argv=None):
         """,
     )
     parser.add_argument(
+        "--flowToExplicitBins",
+        type=str,
+        nargs="*",
+        default=["mt", "relIso", "iso"],
+        help="""
+        Fit axes for which under-/overflow bins are converted into explicit bins with an infinite outer edge.
+        Needed for histograms from older histmakers, where the open ended ABCD regions were stored in the overflow bin,
+        instead of an explicit last bin. Flow bins can not be used in the fit, so without this the content would be lost.
+        Axes that are not fit axes, or that have no flow bins, are ignored. Pass no argument to disable.
+        """,
+    )
+    parser.add_argument(
         "--allowNegativeExpectation",
         action="store_true",
         help="Allow processes to have negative contributions",
@@ -1223,6 +1235,17 @@ def setup(
 
     datagroups.fit_axes = fitvar
     datagroups.channel = channel
+
+    # older histmakers stored the open ended ABCD regions in the overflow bins, which
+    # can not be used in the fit, turn them into explicit bins with an infinite outer edge
+    flow_to_explicit_bins_axes = [
+        x for x in (args.flowToExplicitBins or []) if x in fitvar
+    ]
+    if flow_to_explicit_bins_axes:
+        logger.debug(
+            f"Flow bins of fit axes {flow_to_explicit_bins_axes} will be turned into explicit bins (if there are any)"
+        )
+    datagroups.flowToExplicitBinsAxes = flow_to_explicit_bins_axes
     if args.noSymmetrize is None:
         datagroups.force_asymmetric = False
         datagroups.force_asymmetric_patterns = None
@@ -1635,6 +1658,7 @@ def setup(
                 filterGroups=["QCD"],
             )
             pseudodataGroups.fakerate_axes = args.fakerateAxes
+            pseudodataGroups.flowToExplicitBinsAxes = flow_to_explicit_bins_axes
             pseudodataGroups.copyGroup("QCD", "QCDTruth")
             if pseudodata == "truthMC":
                 pseudodataGroups.deleteGroup("QCD")
@@ -1653,6 +1677,7 @@ def setup(
                 filterGroups=filterGroup,
             )
             pseudodataGroups.fakerate_axes = args.fakerateAxes
+            pseudodataGroups.flowToExplicitBinsAxes = flow_to_explicit_bins_axes
 
         datagroups.addPseudodataHistogramFakes(pseudodata, pseudodataGroups)
 
@@ -1676,6 +1701,7 @@ def setup(
                     excludeGroups=excludeGroup,
                     filterGroups=filterGroup,
                 )
+                pseudodataGroups.flowToExplicitBinsAxes = flow_to_explicit_bins_axes
 
                 if wmass and not datagroups.xnorm:
                     pseudodataGroups.fakerate_axes = args.fakerateAxes
