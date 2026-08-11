@@ -510,6 +510,16 @@ def common_parser(analysis_label=""):
             help="Include (very small) statistical uncertainties for pixel multiplicity variation",
         )
         parser.add_argument(
+            "--cvhBadModules",
+            choices=["veto", "sf", "none"],
+            default="sf",
+            help="""Treatment of the CVH refit efficiency holes of the badly aligned modules
+            (see muon_efficiencies_cvh.hpp). 'veto' drops events with a muon crossing
+            one of them, in data and MC alike; 'sf' instead downweights MC by the measured
+            data/MC efficiency ratio, and correspondingly upweights the DY events whose second
+            muon fails the veto because of a failed refit; 'none' does nothing.""",
+        )
+        parser.add_argument(
             "--vetoRecoPt",
             default=15,
             type=float,

@@ -17,6 +17,7 @@ from wremnants.production import (
     generator_level_definitions,
     muon_calibration,
     muon_efficiencies_binned,
+    muon_efficiencies_cvh,
     muon_efficiencies_newVeto,
     muon_efficiencies_smooth,
     muon_efficiencies_veto,
@@ -573,6 +574,16 @@ else:
                 useGlobalOrTrackerVeto=useGlobalOrTrackerVeto, era=era
             )
 
+muon_efficiency_cvh_antiveto_helper = None
+if args.cvhBadModules == "sf" and not args.noScaleFactors:
+    # the CVH refit holes also change the anti-veto efficiency: a second muon
+    # whose refit failed is missing from vetoMuons, so in data (only) the dimuon
+    # event lands in the single-muon selection. Correction to the anti-veto SF
+    # of the unmatched gen muon, see muon_efficiencies_cvh.hpp
+    muon_efficiency_cvh_antiveto_helper = (
+        muon_efficiencies_cvh.make_cvh_antiveto_helper(era=era)
+    )
+
 logger.info(f"SF file: {args.sfFile}")
 
 muon_efficiency_helper_syst_altBkg = {}
@@ -998,6 +1009,14 @@ def build_graph(df, dataset):
         df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper
     )
 
+    if args.cvhBadModules == "veto":
+        # CVH refit efficiency holes (badly aligned modules, incl. TIB-L2 detId
+        # 369141860): remove the affected (eta,phi') rectangles from data and MC
+        # alike, so the data-only refit inefficiency needs no correction.
+        df = muon_efficiencies_cvh.apply_bad_module_veto(
+            df, ptCut=args.vetoRecoPt, etaCut=args.vetoRecoEta
+        )
+
     df = muon_selections.select_veto_muons(
         df,
         nMuons=1,
@@ -1125,7 +1144,11 @@ def build_graph(df, dataset):
         if args.selectVetoEventsMC:
             # in principle a gen muon with eta = 2.401 might still be matched to a reco muon with eta < 2.4, same for pt, so this condition is potentially fragile, but it is just for test plots
             df = df.Filter("Sum(postfsrMuons_inAcc) >= 2")
-        if not args.noVetoSF or args.scaleDYvetoFraction > 0.0:
+        if (
+            not args.noVetoSF
+            or args.scaleDYvetoFraction > 0.0
+            or args.cvhBadModules == "sf"
+        ):
             df = df.Define(
                 "hasMatchDR2idx",
                 "wrem::hasMatchDR2idx_closest(goodMuons_eta0,goodMuons_phi0,GenPart_eta[postfsrMuons_inAcc],GenPart_phi[postfsrMuons_inAcc],0.09)",
@@ -1146,6 +1169,12 @@ def build_graph(df, dataset):
                 f"vetoMuons_tnpCharge0",
                 "wrem::unmatched_postfsrMuon_var(GenPart_charge, GenPart_pt[postfsrMuons_inAcc], hasMatchDR2idx)",
             )
+            if args.cvhBadModules == "sf":
+                # the CVH hotspots are localized in phi too, unlike the veto SF
+                df = df.Define(
+                    f"vetoMuons_tnpPhi0",
+                    "wrem::unmatched_postfsrMuon_var(GenPart_phi[postfsrMuons_inAcc], GenPart_pt[postfsrMuons_inAcc], hasMatchDR2idx)",
+                )
     if isQCDMC:
         df = generator_level_definitions.define_postfsr_vars(df)
         df = df.Filter(
@@ -1290,6 +1319,24 @@ def build_graph(df, dataset):
             )
             weight_expr += "*weight_fullMuonSF_withTrackingReco"
 
+            if args.cvhBadModules == "sf":
+                # alternative to the geometric veto applied above: downweight MC
+                # in the affected (eta,phi') cells by the measured data/MC
+                # efficiency ratio. See muon_efficiencies_cvh.hpp; charge/pt undo
+                # the track bending. Single W muon.
+                df, _ = muon_efficiencies_cvh.define_cvh_weight(
+                    df,
+                    [
+                        (
+                            "goodMuons_eta0",
+                            "goodMuons_phi0",
+                            "goodMuons_charge0",
+                            "goodMuons_pt0",
+                        )
+                    ],
+                )
+                weight_expr += "*weight_cvhSF"
+
             if isZ and not args.noGenMatchMC:
                 if args.scaleDYvetoFraction > 0.0:
                     # weight different from 1 only for events with >=2 gen muons in acceptance but only 1 reco muon
@@ -1310,6 +1357,25 @@ def build_graph(df, dataset):
                         ],
                     )
                     weight_expr += "*weight_vetoSF_nominal"
+
+                if args.cvhBadModules == "sf":
+                    # mirror of weight_cvhSF above: that one accounts for the
+                    # muons the refit has to find, this one for the muon it must
+                    # miss. Without it the DY events that migrate into the
+                    # single-muon selection when the second muon's refit fails
+                    # are missing from MC entirely.
+                    df, _ = muon_efficiencies_cvh.define_cvh_antiveto_weight(
+                        df,
+                        muon_efficiency_cvh_antiveto_helper,
+                        "vetoMuons_tnpPt0",
+                        "vetoMuons_tnpEta0",
+                        "vetoMuons_tnpPhi0",
+                        "vetoMuons_tnpCharge0",
+                        antiveto_sf_col=(
+                            None if args.noVetoSF else "weight_vetoSF_nominal"
+                        ),
+                    )
+                    weight_expr += "*weight_cvhAntiVetoSF"
 
         # prepare inputs for pixel multiplicity helpers
         cvhName = "cvhideal"
