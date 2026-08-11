@@ -8,7 +8,7 @@ import hist
 import numpy as np
 import rabbit.io_tools
 
-from rabbit import tensorwriter
+from rabbit import auxiliary, tensorwriter
 from wremnants.postprocessing import (
     rabbit_helpers,
     rabbit_theory_helper,
@@ -103,6 +103,21 @@ def _normalize_negative_imaginary_bounds(argv):
             i += 1
 
     return normalized_argv
+
+
+def store_smoothing_params(args, fitvar):
+    """Whether to store initial parameters for the simultaneous ABCD param model.
+
+    Only meaningful when the ABCD regions are part of the fit (mt and relIso are fit
+    axes) and the fakes are filled with a flat template ('none' fake estimation), i.e.
+    when the ABCD relation is solved by the rabbit param model rather than here.
+    """
+    return (
+        not args.noSmoothingParams
+        and args.fakeEstimation in ["none", None]
+        and "mt" in fitvar
+        and "relIso" in fitvar
+    )
 
 
 def apply_preselection(h, specs: tuple = ()):
@@ -650,6 +665,16 @@ def make_parser(parser=None, argv=None):
         Edges for ABCD method given an axis. Syntax is --ABCDedgesByAxis 'nameX=x1,x2,x3' 'nameY=y1,y2,y3'
         Values after = are converted into float internally.
         Can specify only one axis or two (potentially more).
+        """,
+    )
+    parser.add_argument(
+        "--noSmoothingParams",
+        action="store_true",
+        help="""
+        Don't store the initial parameters for the SmoothExtendedABCDIsoMT param model of rabbit.
+        By default they are computed and stored as auxiliary data in the output file whenever the
+        fakes are estimated in the fit itself (--fakeEstimation none with mt and relIso fit axes),
+        so that the fit can start from them without running regen_smoothing_params.py separately.
         """,
     )
     parser.add_argument(
@@ -1517,6 +1542,40 @@ def setup(
                 [str(x[0].split(":")[0]) for x in args.presel] if args.presel else []
             ),
         )
+        if store_smoothing_params(args, fitvar):
+            # The fakes are filled with a flat template ('none' histselector) and the
+            # ABCD relation is solved in the fit itself. Derive the polynomial
+            # coefficients of the extended ABCD regions here and ship them along with
+            # the templates, so the rabbit param model can start the fit from them.
+            # This needs the corresponding fake selector, the one for the fit is set
+            # again right after. Only for the fake group, the other groups must keep
+            # their full ABCD axes (the 'none' mode doesn't set any selector for them).
+            datagroups.set_histselectors(
+                [datagroups.fakeName],
+                inputBaseName,
+                mode="extended1D",
+                smoothing_mode="full",
+                smoothingOrderSpectrum=args.fakeSmoothingOrder,
+                smoothingPolynomialSpectrum=args.fakeSmoothingPolynomial,
+                mcCorr=None,
+                integrate_x=True,
+                forceGlobalScaleFakes=False,
+                abcdExplicitAxisEdges=abcdExplicitAxisEdges,
+                fakeTransferAxis="",
+                fakeTransferCorrFileName=None,
+                histAxesRemovedBeforeFakes=[],
+            )
+            smoothing_params = rabbit_helpers.compute_smoothing_params(
+                datagroups.groups[datagroups.fakeName].histselector,
+                datagroups,
+                inputBaseName,
+            )
+            aux_name = auxiliary.initial_params_name(
+                "SmoothExtendedABCDIsoMT", datagroups.fakeName, channel
+            )
+            logger.info(f"Store initial parameters as auxiliary data '{aux_name}'")
+            writer.add_auxiliary(aux_name, smoothing_params)
+
         datagroups.set_histselectors(
             datagroups.getNames(), inputBaseName, **histselector_kwargs
         )
