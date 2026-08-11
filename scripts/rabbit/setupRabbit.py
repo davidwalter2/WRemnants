@@ -6,8 +6,8 @@ import sys
 
 import hist
 import numpy as np
-import rabbit.io_tools
 
+import rabbit.io_tools
 from rabbit import auxiliary, tensorwriter
 from wremnants.postprocessing import (
     rabbit_helpers,
@@ -1181,7 +1181,19 @@ def make_parser(parser=None, argv=None):
         action="store_true",
         help="Don't use theory correction histograms produced via smoothing through helicities. "
         "Affects the PDF, alpha_S, quark-mass and MiNNLO muR/muF uncertainties: with this flag they "
-        "are taken from the raw MiNNLO event weights instead of the helicity-decomposed (ByHelicity) hists.",
+        "are taken from the raw MiNNLO event weights instead of the helicity-decomposed (ByHelicity) hists. "
+        "Shorthand for '--theoryCorrsViaHelicities' with no argument.",
+    )
+    parser.add_argument(
+        "--theoryCorrsViaHelicities",
+        type=str,
+        nargs="*",
+        choices=rabbit_theory_helper.TheoryHelper.from_hels_sources,
+        default=rabbit_theory_helper.TheoryHelper.from_hels_sources,
+        help="Uncertainties to take from the theory correction histograms produced via smoothing "
+        "through helicities (ByHelicity hists), the others are taken from the raw MiNNLO event weights. "
+        "By default all of them are, but older histmaker outputs only have some of the ByHelicity hists, "
+        "e.g. only qcdScaleByHelicity, in which case use '--theoryCorrsViaHelicities scale'.",
     )
     parser.add_argument(
         "--breitwignerWMassWeights",
@@ -2014,7 +2026,9 @@ def setup(
             samples=theorySystSamples,
             minnlo_unc=args.minnloScaleUnc,
             minnlo_scale=args.scaleMinnloScale,
-            from_hels=not args.noTheoryCorrsViaHelicities,
+            from_hels=(
+                [] if args.noTheoryCorrsViaHelicities else args.theoryCorrsViaHelicities
+            ),
             theory_symmetrize=args.symmetrizeTheoryUnc,
             pdf_symmetrize=args.symmetrizePdfUnc,
             helicity_fit_unc=args.helicityFitTheoryUnc,
@@ -3465,6 +3479,14 @@ if __name__ == "__main__":
     if isUnfolding and "xsec" in args.noi:
         raise ValueError(
             "Options unfolding and fitting the xsec are incompatible. Please choose one or the other"
+        )
+
+    if args.noTheoryCorrsViaHelicities and set(args.theoryCorrsViaHelicities) != set(
+        rabbit_theory_helper.TheoryHelper.from_hels_sources
+    ):
+        raise ValueError(
+            "Options --noTheoryCorrsViaHelicities and --theoryCorrsViaHelicities are incompatible, "
+            "the former is a shorthand for the latter with no argument"
         )
 
     if isTheoryAgnostic:
