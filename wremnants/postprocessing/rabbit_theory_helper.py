@@ -63,7 +63,7 @@ class TheoryHelper(object):
 
     # uncertainties that can be taken from the helicity-smoothed (ByHelicity) hists,
     # see 'set_from_hels'
-    from_hels_sources = ["scale", "pdf", "alphaS", "quarkMass"]
+    from_hels_sources = ["QCDscale", "pdf", "alphaS", "PDFquarkMass"]
 
     def __init__(self, label, datagroups, args, hasNonsigSamples=False):
         toCheck = ["signal_samples", "signal_samples_inctau", "single_v_samples"]
@@ -364,7 +364,7 @@ class TheoryHelper(object):
         # from_hels selects the helicity-smoothed scale hist, which carries the
         # muR/muF variations decomposed by helicity (UL + each A_i); otherwise use
         # the raw MiNNLO event-weight grid and vary muR/muF one at a time below.
-        if self.use_hels("scale"):
+        if self.use_hels("QCDscale"):
             scale_hist = "qcdScaleByHelicity"
 
             syst_axes = ["vars"]
@@ -448,7 +448,7 @@ class TheoryHelper(object):
             logger.warning(
                 "Without pT or helicity splitting, only the SCETlib uncertainty will be applied!"
             )
-        elif self.use_hels("scale"):
+        elif self.use_hels("QCDscale"):
             # FIXME Maybe put W and Z nuisances in the same group
             group_name += f"MiNNLO"
             self.datagroups.addSystematic(
@@ -1359,12 +1359,12 @@ class TheoryHelper(object):
             )
 
         if from_minnlo:
-            if self.use_hels("quarkMass"):
+            if self.use_hels("PDFquarkMass"):
                 bhist = "pdfMSHT20mbrangeByHelicity"
             else:
                 bhist = "pdfMSHT20mbrange"
         elif has_new_corrs:
-            if self.use_hels("quarkMass"):
+            if self.use_hels("PDFquarkMass"):
                 bhist = "scetlib_dyturbo_LatticeNP_MSHT20mbrange_N3p0LL_N2LO_pdfvars_CorrByHelicity"
             else:
                 raise ValueError(

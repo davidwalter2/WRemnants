@@ -1193,7 +1193,7 @@ def make_parser(parser=None, argv=None):
         help="Uncertainties to take from the theory correction histograms produced via smoothing "
         "through helicities (ByHelicity hists), the others are taken from the raw MiNNLO event weights. "
         "By default all of them are, but older histmaker outputs only have some of the ByHelicity hists, "
-        "e.g. only qcdScaleByHelicity, in which case use '--theoryCorrsViaHelicities scale'.",
+        "e.g. only qcdScaleByHelicity, in which case use '--theoryCorrsViaHelicities QCDscale'.",
     )
     parser.add_argument(
         "--breitwignerWMassWeights",
