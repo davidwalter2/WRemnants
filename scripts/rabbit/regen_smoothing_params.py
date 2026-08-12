@@ -25,9 +25,11 @@ import os
 import h5py
 import numpy as np
 
-from wremnants.postprocessing import rabbit_helpers
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
-from wremnants.postprocessing.histselections import FakeSelectorSimpleABCD
+from wremnants.postprocessing.histselections import (
+    FakeSelectorSimpleABCD,
+    compute_extended_abcd_initial_params,
+)
 from wremnants.postprocessing.regression import Regressor
 from wremnants.utilities import common, parsing
 from wums import ioutils, logging, output_tools
@@ -135,11 +137,11 @@ def dump_smoothing_params(
     SmoothExtendedABCD as ``initial_params``.
 
     The coefficients are computed by
-    ``rabbit_helpers.compute_smoothing_params``, which is also used by
+    ``histselections.compute_extended_abcd_initial_params``, which is also used by
     setupRabbit.py to store them directly in the fit input file. See there for
     the details of the layout and the region ordering.
     """
-    datasets = rabbit_helpers.compute_smoothing_params(
+    datasets = compute_extended_abcd_initial_params(
         fakeselector, datagroups, inputBaseName
     )
 

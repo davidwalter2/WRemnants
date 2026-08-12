@@ -16,7 +16,12 @@ from wremnants.postprocessing import (
 )
 from wremnants.postprocessing.datagroups import datagroups
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
-from wremnants.postprocessing.histselections import FakeSelectorSimpleABCD
+from wremnants.postprocessing.histselections import (
+    FakeSelectorSimpleABCD,
+    compute_extended_abcd_initial_params,
+    default_fake_estimation,
+    should_store_smoothing_params,
+)
 from wremnants.postprocessing.regression import Regressor
 from wremnants.postprocessing.syst_tools import (
     fake_nonclosure_byAxis,
@@ -103,21 +108,6 @@ def _normalize_negative_imaginary_bounds(argv):
             i += 1
 
     return normalized_argv
-
-
-def store_smoothing_params(args, fitvar):
-    """Whether to store initial parameters for the simultaneous ABCD param model.
-
-    Only meaningful when the ABCD regions are part of the fit (mt and relIso are fit
-    axes) and the fakes are filled with a flat template ('none' fake estimation), i.e.
-    when the ABCD relation is solved by the rabbit param model rather than here.
-    """
-    return (
-        not args.noSmoothingParams
-        and args.fakeEstimation in ["none", None]
-        and "mt" in fitvar
-        and "relIso" in fitvar
-    )
 
 
 def apply_preselection(h, specs: tuple = ()):
@@ -604,8 +594,13 @@ def make_parser(parser=None, argv=None):
     parser.add_argument(
         "--fakeEstimation",
         type=str,
-        help="Set the mode for the fake estimation",
-        default="extended1D",
+        help="""
+        Set the mode for the fake estimation. Defaults to 'none' when mt and relIso are
+        fit axes, i.e. for the simultaneous extended ABCD fit, where the ABCD relation
+        is solved by rabbit's param model and the fakes have to be a flat template
+        here; 'extended1D' otherwise.
+        """,
+        default=None,
         choices=[
             "none",
             "mc",
@@ -673,8 +668,11 @@ def make_parser(parser=None, argv=None):
         help="""
         Don't store the initial parameters for the SmoothExtendedABCDIsoMT param model of rabbit.
         By default they are computed and stored as auxiliary data in the output file whenever the
-        fakes are estimated in the fit itself (--fakeEstimation none with mt and relIso fit axes),
-        so that the fit can start from them without running regen_smoothing_params.py separately.
+        fit needs them, i.e. whenever the ABCD relation is solved in the fit itself (mt and relIso
+        fit axes with the 'none' fake estimation, which is the default in that case), so that the
+        fit can start from them without running regen_smoothing_params.py separately.
+        Specific to the 1D extended ABCD nonprompt estimate of the W mass analysis, see
+        histselections.compute_extended_abcd_initial_params.
         """,
     )
     parser.add_argument(
@@ -1554,7 +1552,7 @@ def setup(
                 [str(x[0].split(":")[0]) for x in args.presel] if args.presel else []
             ),
         )
-        if store_smoothing_params(args, fitvar):
+        if should_store_smoothing_params(args, fitvar):
             # The fakes are filled with a flat template ('none' histselector) and the
             # ABCD relation is solved in the fit itself. Derive the polynomial
             # coefficients of the extended ABCD regions here and ship them along with
@@ -1577,7 +1575,7 @@ def setup(
                 fakeTransferCorrFileName=None,
                 histAxesRemovedBeforeFakes=[],
             )
-            smoothing_params = rabbit_helpers.compute_smoothing_params(
+            smoothing_params = compute_extended_abcd_initial_params(
                 datagroups.groups[datagroups.fakeName].histselector,
                 datagroups,
                 inputBaseName,
@@ -3463,6 +3461,11 @@ if __name__ == "__main__":
     args = parser.parse_args(argv)
 
     logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
+
+    # Resolve here rather than in the parser: the sensible default depends on whether
+    # the ABCD regions are fit axes, which is only known once --fitvar is parsed.
+    args.fakeEstimation = default_fake_estimation(args)
+    logger.info(f"Fake estimation mode: {args.fakeEstimation}")
 
     if "wwidth" in args.noi:
         parser = parsing.set_parser_default(parser, "widthVariationW", ["48", "36"])
