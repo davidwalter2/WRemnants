@@ -574,16 +574,6 @@ else:
                 useGlobalOrTrackerVeto=useGlobalOrTrackerVeto, era=era
             )
 
-muon_efficiency_cvh_antiveto_helper = None
-if args.cvhBadModules == "sf" and not args.noScaleFactors:
-    # the CVH refit holes also change the anti-veto efficiency: a second muon
-    # whose refit failed is missing from vetoMuons, so in data (only) the dimuon
-    # event lands in the single-muon selection. Correction to the anti-veto SF
-    # of the unmatched gen muon, see muon_efficiencies_cvh.hpp
-    muon_efficiency_cvh_antiveto_helper = (
-        muon_efficiencies_cvh.make_cvh_antiveto_helper(era=era)
-    )
-
 logger.info(f"SF file: {args.sfFile}")
 
 muon_efficiency_helper_syst_altBkg = {}
@@ -1017,15 +1007,27 @@ def build_graph(df, dataset):
             df, ptCut=args.vetoRecoPt, etaCut=args.vetoRecoEta
         )
 
+    # simulate the dimuon events that leak into the single-muon selection in
+    # data because the second muon's CVH refit failed. The veto muon it declares
+    # lost has to be gone before the 'exactly one veto muon' requirement and
+    # before select_good_muons, which builds on the veto collection, so the
+    # filter is deferred by one step here. MC only: in data the muon really is
+    # missing from vetoMuons already. See muon_efficiencies_cvh.hpp
+    cvhVetoLeak = args.cvhBadModules == "sf" and not dataset.is_data
+
     df = muon_selections.select_veto_muons(
         df,
-        nMuons=1,
+        nMuons=-1 if cvhVetoLeak else 1,
         ptCut=args.vetoRecoPt,
         etaCut=args.vetoRecoEta,
         staPtCut=args.vetoRecoStaPt,
         dxybsCut=args.dxybsVeto if args.dxybsVeto > 0 else args.dxybs,
         useGlobalOrTrackerVeto=useGlobalOrTrackerVeto,
     )
+    if cvhVetoLeak:
+        df, _ = muon_efficiencies_cvh.define_cvh_veto_leak(df)
+        df = df.Filter("Sum(vetoMuons) == 1", "oneVetoMuonAfterCvhLeak")
+
     df = muon_selections.select_good_muons(
         df,
         template_minpt,
@@ -1144,11 +1146,7 @@ def build_graph(df, dataset):
         if args.selectVetoEventsMC:
             # in principle a gen muon with eta = 2.401 might still be matched to a reco muon with eta < 2.4, same for pt, so this condition is potentially fragile, but it is just for test plots
             df = df.Filter("Sum(postfsrMuons_inAcc) >= 2")
-        if (
-            not args.noVetoSF
-            or args.scaleDYvetoFraction > 0.0
-            or args.cvhBadModules == "sf"
-        ):
+        if not args.noVetoSF or args.scaleDYvetoFraction > 0.0:
             df = df.Define(
                 "hasMatchDR2idx",
                 "wrem::hasMatchDR2idx_closest(goodMuons_eta0,goodMuons_phi0,GenPart_eta[postfsrMuons_inAcc],GenPart_phi[postfsrMuons_inAcc],0.09)",
@@ -1166,14 +1164,25 @@ def build_graph(df, dataset):
                 "wrem::unmatched_postfsrMuon_var(GenPart_eta[postfsrMuons_inAcc], GenPart_pt[postfsrMuons_inAcc], hasMatchDR2idx)",
             )
             df = df.Define(
-                f"vetoMuons_tnpCharge0",
+                f"vetoMuons_tnpCharge0_preCvhLeak",
                 "wrem::unmatched_postfsrMuon_var(GenPart_charge, GenPart_pt[postfsrMuons_inAcc], hasMatchDR2idx)",
             )
-            if args.cvhBadModules == "sf":
-                # the CVH hotspots are localized in phi too, unlike the veto SF
+            if cvhVetoLeak:
+                # in a leaking event the second gen muon *was* reconstructed and
+                # did pass the veto; it is only missing from vetoMuons because we
+                # declared its refit failed. The (anti-)veto SF corrects the
+                # probability of not reconstructing it, which is not what
+                # happened here, so it must not be applied -- nor the DY veto
+                # fraction scaling, which addresses the same population. Flagging
+                # the event as having no unmatched gen muon switches off both,
+                # and their systematic variations with them.
                 df = df.Define(
-                    f"vetoMuons_tnpPhi0",
-                    "wrem::unmatched_postfsrMuon_var(GenPart_phi[postfsrMuons_inAcc], GenPart_pt[postfsrMuons_inAcc], hasMatchDR2idx)",
+                    f"vetoMuons_tnpCharge0",
+                    "cvhVetoLeak_index >= 0 ? -99 : vetoMuons_tnpCharge0_preCvhLeak",
+                )
+            else:
+                df = df.Alias(
+                    f"vetoMuons_tnpCharge0", f"vetoMuons_tnpCharge0_preCvhLeak"
                 )
     if isQCDMC:
         df = generator_level_definitions.define_postfsr_vars(df)
@@ -1267,6 +1276,15 @@ def build_graph(df, dataset):
         if not args.noVertexWeight:
             weight_expr += "*weight_vtx"
 
+        if cvhVetoLeak:
+            # probability of the branch kept by define_cvh_veto_leak above: 1 for
+            # the ordinary events, 1 - SF_cvh for the dimuon ones that leak into
+            # this selection. Not gated on --noScaleFactors, unlike weight_cvhSF
+            # below: the events were let through the veto on the strength of this
+            # weight, so dropping it would leave them here at full weight. The
+            # survival factor of the muon that is kept comes from weight_cvhSF.
+            weight_expr += "*weight_cvhVetoLeak"
+
         # for tests to split into number of reconstructed vertices
         if args.addNvtxAxis is not None and args.normWeightNvtx is not None:
             df = define_norm_weight_nRecoVtx(df, args.addNvtxAxis, args.normWeightNvtx)
@@ -1357,25 +1375,6 @@ def build_graph(df, dataset):
                         ],
                     )
                     weight_expr += "*weight_vetoSF_nominal"
-
-                if args.cvhBadModules == "sf":
-                    # mirror of weight_cvhSF above: that one accounts for the
-                    # muons the refit has to find, this one for the muon it must
-                    # miss. Without it the DY events that migrate into the
-                    # single-muon selection when the second muon's refit fails
-                    # are missing from MC entirely.
-                    df, _ = muon_efficiencies_cvh.define_cvh_antiveto_weight(
-                        df,
-                        muon_efficiency_cvh_antiveto_helper,
-                        "vetoMuons_tnpPt0",
-                        "vetoMuons_tnpEta0",
-                        "vetoMuons_tnpPhi0",
-                        "vetoMuons_tnpCharge0",
-                        antiveto_sf_col=(
-                            None if args.noVetoSF else "weight_vetoSF_nominal"
-                        ),
-                    )
-                    weight_expr += "*weight_cvhAntiVetoSF"
 
         # prepare inputs for pixel multiplicity helpers
         cvhName = "cvhideal"

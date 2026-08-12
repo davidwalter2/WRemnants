@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <memory>
 
 // Treatment of the CVH-refit efficiency holes.
 //
@@ -40,10 +39,10 @@
 //
 //  * cvh_muon_sf (--cvhBadModules sf, the histmaker default): the measured
 //    SF = eps_data/eps_MC, applied as a per-muon weight on MC only. It has to
-//    be paired with cvh_antiveto_helper below, which carries the mirror effect
-//    on the muons that are meant *not* to be reconstructed -- currently done in
-//    mw_with_mu_eta_pt.py only, the dilepton selections having no anti-veto SF
-//    to correct.
+//    be paired with cvh_veto_leak below, which carries the mirror effect on the
+//    muon that is meant *not* to be reconstructed -- currently done in
+//    mw_with_mu_eta_pt.py only, the dilepton selections having no veto to leak
+//    through.
 //
 //  * cvh_muon_in_bad_module (--cvhBadModules veto): a geometric veto. Events
 //    with any muon crossing one of the regions are dropped from DATA AND MC
@@ -205,99 +204,121 @@ inline double cvh_dimuon_sf(float eta1, float phi1, int charge1, float pt1,
 }
 
 // ---------------------------------------------------------------------------
-// The same holes seen from the other side: the anti-veto.
+// The same holes seen from the other side: leakage into the W selection.
 //
 // A dimuon event enters the single-muon (W) selection when the second muon
-// escapes the veto. In data that can also happen because its CVH refit failed
-// -- a muon with charge = -99 is not in 'vetoMuons' -- while in MC, with ideal
-// geometry, it cannot. So DY leaks into the W selection in data only.
+// escapes the veto. In data that also happens when its CVH refit fails -- a
+// muon with charge = -99 is not in 'vetoMuons' -- while in MC, with ideal
+// geometry, it cannot. So DY, and any other two-muon process, leaks into the W
+// selection in data only.
 //
-// The veto SF machinery already reweights those events by the anti-veto SF
-//   a = (1 - eps_MC^veto * SF) / (1 - eps_MC^veto) = (1 - eps_d) / (1 - eps_MC)
-// evaluated on the postFSR gen muon that was not reconstructed. Folding the
-// refit efficiency in means replacing eps_d by eps_d * s, with s = cvh_muon_sf
-// the measured refit SF (eps_MC^cvh = 1 for ideal geometry):
+// The migration is simulated rather than reweighted. An MC event with exactly
+// two veto muons, one of them inside a hotspot, is split into its two outcomes:
 //
-//   a' = (1 - eps_d * s) / (1 - eps_MC) = a + eps_d * (1 - s) / (1 - eps_MC)
+//   * the muon survives, probability s = cvh_muon_sf. Two veto muons remain,
+//     the event stays out of the W selection and is dropped, as before.
+//   * the muon is lost, probability 1 - s. It is removed from 'vetoMuons' and
+//     the event enters the W selection carrying weight 1 - s.
 //
-// so the extra factor on top of the SF already applied is
+// Only the second branch has to be materialised, the first one being rejected
+// by the 'exactly one veto muon' requirement anyway. This is the deterministic
+// (Rao-Blackwellised) form of throwing a random number per event: same
+// expectation, no Monte Carlo noise on top, and the response to a variation of
+// s stays smooth and exact instead of moving discrete events across a
+// threshold.
 //
-//   a'/a = 1 + eps_d * (1 - s) / (1 - eps_d),    1 - eps_d = a * (1 - eps_MC).
+// Three properties are worth spelling out.
 //
-// Written this way it needs only eps_MC^veto -- the MC-truth veto efficiency
-// map the anti-veto SF was itself built from, see smoothVetoSF.py -- plus the
-// SF value being applied, so it stays consistent with whichever veto SF
-// flavour the analysis runs with (--useRefinedVeto or not), and reduces to
-// (1 - eps_MC * s)/(1 - eps_MC) when no veto SF is applied at all (a = 1).
+//  * The parent population is the right one. These are ordinary, well measured
+//    muons that happen to cross one module, not the soft or out-of-acceptance
+//    muons that fail the veto for reconstruction reasons, and they carry the
+//    corresponding kinematics, isolation and recoil.
 //
-// A word of warning on the size. 1 - eps_d is only ~1% above pt ~ 30 GeV, so
-// even a few percent of refit inefficiency dominates the probability of
-// escaping the veto and the factor reaches O(10) over much of the hotspots,
-// O(100) in the worst cell. That is not a defect of the formula: in those
-// cells the refit hole really is the main way a second muon goes unvetoed in
-// data. It does mean the migrated background is modelled by up-weighting the
-// few MC events that fail the veto for ordinary reasons, which is where this
-// approach pays a statistical price relative to simulating the migration.
+//  * Removing the muon from 'vetoMuons' is precisely what a failed refit does
+//    in data, so everything built on that collection -- the good muon
+//    selection, jet cleaning -- follows on its own. The muon stays in the
+//    PF/DeepMET, again as in data, since the refit does not touch the PF
+//    reconstruction: these events therefore have Z-like MET and sit low in mT,
+//    unlike the genuinely unreconstructed ones.
 //
-// Two known limitations, both confined to the hotspot cells:
+//  * The weight is bounded by 1 - s <= 0.61, the deepest cell of the map,
+//    instead of the O(10)-O(100) up-weighting needed to express the same
+//    migration as a multiple of the ordinary anti-veto leakage; and no MC-truth
+//    veto efficiency map enters any more, so the veto SF variations stay
+//    faithful.
 //
-//  * the veto SF stat/syst variations are applied as a ratio to the whole
-//    nominal weight, i.e. as a * f -> a_var * f, whereas the correct varied
-//    weight is a_var + eps_d*(1-s)/(1-eps_MC), the second term being unchanged.
-//    The veto SF nuisances are therefore inflated by up to the size of the
-//    factor where it is large. Conservative, but not a faithful variation.
+// The survival factor of the muon that is kept is deliberately not included
+// here: it is already applied to the good muon by cvh_muon_sf, via
+// weight_cvhSF.
 //
-//  * no uncertainty is assigned to the refit SF map itself, here or in
-//    cvh_muon_sf.
-template <typename HIST_EFF> class cvh_antiveto_helper {
-
-public:
-  cvh_antiveto_helper(HIST_EFF &&eff_veto_mc)
-      : eff_(std::make_shared<const HIST_EFF>(std::move(eff_veto_mc))) {}
-
-  // pt, eta, phi, charge of the postFSR gen muon that failed the veto, with
-  // charge = -99 flagging 'no such muon in acceptance' as for the veto SF
-  // helpers; antivetoSF is the anti-veto SF already multiplied into the event
-  // weight for that same muon (pass 1 if none is).
-  double operator()(float pt, float eta, float phi, int charge,
-                    double antivetoSF) const {
-
-    if (charge <= -99)
-      return 1.0;
-
-    // gen quantities stand in for the track that was never reconstructed; the
-    // charge and pt only serve to undo the bending to the module radius
-    const double sf = cvh_muon_sf(eta, phi, charge, pt);
-    if (sf >= 1.0)
-      return 1.0; // outside the hotspots, i.e. almost always
-
-    const double failMC = 1.0 - veto_efficiency_mc(pt, eta, charge);
-    if (!(failMC > 0.0))
-      return 1.0; // empty or pathological bin of the efficiency map
-
-    const double failData = antivetoSF * failMC; // = 1 - eps_d
-    if (!(failData > 0.0) || failData >= 1.0)
-      return 1.0;
-
-    return 1.0 + (1.0 - failData) * (1.0 - sf) / failData;
-  }
-
-private:
-  double veto_efficiency_mc(float pt, float eta, int charge) const {
-    // the map has no flow bins, and the gen muon can sit above its pt range
-    const int ieta = clamped_index<0>(eta);
-    const int ipt = clamped_index<1>(pt);
-    const int icharge = clamped_index<2>(charge);
-    return eff_->at(ieta, ipt, icharge).value();
-  }
-
-  template <unsigned int Iaxis, typename T> int clamped_index(T value) const {
-    const auto &axis = eff_->template axis<Iaxis>();
-    return std::clamp(axis.index(value), 0, static_cast<int>(axis.size()) - 1);
-  }
-
-  std::shared_ptr<const HIST_EFF> eff_;
+// No uncertainty is assigned to the refit SF map itself, here or in
+// cvh_muon_sf.
+struct CvhVetoLeak {
+  int index = -1;         // muon removed from the veto collection, -1 if none
+  double weight = 1.0;    // probability of the branch that is kept
+  bool ambiguous = false; // both veto muons in a hotspot, see below
 };
+
+// Returns the muon to drop from the veto collection and the weight of that
+// branch. Events with a number of veto muons other than two are left untouched
+// (weight 1): with one there is nothing to split, and with none or more than
+// two, losing a single muon cannot bring the event into the W selection, so the
+// downstream 'exactly one veto muon' filter discards them either way.
+//
+// An event with both veto muons in a hotspot would need two branches, one per
+// choice of surviving muon; only the one with the larger loss probability is
+// kept. Two hotspot muons are down by ~1e-4 with respect to one, so the
+// neglected branch is a per-cent correction to a per-mille background. It is
+// flagged in 'ambiguous' so the rate can be checked directly.
+//
+// Feed it the corrected kinematics: 'vetoMuons' already requires
+// Muon_correctedCharge != -99, so they are defined for every muon it selects,
+// and they are what cvh_muon_sf is applied to elsewhere. charge and pt only
+// serve to undo the bending out to the module radius.
+template <typename Vcharge>
+inline CvhVetoLeak cvh_veto_leak(const ROOT::VecOps::RVec<bool> &vetoMuons,
+                                 const ROOT::VecOps::RVec<float> &eta,
+                                 const ROOT::VecOps::RVec<float> &phi,
+                                 const Vcharge &charge,
+                                 const ROOT::VecOps::RVec<float> &pt) {
+  CvhVetoLeak out;
+
+  int n = 0, i0 = -1, i1 = -1;
+  for (std::size_t i = 0; i < vetoMuons.size(); ++i) {
+    if (!vetoMuons[i])
+      continue;
+    if (++n == 1)
+      i0 = static_cast<int>(i);
+    else if (n == 2)
+      i1 = static_cast<int>(i);
+    else
+      return out; // more than two, losing one is not enough
+  }
+  if (n != 2)
+    return out;
+
+  const double p0 =
+      1.0 - cvh_muon_sf(eta[i0], phi[i0], static_cast<int>(charge[i0]), pt[i0]);
+  const double p1 =
+      1.0 - cvh_muon_sf(eta[i1], phi[i1], static_cast<int>(charge[i1]), pt[i1]);
+  if (p0 <= 0.0 && p1 <= 0.0)
+    return out; // neither muon in a hotspot, stays a dimuon event
+
+  out.ambiguous = (p0 > 0.0 && p1 > 0.0);
+  out.index = (p0 >= p1) ? i0 : i1;
+  out.weight = std::max(p0, p1);
+  return out;
+}
+
+// The veto collection with the lost muon taken out. index < 0 leaves it alone.
+inline ROOT::VecOps::RVec<bool>
+cvh_drop_muon(const ROOT::VecOps::RVec<bool> &mask, int index) {
+  if (index < 0)
+    return mask;
+  ROOT::VecOps::RVec<bool> out(mask);
+  out[index] = false;
+  return out;
+}
 
 } // namespace wrem
 

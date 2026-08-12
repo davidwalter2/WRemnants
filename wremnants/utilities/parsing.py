@@ -516,8 +516,9 @@ def common_parser(analysis_label=""):
             help="""Treatment of the CVH refit efficiency holes of the badly aligned modules
             (see muon_efficiencies_cvh.hpp). 'veto' drops events with a muon crossing
             one of them, in data and MC alike; 'sf' instead downweights MC by the measured
-            data/MC efficiency ratio, and correspondingly upweights the DY events whose second
-            muon fails the veto because of a failed refit; 'none' does nothing.""",
+            data/MC efficiency ratio, and simulates the dimuon events that leak into the
+            single-muon selection when the second muon's refit fails by letting them
+            through the veto with weight 1 - SF; 'none' does nothing.""",
         )
         parser.add_argument(
             "--vetoRecoPt",
