@@ -83,18 +83,6 @@ parser.add_argument(
     "== SF=1, current behaviour).",
 )
 parser.add_argument(
-    "--insituBasisFile",
-    type=str,
-    default=None,
-    help="Basis-orthogonalisation file (.pkl.lz4 from "
-    "scripts/corrections/make_insitu_basis.py). Recombines the Chebyshev "
-    "coefficients into a basis orthonormal under the probe density, which "
-    "leaves the fitted scale factors unchanged but removes the strong "
-    "coefficient correlations that slow the fit down. Must be the SAME file "
-    "for every analysis sharing the coefficient nuisances. Default None = raw "
-    "Chebyshev.",
-)
-parser.add_argument(
     "--makeInsituEffMC",
     action="store_true",
     help="Emit the effMCprobe_* probe spectra (both tag-and-probe legs per "
@@ -214,7 +202,6 @@ useDileptonTriggerSelection = args.useDileptonTriggerSelection or insituMode
 if not insituMode:
     for opt, val in (
         ("--insituSFFile", args.insituSFFile),
-        ("--insituBasisFile", args.insituBasisFile),
         ("--utQuantileFile", args.utQuantileFile),
         ("--makeUTQuantileHists", args.makeUTQuantileHists),
     ):
@@ -715,7 +702,6 @@ logger.info(f"SF file: {args.sfFile}")
     args.insituEffMCFile,
     args.insituSFFile,
     args.makeInsituEffMC,
-    basis_file=args.insituBasisFile,
 )
 
 muon_efficiency_helper_syst_altBkg = {}

@@ -25,24 +25,6 @@ namespace wrem {
 //   xtilde_ut = 2*(clamp(ut,utmin,utmax)-utmin)/(utmax-utmin) - 1
 //   P_X = sum_k [, m] theta_{X,etaBin,[q],k[,m]} T_k(x_pt) [T_m(x_ut)]
 //
-// OPTIONAL BASIS ORTHOGONALISATION. Chebyshev polynomials are orthogonal under
-// the analytic weight 1/sqrt(1-x^2) over the full window, which is far from the
-// observed probe density: the resulting coefficients are strongly correlated
-// (max |rho| ~ 0.99 per block, block condition numbers ~1e4-1e5), which is what
-// makes the fit slow to converge. Passing per-block transform matrices A
-// replaces the raw product basis b by
-//   b'_j = sum_c A_{jc} b_c,
-// so that P = sum_j theta'_j b'_j with theta = A^T theta'. Choosing A as the
-// inverse Cholesky factor of the Gram matrix of b under the probe density makes
-// the b' orthonormal under that density, i.e. the per-block Fisher matrix
-// (hence the postfit covariance) is ~diagonal.
-//
-// This is a pure reparameterisation: any invertible A spans the same space of
-// scale-factor functions, so the fitted SF and its uncertainty band are
-// unchanged -- only the conditioning is. A is taken lower-triangular (inverse
-// Cholesky), so b'_j mixes only b_0..b_j and the graded meaning of the
-// coefficient index survives. Empty transforms -> identity -> raw Chebyshev.
-//
 // LINEAR parameterisation: the data/MC scale factor of a PASSING leg is the
 // Chebyshev polynomial directly,
 //   f_pass = 1 + P_X,
@@ -113,48 +95,26 @@ public:
   // A single effMC triplet (the probe's): it enters only the fail factor, and
   // the dilepton tag leg always passes (its weight 1+P is MC-free), so no
   // separate tag-side effMC is needed.
-  // basis_idip/trig/iso: row-major per-block transform matrices A (see the
-  // orthogonalisation note above), sized 2*NEta*NCoeffPt^2, 2*NEta*NCoeff2D^2
-  // and NEta*NCoeff2D^2 respectively, in the same block order as the flat
-  // parameter layout. Empty -> identity (raw Chebyshev).
   muon_insitu_efficiency_helper_base(
       HIST_IDIP &&effMC_idip, HIST_TRIG &&effMC_trig, HIST_ISO &&effMC_iso,
       double ptmin, double ptmax, double utmin, double utmax,
       double delta = 0.01, double effMC_max = 0.9999,
-      const std::vector<double> &theta_central = {},
-      const std::vector<double> &basis_idip = {},
-      const std::vector<double> &basis_trig = {},
-      const std::vector<double> &basis_iso = {})
+      const std::vector<double> &theta_central = {})
       : effMC_idip_(std::make_shared<const HIST_IDIP>(std::move(effMC_idip))),
         effMC_trig_(std::make_shared<const HIST_TRIG>(std::move(effMC_trig))),
         effMC_iso_(std::make_shared<const HIST_ISO>(std::move(effMC_iso))),
         ptmin_(ptmin), ptmax_(ptmax), utmin_(utmin), utmax_(utmax),
-        delta_(delta), effMC_max_(effMC_max), basis_idip_(basis_idip),
-        basis_trig_(basis_trig), basis_iso_(basis_iso) {
+        delta_(delta), effMC_max_(effMC_max) {
     if (theta_central.empty()) {
       theta_central_.fill(0.0);
     } else {
       for (int i = 0; i < NSF; ++i)
         theta_central_[i] = theta_central[i];
     }
-    check_basis(basis_idip_, nID * NCoeffPt, "idip");
-    check_basis(basis_trig_, nHLT * NCoeff2D, "trigger");
-    check_basis(basis_iso_, nIso * NCoeff2D, "iso");
   }
 
 protected:
   enum Step { IDIP = 0, TRIG = 1, ISO = 2 };
-
-  // A transform is either absent (identity) or exactly the expected size.
-  static void check_basis(const std::vector<double> &a, int expected,
-                          const char *name) {
-    if (!a.empty() && static_cast<int>(a.size()) != expected) {
-      std::ostringstream os;
-      os << "muon_insitu_efficiency: " << name << " basis transform has size "
-         << a.size() << ", expected " << expected;
-      throw std::runtime_error(os.str());
-    }
-  }
 
   // Shared response computation. WithTag adds the (always-passing idip &
   // trigger) tag leg at compile time; for the single-leg helper it is elided.
@@ -208,8 +168,8 @@ protected:
     return res;
   }
 
-  // Evaluate one leg/step: fill ``basis`` with the (optionally orthogonalised)
-  // basis functions, set ``ncoef`` to how many of them this step uses, ``off``
+  // Evaluate one leg/step: fill ``basis`` with the basis functions, set
+  // ``ncoef`` to how many of them this step uses, ``off``
   // to the flat parameter offset of its block, and ``Pval`` to the polynomial
   // value P(theta_central) (the passing SF is 1+Pval). Shared by accumulate
   // (gradient) and central_factor (reweight) so both linearise around the SAME
@@ -249,44 +209,22 @@ protected:
       b = NEta - 1;
     const int qbit = (charge > 0) ? 1 : 0;
 
-    // raw product basis, block offset, and the matching transform block
-    double raw[NCoeff2D];
-    const std::vector<double> *A = nullptr;
-    int block = 0;
+    // product basis and block offset
     if (step == IDIP) {
       ncoef = NCoeffPt;
       off = (qbit * NEta + b) * NCoeffPt;
-      block = qbit * NEta + b;
       for (int k = 0; k < NCoeffPt; ++k)
-        raw[k] = Tpt[k];
-      A = &basis_idip_;
+        basis[k] = Tpt[k];
     } else {
       ncoef = NCoeff2D;
       if (step == TRIG) {
         off = nID + (qbit * NEta + b) * NCoeff2D;
-        block = qbit * NEta + b;
-        A = &basis_trig_;
       } else { // ISO (charge-inclusive)
         off = nID + nHLT + b * NCoeff2D;
-        block = b;
-        A = &basis_iso_;
       }
       for (int k = 0; k < NCoeffPt; ++k)
         for (int m = 0; m < NCoeffUt; ++m)
-          raw[k * NCoeffUt + m] = Tpt[k] * Tut[m];
-    }
-
-    if (A->empty()) {
-      for (int j = 0; j < ncoef; ++j)
-        basis[j] = raw[j];
-    } else {
-      const double *M = A->data() + block * ncoef * ncoef;
-      for (int j = 0; j < ncoef; ++j) {
-        double v = 0.0;
-        for (int c = 0; c < ncoef; ++c)
-          v += M[j * ncoef + c] * raw[c];
-        basis[j] = v;
-      }
+          basis[k * NCoeffUt + m] = Tpt[k] * Tut[m];
     }
 
     double s = 0.0;
@@ -453,9 +391,6 @@ protected:
   double utmax_;
   double delta_;
   double effMC_max_;
-  std::vector<double> basis_idip_;
-  std::vector<double> basis_trig_;
-  std::vector<double> basis_iso_;
   std::array<double, NSF> theta_central_;
 };
 

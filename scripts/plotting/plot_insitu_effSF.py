@@ -59,18 +59,6 @@ def norm(v, lo, hi):
     return 2.0 * (np.clip(v, lo, hi) - lo) / (hi - lo) - 1.0
 
 
-def block_transform(transforms, step, i_eta, qkey, n_eta):
-    """This block's basis transform A, or None for the raw Chebyshev basis.
-    Block order mirrors insitu_parameter_labels(): charge-major then eta for
-    idip/trigger, eta alone for the charge-inclusive iso.
-    """
-    if transforms is None:
-        return None
-    if step == "iso":
-        return transforms["iso"][i_eta]
-    return transforms[step][(1 if qkey > 0 else 0) * n_eta + i_eta]
-
-
 _tnp_cache = {}
 
 
@@ -211,17 +199,12 @@ def build_blocks_from_sf(sf_file):
     return n_eta, blocks
 
 
-def sf_band(theta, cblock, pt_grid, ut, pt_range, ut_range, has_ut, amat=None):
+def sf_band(theta, cblock, pt_grid, ut, pt_range, ut_range, has_ut):
     """data/MC SF(pt) = 1 + P and sigma_SF(pt) at fixed uT (linear param, full cov).
 
     The passing-leg SF is the polynomial directly, SF = 1 + P with
     P = sum_c theta_c B_c(pt[,uT]); it is MC-independent. SF is linear in theta,
     so d SF/d theta_c = B_c and sigma_SF = sqrt(B^T Cov B).
-
-    ``amat`` is this block's basis transform (from --insituBasisFile): the fit
-    coefficients then multiply B' = A B rather than the raw Chebyshev B. None
-    -> raw Chebyshev. Getting this wrong silently draws the wrong SF curve, so
-    it must match what the histmaker was run with.
     """
     xpt = norm(pt_grid, *pt_range)
     Tp = cheb(xpt, insitu_n_coeff_pt)  # (nk, npt)
@@ -230,32 +213,12 @@ def sf_band(theta, cblock, pt_grid, ut, pt_range, ut_range, has_ut, amat=None):
         B = (Tp[:, None, :] * Tu[None, :, None]).reshape(-1, pt_grid.size)  # (nc, npt)
     else:
         B = Tp
-    if amat is not None:
-        B = amat @ B
     sf = 1.0 + theta @ B
     var = np.einsum("ip,ij,jp->p", B, cblock, B)
     return sf, np.sqrt(np.maximum(var, 0.0))
 
 
-def load_transforms(basis_file):
-    """Per-block A matrices from the basis pkl, or None for raw Chebyshev."""
-    if basis_file is None:
-        return None
-    with lz4.frame.open(basis_file, "rb") as fin:
-        payload = pickle.load(fin)
-    content = next(
-        v
-        for k, v in payload.items()
-        if k not in ("meta_data", "file_meta_data", "meta_info")
-    )
-    logger.info(
-        f"Interpreting coefficients in the orthogonalised basis from {basis_file}"
-    )
-    return content["transform"]
-
-
 def make_plots(n_eta, blocks, args):
-    transforms = load_transforms(args.insituBasisFile)
     outdir = output_tools.make_plot_dir(*args.plotdir.rsplit("/", 1), eoscp=args.eoscp)
     eta_edges = np.linspace(-2.4, 2.4, n_eta + 1)
     plot_range = args.ptPlotRange if args.ptPlotRange is not None else args.ptRange
@@ -274,7 +237,6 @@ def make_plots(n_eta, blocks, args):
             for qkey in charges:
                 q = None if qkey is None else CHARGE_TAGS[qkey][0]
                 theta, cblock = blocks[step][(i_eta, q)]
-                amat = block_transform(transforms, step, i_eta, qkey, n_eta)
                 fig, ax = plt.subplots(figsize=(8, 6))
 
                 if has_ut:
@@ -287,7 +249,6 @@ def make_plots(n_eta, blocks, args):
                             args.ptRange,
                             insitu_ut_range,
                             True,
-                            amat,
                         )
                         ax.plot(pt_grid, sf, color=col, label=f"$u_T={ut:g}$ GeV")
                         ax.fill_between(
@@ -302,7 +263,6 @@ def make_plots(n_eta, blocks, args):
                         args.ptRange,
                         insitu_ut_range,
                         False,
-                        amat,
                     )
                     ax.plot(pt_grid, sf, color="#5790FC", label="in-situ SF")
                     if cblock.any():  # no band when plotting from --sfFile (no cov)
@@ -389,14 +349,6 @@ def main():
         "external T&P SF overlay",
     )
     p.add_argument("--plotdir", required=True, help="output plot directory")
-    p.add_argument(
-        "--insituBasisFile",
-        default=None,
-        help="Basis-orthogonalisation pkl the fit was produced with "
-        "(scripts/corrections/make_insitu_basis.py). MUST match the histmaker "
-        "run, otherwise the coefficients are interpreted in the wrong basis and "
-        "the SF curves are wrong. Default: raw Chebyshev.",
-    )
     p.add_argument(
         "--ptRange",
         type=float,

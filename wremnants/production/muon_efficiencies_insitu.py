@@ -333,74 +333,6 @@ def load_insitu_central(
     return arr
 
 
-def load_insitu_basis(
-    basis_file,
-    n_eta=insitu_n_eta,
-    n_coeff_pt=insitu_n_coeff_pt,
-    n_coeff_ut=insitu_n_coeff_ut,
-):
-    """Per-block basis transform matrices A for the in-situ coefficients, as
-    ``(A_idip, A_trig, A_iso)`` flat row-major lists ready for the C++ helper.
-    ``basis_file`` is the pkl written by scripts/corrections/make_insitu_basis.py;
-    ``None`` -> ``([], [], [])``, i.e. identity (raw Chebyshev).
-
-    The transform is a pure reparameterisation (see the header): it changes the
-    conditioning of the fit, never the space of scale-factor functions. It must
-    however be IDENTICAL across analyses that share coefficient nuisances, so it
-    is a frozen input file rather than something derived per histmaker -- and it
-    is validated here against the x̃ windows it was built for, since a transform
-    orthogonalised for one window is meaningless for another.
-    """
-    if basis_file is None:
-        return [], [], []
-    with lz4.frame.open(basis_file, "rb") as fin:
-        payload = pickle.load(fin)
-    content = next(
-        v
-        for k, v in payload.items()
-        if k not in ("meta_data", "file_meta_data", "meta_info")
-    )
-    for key, expected in [
-        ("n_eta", n_eta),
-        ("n_coeff_pt", n_coeff_pt),
-        ("n_coeff_ut", n_coeff_ut),
-    ]:
-        if content[key] != expected:
-            raise ValueError(
-                f"in-situ basis file {basis_file} was built for {key}="
-                f"{content[key]}, but this run uses {expected}"
-            )
-    for key, expected in [("pt_range", insitu_pt_range), ("ut_range", insitu_ut_range)]:
-        if tuple(content[key]) != tuple(expected):
-            raise ValueError(
-                f"in-situ basis file {basis_file} was built for {key}="
-                f"{tuple(content[key])}, but this run uses {tuple(expected)}; "
-                "the orthogonalisation is window specific -- rebuild it"
-            )
-    t = content["transform"]
-    n_2d = n_coeff_pt * n_coeff_ut
-    shapes = {
-        "idip": (2 * n_eta, n_coeff_pt, n_coeff_pt),
-        "trigger": (2 * n_eta, n_2d, n_2d),
-        "iso": (n_eta, n_2d, n_2d),
-    }
-    for step, shape in shapes.items():
-        if t[step].shape != shape:
-            raise ValueError(
-                f"in-situ basis {step} transform has shape {t[step].shape}, "
-                f"expected {shape}"
-            )
-    logger.info(
-        f"Loaded in-situ basis transform from {basis_file} "
-        f"(reference={content.get('reference')})"
-    )
-    return (
-        t["idip"].ravel().tolist(),
-        t["trigger"].ravel().tolist(),
-        t["iso"].ravel().tolist(),
-    )
-
-
 def make_muon_insitu_efficiency_helper(
     effMCFile,
     n_coeff_pt=insitu_n_coeff_pt,
@@ -409,7 +341,6 @@ def make_muon_insitu_efficiency_helper(
     effMC_max=insitu_effMC_max,
     single_leg=False,
     central_sf_file=None,
-    basis_file=None,
 ):
     """Build the RDF helpers for the in-situ efficiency method.
 
@@ -449,9 +380,6 @@ def make_muon_insitu_efficiency_helper(
     theta_central = load_insitu_central(central_sf_file, n_eta, n_coeff_pt, n_coeff_ut)
     theta_vec = ROOT.std.vector("double")(theta_central)
 
-    a_idip, a_trig, a_iso = load_insitu_basis(basis_file, n_eta, n_coeff_pt, n_coeff_ut)
-    basis_vecs = [ROOT.std.vector("double")(a) for a in (a_idip, a_trig, a_iso)]
-
     def _instantiate(helper_class):
         # fresh pyroot copies per helper (the boost hists are std::move'd in)
         ip = narf.hist_to_pyroot_boost(h_idip)
@@ -470,7 +398,6 @@ def make_muon_insitu_efficiency_helper(
             delta,
             effMC_max,
             theta_vec,
-            *basis_vecs,
         )
 
     tensor_class = (
@@ -503,14 +430,13 @@ def make_muon_insitu_efficiency_helper(
         f"(eta={n_eta}, order_pt={n_coeff_pt - 1}, order_ut={n_coeff_ut - 1}; "
         f"idip={n_id}, trigger={n_hlt}, iso={n_iso_p}); "
         f"x̃ windows pt={insitu_pt_range}, ut={insitu_ut_range}; "
-        f"basis {'orthogonalised via ' + basis_file if basis_file else '= raw Chebyshev'}; "
         f"central theta {'from ' + central_sf_file if central_sf_file else '= 0'}"
     )
     return helper, central_helper, labels
 
 
 def setup_muon_insitu_helpers(
-    effMC_file, central_sf_file, make_effMC, single_leg=False, basis_file=None
+    effMC_file, central_sf_file, make_effMC, single_leg=False
 ):
     """One-stop in-situ setup shared by the histmakers: validate the CLI
     combination and build ``(tensor_helper, central_helper, labels)``, or
@@ -530,17 +456,11 @@ def setup_muon_insitu_helpers(
             "for all iterations."
         )
     if effMC_file is None:
-        if basis_file is not None:
-            raise ValueError(
-                "--insituBasisFile requires the in-situ method to be enabled "
-                "(--insituEffMCFile)"
-            )
         return None, None, None
     helper, central_helper, labels = make_muon_insitu_efficiency_helper(
         effMC_file,
         single_leg=single_leg,
         central_sf_file=central_sf_file,
-        basis_file=basis_file,
     )
     logger.info(f"In-situ effMC file: {effMC_file}")
     if central_sf_file is not None:
