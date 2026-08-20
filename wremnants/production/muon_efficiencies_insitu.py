@@ -467,6 +467,109 @@ def report_capped_cells(
     return total
 
 
+def build_insitu_bound_aux(
+    effMC,
+    n_eta=None,
+    n_coeff_pt=insitu_n_coeff_pt,
+    n_coeff_ut=insitu_n_coeff_ut,
+    effMC_max=insitu_effMC_max,
+    delta=insitu_delta,
+):
+    """Arrays for rabbit's ``InSituEfficiencyBound`` penalty, one row per live
+    effMC cell.
+
+    Returns ``{"effmc", "basis", "coeff_index", "coeff_scale", "labels"}``: the
+    MC efficiency of each cell, the Chebyshev basis evaluated there, the
+    position within ``labels`` of each coefficient it multiplies, and the
+    conversion from fit parameter to polynomial coefficient. The penalty forms
+    ``u = effmc * (1 + coeff_scale * sum(basis * n[coeff_index]))`` and pushes
+    back where ``u`` approaches 1, so the fit is discouraged from leaving the
+    region where the fail probability is positive.
+
+    ``coeff_scale`` is ``insitu_delta``: the helper folds the variation step
+    into the stored response (``exp(delta * dlnW/dtheta_c)``), so the fitted
+    nuisance ``n_c`` and the polynomial coefficient differ by that factor. Using
+    the nuisance directly evaluates the polynomial 100x too large.
+
+    Empty effMC cells are dropped (they carry no constraint) and blocks
+    narrower than the widest one -- idip, which has no ut dependence -- are zero
+    padded, so the penalty is a single vectorised expression.
+    """
+    if n_eta is None:
+        n_eta = effMC["idip"].axes[0].size
+    labels = insitu_parameter_labels(n_eta, n_coeff_pt, n_coeff_ut)
+    width = n_coeff_pt * n_coeff_ut
+    effmc, basis_rows, index_rows = [], [], []
+    for step, offset, basis, eff in _insitu_cell_blocks(
+        effMC, n_eta, n_coeff_pt, n_coeff_ut
+    ):
+        live = eff > 0.0
+        if not live.any():
+            continue
+        n_coeff = basis.shape[-1]
+        rows = np.broadcast_to(basis, eff.shape + (n_coeff,))[live]
+        idx = np.broadcast_to(offset + np.arange(n_coeff), (rows.shape[0], n_coeff))
+        if n_coeff < width:  # idip: pad with zero-weighted entries
+            pad = width - n_coeff
+            rows = np.pad(rows, ((0, 0), (0, pad)))
+            idx = np.pad(idx, ((0, 0), (0, pad)))
+        effmc.append(np.minimum(eff[live], effMC_max))
+        basis_rows.append(rows)
+        index_rows.append(idx)
+
+    out = {
+        "effmc": np.concatenate(effmc).astype(np.float64),
+        "basis": np.concatenate(basis_rows).astype(np.float64),
+        "coeff_index": np.concatenate(index_rows).astype(np.int64),
+        "coeff_scale": np.array([delta], dtype=np.float64),
+        "labels": labels,
+    }
+    logger.info(
+        f"In-situ efficiency bound: {out['effmc'].size} live cells over "
+        f"{len(labels)} coefficients"
+    )
+    return out
+
+
+def merge_insitu_bound_aux(bundles):
+    """Stack per-analysis bound bundles into one.
+
+    A combined fit shares the coefficients between analyses but each carries its
+    own MC efficiency -- the W single-muon effMC and the Z tag-and-probe effMC --
+    and the scale factors have to stay physical against both, since both
+    evaluate fail factors (the W through its non-isolated sideband). Every cell
+    is kept, so the binding constraint per coefficient is whichever analysis has
+    the largest eMC there.
+
+    The coefficient layout must be identical across bundles; that is what makes
+    the same nuisance mean the same polynomial in a combined fit.
+    """
+    bundles = list(bundles)
+    if len(bundles) == 1:
+        return bundles[0]
+    first = bundles[0]
+    for other in bundles[1:]:
+        if list(other["labels"]) != list(first["labels"]):
+            raise ValueError(
+                "in-situ bound bundles have different coefficient layouts; "
+                "they cannot share nuisances in a combined fit"
+            )
+        if other["coeff_scale"][0] != first["coeff_scale"][0]:
+            raise ValueError("in-situ bound bundles disagree on coeff_scale")
+    merged = {
+        "effmc": np.concatenate([b["effmc"] for b in bundles]),
+        "basis": np.concatenate([b["basis"] for b in bundles]),
+        "coeff_index": np.concatenate([b["coeff_index"] for b in bundles]),
+        "coeff_scale": first["coeff_scale"],
+        "labels": first["labels"],
+    }
+    logger.info(
+        f"In-situ efficiency bound: merged {len(bundles)} efficiency grids into "
+        f"{merged['effmc'].size} cells"
+    )
+    return merged
+
+
 def make_muon_insitu_efficiency_helper(
     effMCFile,
     n_coeff_pt=insitu_n_coeff_pt,

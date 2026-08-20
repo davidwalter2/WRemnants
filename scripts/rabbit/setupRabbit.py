@@ -29,7 +29,7 @@ from wremnants.postprocessing.syst_tools import (
     scale_hist_up_down,
     scale_hist_up_down_corr_from_file,
 )
-from wremnants.production import helicity_utils
+from wremnants.production import helicity_utils, muon_efficiencies_insitu
 from wremnants.utilities import binning, common, parsing, theory_utils
 from wums import boostHistHelpers as hh
 from wums import logging, output_tools
@@ -138,6 +138,17 @@ def make_subparsers(parser, argv=None):
         help="Add the in-situ muon efficiency Chebyshev coefficients (per-category "
         "ID/HLT/Iso) as unconstrained nuisances. Requires the histmaker to have been "
         "run with --insituEffMCFile so the muonInsituEff histograms are present.",
+    )
+    parser.add_argument(
+        "--insituEffMCFile",
+        type=str,
+        nargs="+",
+        default=None,
+        help="MC efficiency pkl used by the histmaker for --muonInsituEfficiency. "
+        "Storing it as auxiliary data lets rabbit's InSituEfficiencyBound penalty "
+        "keep the fitted scale factors inside the physical region "
+        "(eMC*SF < 1); without it the unconstrained coefficients can leave it "
+        "where little data constrains them.",
     )
 
     tmpKnownArgs, _ = parser.parse_known_args(argv)
@@ -3801,6 +3812,26 @@ if __name__ == "__main__":
         outfolder = f"{args.outfolder}/Combination_{''.join(unique_names)}{dir_append}/"
         outfile = "Combination"
     logger.info(f"Writing output to {outfile}")
+
+    if args.muonInsituEfficiency and args.insituEffMCFile is not None:
+        # Grid for rabbit's InSituEfficiencyBound penalty. The coefficients are
+        # unconstrained, so nothing in the likelihood stops the implied data
+        # efficiency eMC*(1+P) from passing 1, where the fail probability turns
+        # negative; the penalty needs the same eMC the histmaker used and the
+        # basis evaluated on it.
+        aux = muon_efficiencies_insitu.merge_insitu_bound_aux(
+            [
+                muon_efficiencies_insitu.build_insitu_bound_aux(
+                    muon_efficiencies_insitu.make_muon_insitu_effMC_helper(f)
+                )
+                for f in args.insituEffMCFile
+            ]
+        )
+        logger.info(
+            f"Store in-situ efficiency bound as auxiliary data "
+            f"'{muon_efficiencies_insitu.INSITU_BOUND_AUX_NAME}'"
+        )
+        writer.add_auxiliary(muon_efficiencies_insitu.INSITU_BOUND_AUX_NAME, aux)
 
     # propagate meta info into result file
     meta = {
