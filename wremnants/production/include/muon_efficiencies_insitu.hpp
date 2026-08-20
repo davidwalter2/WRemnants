@@ -35,6 +35,9 @@ namespace wrem {
 // 1-eMC > 0), the implied data efficiency is eMC*(1+P) and a FAILING leg
 // contributes the ratio of fail efficiencies
 //   f_fail = (1 - eMC*(1+P)) / (1 - eMC).
+// 1+P is capped so that eMC*(1+P) <= effData_max < 1 (see fpass_capped): the
+// unconstrained coefficients can otherwise put the linearisation point outside
+// the physical region, where the fail probability would go negative.
 // effMC therefore enters ONLY the fail factor: each histmaker uses its own MC
 // (W effMC for the single-muon analysis, Z tag-and-probe effMC for the
 // dilepton). The dilepton tag leg always passes idip & trigger, so its weight
@@ -99,12 +102,13 @@ public:
       HIST_IDIP &&effMC_idip, HIST_TRIG &&effMC_trig, HIST_ISO &&effMC_iso,
       double ptmin, double ptmax, double utmin, double utmax,
       double delta = 0.01, double effMC_max = 0.9999,
+      double effData_max = 0.9999,
       const std::vector<double> &theta_central = {})
       : effMC_idip_(std::make_shared<const HIST_IDIP>(std::move(effMC_idip))),
         effMC_trig_(std::make_shared<const HIST_TRIG>(std::move(effMC_trig))),
         effMC_iso_(std::make_shared<const HIST_ISO>(std::move(effMC_iso))),
         ptmin_(ptmin), ptmax_(ptmax), utmin_(utmin), utmax_(utmax),
-        delta_(delta), effMC_max_(effMC_max) {
+        delta_(delta), effMC_max_(effMC_max), effData_max_(effData_max) {
     if (theta_central.empty()) {
       theta_central_.fill(0.0);
     } else {
@@ -263,12 +267,32 @@ protected:
     return e;
   }
 
+  // Passing factor at the linearisation point, capped so the implied data
+  // efficiency eMC*(1+P) stays <= effData_max_ < 1.
+  //
+  // The coefficients are unconstrained, so nothing stops the fit from leaving
+  // the physical region where little data constrains it -- the corners of the
+  // pt/ut window. A point with eMC*(1+P) >= 1 means a negative fail
+  // probability: the fail factor's numerator 1 - eMC*(1+P) turns negative.
+  // Capping projects such a point back onto the physical boundary so it can
+  // still be used to linearise around. Value and derivative are both taken at
+  // the capped point, so accumulate and central_factor stay consistent.
+  //
+  // This guards the linearisation point only; it does not constrain the fit,
+  // which can still walk outside and needs a bounded parameterisation to stop
+  // it at the source.
+  double fpass_capped(double e, double Pval) const {
+    const double fp = 1.0 + Pval;
+    const double fp_max = effData_max_ / e;
+    return fp < fp_max ? fp : fp_max;
+  }
+
   // Accumulate the linearised gradient dlnW/dtheta_c at theta_central for one
   // leg/step. With basis_c = T_k(x_pt) [* T_m(x_ut)] and P = P(theta_central):
   //   pass: d ln(1+P)/dtheta_c               = basis_c / (1+P)   (MC-free)
   //   fail: d ln[(1-eMC(1+P))/(1-eMC)]/dt_c  = -eMC*basis_c / (1 - eMC*(1+P))
-  // Throws if the linearisation point is already unphysical (1+P <= 0, or the
-  // implied data efficiency eMC*(1+P) >= 1).
+  // Throws if 1+P <= 0; an implied data efficiency eMC*(1+P) >= 1 is capped
+  // back onto the physical boundary by fpass_capped rather than thrown on.
   void accumulate(std::array<double, NSF> &grad, float pt, float eta,
                   int charge, float ut, Step step, bool pass) const {
     double basis[NCoeff2D], Pval;
@@ -285,9 +309,7 @@ protected:
       const double e = lookup_effMC(step, pt, eta, charge, ut);
       if (e <= 0.0)
         return; // empty effMC -> no variation for this step
-      const double den = 1.0 - e * (1.0 + Pval);
-      if (den <= 0.0)
-        throw_unphysical(step, pt, eta, e, Pval, false);
+      const double den = 1.0 - e * fpass_capped(e, Pval);
       dfac = -e / den;
     }
 
@@ -297,8 +319,8 @@ protected:
 
   // Central per-leg/step factor f_X(theta_central):
   //   f_pass = 1 + P   (MC-free),   f_fail = (1 - eMC*(1+P)) / (1 - eMC).
-  // Equals 1 at theta_central = 0. Throws on an unphysical linearisation point
-  // (same conditions as accumulate).
+  // Equals 1 at theta_central = 0. 1+P is capped by fpass_capped so the fail
+  // numerator stays positive; 1+P <= 0 still throws.
   double central_factor(float pt, float eta, int charge, float ut, Step step,
                         bool pass) const {
     double basis[NCoeff2D], Pval;
@@ -313,9 +335,7 @@ protected:
     const double e = lookup_effMC(step, pt, eta, charge, ut);
     if (e <= 0.0)
       return 1.0; // empty effMC -> no reweight
-    const double den = 1.0 - e * (1.0 + Pval);
-    if (den <= 0.0)
-      throw_unphysical(step, pt, eta, e, Pval, false);
+    const double den = 1.0 - e * fpass_capped(e, Pval);
     return den / (1.0 - e);
   }
 
@@ -391,6 +411,7 @@ protected:
   double utmax_;
   double delta_;
   double effMC_max_;
+  double effData_max_;
   std::array<double, NSF> theta_central_;
 };
 

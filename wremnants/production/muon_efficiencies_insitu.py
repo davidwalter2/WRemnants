@@ -2,6 +2,7 @@ import pickle
 
 import hist
 import lz4.frame
+import numpy as np
 import ROOT
 
 import narf
@@ -56,6 +57,17 @@ insitu_delta = 0.01
 # 0.9999 sits above the largest genuine effMC (idip peaks at ~0.99976), so no
 # real efficiency is clamped while e >= 1 fluctuations still are.
 insitu_effMC_max = 0.9999
+# The coefficients are unconstrained, so the fit can leave the physical region
+# where little data constrains it (the corners of the pt/ut window), giving an
+# implied data efficiency eMC*(1+P) >= 1 and hence a negative fail probability.
+# Feeding such a point back as the iterative linearisation point used to make
+# the helper throw mid-event-loop; 1+P is now capped so eMC*(1+P) <=
+# insitu_effData_max. This guards the linearisation point only -- it is not a
+# constraint on the fit, which still needs a bounded parameterisation.
+insitu_effData_max = 0.9999
+# name of the auxiliary bundle carrying the efficiency grid for rabbit's
+# InSituEfficiencyBound penalty; must match rabbit.regularization.insitu.AUX_NAME
+INSITU_BOUND_AUX_NAME = "insitu_efficiency_bound"
 
 # group-name prefix per step (used for nuisance grouping in setupRabbit)
 insitu_step_group = {
@@ -333,12 +345,135 @@ def load_insitu_central(
     return arr
 
 
+def _cheb(x, n):
+    """First ``n`` Chebyshev polynomials of the first kind, as the C++ helper
+    evaluates them."""
+    return [np.ones_like(x), x, 2.0 * x * x - 1.0, 4.0 * x**3 - 3.0 * x][:n]
+
+
+def _xtil(v, lo, hi):
+    return 2.0 * (np.clip(v, lo, hi) - lo) / (hi - lo) - 1.0
+
+
+def _centres(axis):
+    edges = np.asarray(axis.edges, dtype=float)
+    return 0.5 * (edges[:-1] + edges[1:])
+
+
+def _insitu_cell_blocks(effMC, n_eta, n_coeff_pt, n_coeff_ut):
+    """Yield one (step, eta, charge) block of the effMC grid at a time as
+    ``(step, offset, basis, eff)``.
+
+    ``basis`` has shape (n_pt, n_ut, n_coeff) with the product basis flattened
+    as the C++ helper flattens it (j = k*n_coeff_ut + m), ``eff`` the matching
+    MC efficiencies, and ``offset`` the position of the block's first
+    coefficient in the flat parameter layout.
+
+    This is the single source of the flat layout: both the physical-region
+    report and the fit penalty bundle are built from it, so they cannot drift
+    apart from each other or from muon_efficiencies_insitu.hpp.
+    """
+    n_c2d = n_coeff_pt * n_coeff_ut
+    n_id = n_eta * 2 * n_coeff_pt
+    n_hlt = n_eta * 2 * n_c2d
+    for step in insitu_eff_steps:
+        axes = list(effMC[step].axes)
+        values = effMC[step].values()
+        b_pt = np.stack(
+            _cheb(_xtil(_centres(axes[1]), *insitu_pt_range), n_coeff_pt), -1
+        )
+        if step == "idip":
+            charges = (-1, 1)
+            basis_full = b_pt[:, None, :]
+        else:
+            uts = _centres(axes[3] if step == "trigger" else axes[2])
+            b_ut = np.stack(_cheb(_xtil(uts, *insitu_ut_range), n_coeff_ut), -1)
+            charges = (-1, 1) if step == "trigger" else (0,)
+            basis_full = (b_pt[:, None, :, None] * b_ut[None, :, None, :]).reshape(
+                b_pt.shape[0], b_ut.shape[0], n_c2d
+            )
+        for i_eta in range(n_eta):
+            for charge in charges:
+                qbit = 1 if charge > 0 else 0
+                if step == "idip":
+                    offset = (qbit * n_eta + i_eta) * n_coeff_pt
+                    eff = np.asarray(values[i_eta, :, qbit], dtype=float)[:, None]
+                else:
+                    offset = (
+                        n_id + (qbit * n_eta + i_eta) * n_c2d
+                        if step == "trigger"
+                        else n_id + n_hlt + i_eta * n_c2d
+                    )
+                    eff = np.asarray(
+                        (
+                            values[i_eta, :, qbit, :]
+                            if step == "trigger"
+                            else values[i_eta, :, :]
+                        ),
+                        dtype=float,
+                    )
+                yield step, offset, basis_full, eff
+
+
+def report_capped_cells(
+    effMC,
+    theta_central,
+    n_eta,
+    n_coeff_pt=insitu_n_coeff_pt,
+    n_coeff_ut=insitu_n_coeff_ut,
+    effMC_max=insitu_effMC_max,
+    effData_max=insitu_effData_max,
+):
+    """Log the effMC cells where the linearisation point leaves the physical
+    region, i.e. where the fitted eMC*(1+P) exceeds ``effData_max`` and the
+    helper caps 1+P back onto the boundary.
+
+    Capping silently would hide a fit that has walked outside the physical
+    region -- which is exactly what the unconstrained coefficients do in the
+    corners of the pt/ut window -- so the count and the smallest resulting fail
+    factor are reported per step. A large count, or a fail factor near zero,
+    means the SFs should not be trusted there.
+
+    Mirrors the C++ ``fpass_capped`` on the effMC bin centres; returns the total
+    number of capped cells.
+    """
+    theta = np.asarray(theta_central, dtype=float)
+    per_step = {}
+    for step, offset, basis, eff in _insitu_cell_blocks(
+        effMC, n_eta, n_coeff_pt, n_coeff_ut
+    ):
+        pol = basis @ theta[offset : offset + basis.shape[-1]]
+        live = eff > 0.0
+        eff = np.where(eff > effMC_max, effMC_max, eff)
+        capped = live & (eff * (1.0 + pol) > effData_max)
+        n_capped, worst = per_step.get(step, (0, 1.0))
+        if capped.any():
+            fail = (1.0 - effData_max) / (1.0 - eff[capped])
+            worst = min(worst, float(fail.min()))
+        per_step[step] = (n_capped + int(capped.sum()), worst)
+
+    total = 0
+    for step in insitu_eff_steps:
+        n_capped, worst = per_step.get(step, (0, 1.0))
+        total += n_capped
+        if n_capped:
+            logger.warning(
+                f"In-situ {step}: capped {n_capped} effMC cells where the "
+                f"linearisation point implies a data efficiency above "
+                f"{effData_max} (smallest resulting fail factor {worst:.3g})"
+            )
+    if total == 0:
+        logger.info("In-situ linearisation point is physical in every effMC cell")
+    return total
+
+
 def make_muon_insitu_efficiency_helper(
     effMCFile,
     n_coeff_pt=insitu_n_coeff_pt,
     n_coeff_ut=insitu_n_coeff_ut,
     delta=insitu_delta,
     effMC_max=insitu_effMC_max,
+    effData_max=insitu_effData_max,
     single_leg=False,
     central_sf_file=None,
 ):
@@ -378,6 +513,16 @@ def make_muon_insitu_efficiency_helper(
     )
 
     theta_central = load_insitu_central(central_sf_file, n_eta, n_coeff_pt, n_coeff_ut)
+    if central_sf_file is not None:
+        report_capped_cells(
+            effMC,
+            theta_central,
+            n_eta,
+            n_coeff_pt,
+            n_coeff_ut,
+            effMC_max,
+            effData_max,
+        )
     theta_vec = ROOT.std.vector("double")(theta_central)
 
     def _instantiate(helper_class):
@@ -397,6 +542,7 @@ def make_muon_insitu_efficiency_helper(
             insitu_ut_range[1],
             delta,
             effMC_max,
+            effData_max,
             theta_vec,
         )
 
