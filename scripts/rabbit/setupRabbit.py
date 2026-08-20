@@ -529,6 +529,19 @@ def make_parser(parser=None, argv=None):
         help="Restrict axis to this range (assumes pairs of values by axis, with trailing axes optional)",
     )
     parser.add_argument(
+        "--decorrelateMuonCalibration",
+        action="store_true",
+        help="""
+        Give the muon momentum scale and resolution nuisances per-analysis names, so
+        they are not shared between inputs. Needed when W and Z are fitted together:
+        the calibration uncertainty of each measurement is its own, and leaving the
+        nuisances correlated lets the Z constrain the W's muon scale and resolution
+        (and vice versa). The nuisances are prefixed 'dilepton_' or 'singlelepton_';
+        their systematic groups (scaleCrctn, muonCalibration, ...) stay shared, so
+        impacts are still reported together.
+        """,
+    )
+    parser.add_argument(
         "--decorrSystByVar",
         type=str,
         nargs="*",
@@ -3233,6 +3246,23 @@ def setup(
             passToFakes=passSystToFakes,
         )
 
+    # Muon calibration nuisance naming. Correlating the momentum scale and
+    # resolution across a combined W+Z fit would let one measurement constrain
+    # the other's calibration, which is not what the uncertainty means, so the
+    # names can be made per-analysis. This has to go on baseName, not name:
+    # baseName is what the individual nuisances are built from (Scale_correction_unc0
+    # and so on), while name is only the group label used for logging and for
+    # --excludeNuisances matching.
+    muoncal_tag = ""
+    if args.decorrelateMuonCalibration:
+        muoncal_tag = "dilepton_" if dilepton else "singlelepton_"
+        logger.info(
+            f"Muon calibration nuisances prefixed '{muoncal_tag}' for {channel}"
+        )
+
+    def muoncal(base):
+        return muoncal_tag + base
+
     ## decorrelated momentum scale and resolution, when requested
     if not dilepton and "ptscale" in args.decorrSystByVar and decorr_syst_var in fitvar:
         datagroups.addSystematic(
@@ -3240,7 +3270,7 @@ def setup(
             name="muonScaleSyst_responseWeightsDecorr",
             processes=["single_v_samples"],
             groups=["scaleCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="Scale_correction_",
+            baseName=muoncal("Scale_correction_"),
             systAxes=["unc", f"{decorr_syst_var}_", "downUpVar"],
             passToFakes=passSystToFakes,
             scale=args.calibrationStatScaling,
@@ -3257,7 +3287,7 @@ def setup(
             name="muonScaleClosSyst_responseWeightsDecorr",
             processes=["single_v_samples"],
             groups=["scaleClosCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="ScaleClos_correction_",
+            baseName=muoncal("ScaleClos_correction_"),
             systAxes=["unc", f"{decorr_syst_var}_", "downUpVar"],
             passToFakes=passSystToFakes,
             actionRequiresNomi=True,
@@ -3272,7 +3302,7 @@ def setup(
             "muonScaleSyst_responseWeights",
             processes=["single_v_samples"],
             groups=["scaleCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="Scale_correction_",
+            baseName=muoncal("Scale_correction_"),
             systAxes=["unc", "downUpVar"],
             passToFakes=passSystToFakes,
             scale=args.calibrationStatScaling,
@@ -3281,7 +3311,7 @@ def setup(
             "muonScaleClosSyst_responseWeights",
             processes=["single_v_samples"],
             groups=["scaleClosCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="ScaleClos_correction_",
+            baseName=muoncal("ScaleClos_correction_"),
             systAxes=["unc", "downUpVar"],
             passToFakes=passSystToFakes,
         )
@@ -3300,7 +3330,7 @@ def setup(
         "muonScaleClosASyst_responseWeights",
         processes=["single_v_samples"],
         groups=["scaleClosACrctn", "muonCalibration", "experiment", "expNoLumi"],
-        baseName="ScaleClosA_correction_",
+        baseName=muoncal("ScaleClosA_correction_"),
         systAxes=["unc", "downUpVar"],
         passToFakes=passSystToFakes,
         scale=scaleA,
@@ -3310,7 +3340,7 @@ def setup(
             "muonScaleClosMSyst_responseWeights",
             processes=["single_v_samples"],
             groups=["scaleClosMCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="ScaleClosM_correction_",
+            baseName=muoncal("ScaleClosM_correction_"),
             systAxes=["unc", "downUpVar"],
             passToFakes=passSystToFakes,
             scale=scaleM,
@@ -3332,7 +3362,7 @@ def setup(
                     "experiment",
                     "expNoLumi",
                 ],
-                baseName="Resolution_correction_",
+                baseName=muoncal("Resolution_correction_"),
                 systAxes=["smearing_variation", f"{decorr_syst_var}_"],
                 passToFakes=passSystToFakes,
                 scale=args.resolutionStatScaling,
@@ -3354,7 +3384,7 @@ def setup(
                     "experiment",
                     "expNoLumi",
                 ],
-                baseName="Resolution_correction_",
+                baseName=muoncal("Resolution_correction_"),
                 systAxes=["smearing_variation"],
                 passToFakes=passSystToFakes,
                 scale=args.resolutionStatScaling,
@@ -3408,7 +3438,7 @@ def setup(
             name="muonScaleSyst_responseWeightsDecorr",
             processes=["single_v_samples"],
             groups=["scaleCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="Scale_correction_",
+            baseName=muoncal("Scale_correction_"),
             systAxes=["unc", "run_", "downUpVar"],
             passToFakes=passSystToFakes,
             scale=args.calibrationStatScaling,
@@ -3422,7 +3452,7 @@ def setup(
             name="muonScaleClosSyst_responseWeightsDecorr",
             processes=["single_v_samples"],
             groups=["scaleClosCrctn", "muonCalibration", "experiment", "expNoLumi"],
-            baseName="ScaleClos_correction_",
+            baseName=muoncal("ScaleClos_correction_"),
             systAxes=["unc", "run_", "downUpVar"],
             passToFakes=passSystToFakes,
             actionRequiresNomi=True,
@@ -3442,7 +3472,7 @@ def setup(
                     "experiment",
                     "expNoLumi",
                 ],
-                baseName="Resolution_correction_",
+                baseName=muoncal("Resolution_correction_"),
                 systAxes=["smearing_variation", "run_"],
                 passToFakes=passSystToFakes,
                 scale=args.resolutionStatScaling,
