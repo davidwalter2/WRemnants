@@ -360,7 +360,23 @@ def _centres(axis):
     return 0.5 * (edges[:-1] + edges[1:])
 
 
-def _insitu_cell_blocks(effMC, n_eta, n_coeff_pt, n_coeff_ut):
+def _sample_points(centres, lo, hi):
+    """Bin centres plus the two window edges, and the bin each sample reads.
+
+    eval_leg clamps pt and ut to the Chebyshev window before the transform, so
+    the polynomial's value at an edge is its value *everywhere* beyond it.
+    Sampling only bin centres therefore leaves the extrapolation unconstrained:
+    the effMC centres stop at pt = 57.5 while the window runs to 65, so 7.5 GeV
+    at the top -- and the ut tails beyond +70 -- were never seen by the bound.
+    That is where the fitted scale factor curves diverge. The edge samples reuse
+    the nearest bin's efficiency, which is what the helper would read there.
+    """
+    pts = np.concatenate([[lo], centres, [hi]])
+    idx = np.concatenate([[0], np.arange(centres.size), [centres.size - 1]])
+    return pts, idx
+
+
+def _insitu_cell_blocks(effMC, n_eta, n_coeff_pt, n_coeff_ut, include_edges=True):
     """Yield one (step, eta, charge) block of the effMC grid at a time as
     ``(step, offset, basis, eff)``.
 
@@ -379,15 +395,25 @@ def _insitu_cell_blocks(effMC, n_eta, n_coeff_pt, n_coeff_ut):
     for step in insitu_eff_steps:
         axes = list(effMC[step].axes)
         values = effMC[step].values()
-        b_pt = np.stack(
-            _cheb(_xtil(_centres(axes[1]), *insitu_pt_range), n_coeff_pt), -1
+        pt_c = _centres(axes[1])
+        pt_s, pt_i = (
+            _sample_points(pt_c, *insitu_pt_range)
+            if include_edges
+            else (pt_c, np.arange(pt_c.size))
         )
+        b_pt = np.stack(_cheb(_xtil(pt_s, *insitu_pt_range), n_coeff_pt), -1)
         if step == "idip":
             charges = (-1, 1)
             basis_full = b_pt[:, None, :]
+            ut_i = np.array([0])
         else:
-            uts = _centres(axes[3] if step == "trigger" else axes[2])
-            b_ut = np.stack(_cheb(_xtil(uts, *insitu_ut_range), n_coeff_ut), -1)
+            ut_c = _centres(axes[3] if step == "trigger" else axes[2])
+            ut_s, ut_i = (
+                _sample_points(ut_c, *insitu_ut_range)
+                if include_edges
+                else (ut_c, np.arange(ut_c.size))
+            )
+            b_ut = np.stack(_cheb(_xtil(ut_s, *insitu_ut_range), n_coeff_ut), -1)
             charges = (-1, 1) if step == "trigger" else (0,)
             basis_full = (b_pt[:, None, :, None] * b_ut[None, :, None, :]).reshape(
                 b_pt.shape[0], b_ut.shape[0], n_c2d
@@ -397,7 +423,8 @@ def _insitu_cell_blocks(effMC, n_eta, n_coeff_pt, n_coeff_ut):
                 qbit = 1 if charge > 0 else 0
                 if step == "idip":
                     offset = (qbit * n_eta + i_eta) * n_coeff_pt
-                    eff = np.asarray(values[i_eta, :, qbit], dtype=float)[:, None]
+                    eff = np.asarray(values[i_eta, :, qbit], dtype=float)[pt_i]
+                    eff = eff[:, None]
                 else:
                     offset = (
                         n_id + (qbit * n_eta + i_eta) * n_c2d
@@ -411,7 +438,7 @@ def _insitu_cell_blocks(effMC, n_eta, n_coeff_pt, n_coeff_ut):
                             else values[i_eta, :, :]
                         ),
                         dtype=float,
-                    )
+                    )[np.ix_(pt_i, ut_i)]
                 yield step, offset, basis_full, eff
 
 
@@ -474,6 +501,7 @@ def build_insitu_bound_aux(
     n_coeff_ut=insitu_n_coeff_ut,
     effMC_max=insitu_effMC_max,
     delta=insitu_delta,
+    include_edges=True,
 ):
     """Arrays for rabbit's ``InSituEfficiencyBound`` penalty, one row per live
     effMC cell.
@@ -501,7 +529,7 @@ def build_insitu_bound_aux(
     width = n_coeff_pt * n_coeff_ut
     effmc, basis_rows, index_rows = [], [], []
     for step, offset, basis, eff in _insitu_cell_blocks(
-        effMC, n_eta, n_coeff_pt, n_coeff_ut
+        effMC, n_eta, n_coeff_pt, n_coeff_ut, include_edges=include_edges
     ):
         live = eff > 0.0
         if not live.any():
