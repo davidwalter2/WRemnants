@@ -112,6 +112,16 @@ def load_tnp_sf(tnp_dir, step, charge_tag):
     return out
 
 
+def ylim_for(step, args):
+    """Per-step y range, falling back to --ylim."""
+    for entry in args.ylimStep:
+        name, _, rng = entry.partition("=")
+        if name == step:
+            lo, _, hi = rng.partition(",")
+            return float(lo), float(hi)
+    return tuple(args.ylim)
+
+
 def build_blocks(fitresult, prev_file, pt_range):
     """Per (step, eta, charge) Chebyshev coefficients theta and covariance.
 
@@ -123,7 +133,14 @@ def build_blocks(fitresult, prev_file, pt_range):
     parms = fitresult["parms"].get()
     labels = np.array(parms.axes["parms"]).astype(str)
     nhat = parms.values()
-    cov = fitresult["cov"].get().values()
+    # A fit run with --noHessian has no covariance. That is fine for the
+    # comparison overlay, which is drawn as a dashed line with no band; only
+    # the band of the primary input needs one, and main() checks for it there.
+    if "cov" in fitresult:
+        cov = fitresult["cov"].get().values()
+    else:
+        cov = np.zeros((len(labels), len(labels)))
+        logger.info("No covariance in this fitresult; curves drawn without a band")
     idx = {l: i for i, l in enumerate(labels)}
 
     n_eta = 1 + max(
@@ -218,7 +235,55 @@ def sf_band(theta, cblock, pt_grid, ut, pt_range, ut_range, has_ut):
     return sf, np.sqrt(np.maximum(var, 0.0))
 
 
-def make_plots(n_eta, blocks, args):
+def report_sf_difference(n_eta, blocks, blocks_cmp, args):
+    """Largest SF difference between the two fits, in absolute terms and in
+    units of the first fit's uncertainty.
+
+    Two coefficient sets can differ a lot while describing the same scale
+    factor, so the difference that matters is the one in SF space, measured
+    against the band.
+    """
+    plot_range = args.ptPlotRange if args.ptPlotRange is not None else args.ptRange
+    pt_grid = np.linspace(plot_range[0], plot_range[1], 120)
+    for step, info in STEP_INFO.items():
+        worst_abs, worst_pull, where = 0.0, 0.0, ""
+        charges = (None,) if not info["charge"] else ("minus", "plus")
+        for b in range(n_eta):
+            for q in charges:
+                theta, cblock = blocks[step][(b, q)]
+                theta2, _ = blocks_cmp[step][(b, q)]
+                for ut in (args.utSlices if info["has_ut"] else [0.0]):
+                    sf1, sig = sf_band(
+                        theta,
+                        cblock,
+                        pt_grid,
+                        ut,
+                        args.ptRange,
+                        insitu_ut_range,
+                        info["has_ut"],
+                    )
+                    sf2, _ = sf_band(
+                        theta2,
+                        cblock,
+                        pt_grid,
+                        ut,
+                        args.ptRange,
+                        insitu_ut_range,
+                        info["has_ut"],
+                    )
+                    d = np.abs(sf1 - sf2)
+                    pull = d / np.where(sig > 0, sig, np.inf)
+                    if d.max() > worst_abs:
+                        worst_abs = d.max()
+                        where = f"eta bin {b}" + (f" q{q}" if q else "")
+                    worst_pull = max(worst_pull, pull.max())
+        logger.info(
+            f"{step}: max |SF1-SF2| = {worst_abs:.5f} ({where}), "
+            f"max |SF1-SF2|/sigma = {worst_pull:.3f}"
+        )
+
+
+def make_plots(n_eta, blocks, args, blocks_cmp=None):
     outdir = output_tools.make_plot_dir(*args.plotdir.rsplit("/", 1), eoscp=args.eoscp)
     eta_edges = np.linspace(-2.4, 2.4, n_eta + 1)
     plot_range = args.ptPlotRange if args.ptPlotRange is not None else args.ptRange
@@ -237,6 +302,9 @@ def make_plots(n_eta, blocks, args):
             for qkey in charges:
                 q = None if qkey is None else CHARGE_TAGS[qkey][0]
                 theta, cblock = blocks[step][(i_eta, q)]
+                theta_cmp = (
+                    None if blocks_cmp is None else blocks_cmp[step][(i_eta, q)][0]
+                )
                 fig, ax = plt.subplots(figsize=(8, 6))
 
                 if has_ut:
@@ -254,6 +322,17 @@ def make_plots(n_eta, blocks, args):
                         ax.fill_between(
                             pt_grid, sf - sig, sf + sig, color=col, alpha=0.25, lw=0
                         )
+                        if theta_cmp is not None:
+                            sf2, _ = sf_band(
+                                theta_cmp,
+                                cblock,
+                                pt_grid,
+                                ut,
+                                args.ptRange,
+                                insitu_ut_range,
+                                True,
+                            )
+                            ax.plot(pt_grid, sf2, color=col, ls="--", lw=1.4)
                 else:
                     sf, sig = sf_band(
                         theta,
@@ -265,6 +344,24 @@ def make_plots(n_eta, blocks, args):
                         False,
                     )
                     ax.plot(pt_grid, sf, color="#5790FC", label="in-situ SF")
+                    if theta_cmp is not None:
+                        sf2, _ = sf_band(
+                            theta_cmp,
+                            cblock,
+                            pt_grid,
+                            0.0,
+                            args.ptRange,
+                            insitu_ut_range,
+                            False,
+                        )
+                        ax.plot(
+                            pt_grid,
+                            sf2,
+                            color="#E42536",
+                            ls="--",
+                            lw=1.4,
+                            label=args.compareLabel,
+                        )
                     if cblock.any():  # no band when plotting from --sfFile (no cov)
                         ax.fill_between(
                             pt_grid,
@@ -305,7 +402,7 @@ def make_plots(n_eta, blocks, args):
                 )
                 ax.axhline(1.0, ls="--", color="gray", lw=0.8, zorder=0)
                 ax.set_xlim(*plot_range)
-                ax.set_ylim(*args.ylim)
+                ax.set_ylim(*ylim_for(step, args))
                 ax.set_xlabel(r"$p_T^\mu$ [GeV]")
                 ax.set_ylabel(f"data/MC SF ({info['ylabel']})")
                 ax.legend(loc="upper right", frameon=False, fontsize=12, ncol=2)
@@ -348,6 +445,16 @@ def main():
         help="dir with allEfficiencies_2D_<step>_<charge>.root for the "
         "external T&P SF overlay",
     )
+    p.add_argument(
+        "--compareFile",
+        default=None,
+        help="second rabbit fitresults to overlay as dashed curves, to compare "
+        "two fits of the same model (e.g. two minima). The band shown is always "
+        "the one from -i/--inputFile.",
+    )
+    p.add_argument(
+        "--compareLabel", default="comparison", help="legend label for --compareFile"
+    )
     p.add_argument("--plotdir", required=True, help="output plot directory")
     p.add_argument(
         "--ptRange",
@@ -374,6 +481,16 @@ def main():
         help="uT values (GeV) at which to draw the HLT/Iso SF bands",
     )
     p.add_argument("--ylim", type=float, nargs=2, default=[0.7, 1.3])
+    p.add_argument(
+        "--ylimStep",
+        nargs="+",
+        default=[],
+        metavar="STEP=LO,HI",
+        help="per-step y range overriding --ylim, e.g. 'iso=0.9,1.05 idip=0.9,1.05'. "
+        "The steps differ by an order of magnitude in how far the SF moves, so one "
+        "range for all of them either clips the trigger or leaves iso and idip in a "
+        "flat band.",
+    )
     p.add_argument("--result", default=None, help="named fit result to read")
     p.add_argument(
         "--eoscp",
@@ -396,7 +513,15 @@ def main():
                 "the Hessian (use the *_shapes.hdf5 output)."
             )
         n_eta, blocks = build_blocks(fitresult, args.prevSFFile, args.ptRange)
-    make_plots(n_eta, blocks, args)
+
+    blocks_cmp = None
+    if args.compareFile is not None:
+        cmp_result = get_fitresult(args.compareFile, result=args.result)
+        _, blocks_cmp = build_blocks(cmp_result, args.prevSFFile, args.ptRange)
+        logger.info(f"Overlaying {args.compareFile} as {args.compareLabel}")
+        report_sf_difference(n_eta, blocks, blocks_cmp, args)
+
+    make_plots(n_eta, blocks, args, blocks_cmp=blocks_cmp)
 
 
 if __name__ == "__main__":
