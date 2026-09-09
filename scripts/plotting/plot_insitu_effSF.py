@@ -62,6 +62,48 @@ def norm(v, lo, hi):
 _tnp_cache = {}
 
 
+_sf3d_cache = {}
+
+# Our step names -> the keys in smoothSF3D_*.pkl.lz4. idip is absent there (the
+# smoothing is 3D only for the steps that actually depend on uT), so it keeps
+# the 2D T&P points.
+SF3D_KEY = {
+    ("trigger", "plus"): "smoothSF3D_triggerplus",
+    ("trigger", "minus"): "smoothSF3D_triggerminus",
+    ("iso", None): "smoothSF3D_iso",
+}
+
+
+def load_sf3d(path):
+    """The default analysis' smoothed 3D (eta, pt, uT) scale factors.
+
+    These are what muon_efficiencies_smooth actually applies, unlike the 2D
+    tag-and-probe efficiencies, which are uT-integrated. Their uT axis spans
+    exactly insitu_ut_range and their 48 eta bins are ours, so a slice can be
+    drawn directly against our bands.
+    """
+    if path in _sf3d_cache:
+        return _sf3d_cache[path]
+    with lz4.frame.open(path, "rb") as f:
+        _sf3d_cache[path] = pickle.load(f)
+    return _sf3d_cache[path]
+
+
+def eval_sf3d(d, step, charge_tag, i_eta, pt_grid, ut, iso_key="smoothSF3D_iso"):
+    """External 3D SF for one (step, charge, eta) at fixed uT, on pt_grid."""
+    key = SF3D_KEY.get((step, charge_tag if step == "trigger" else None))
+    if step == "iso":
+        key = iso_key
+    if key is None or key not in d:
+        return None
+    h = d[key]
+    pt_c = h.axes["pt"].centers
+    ut_c = h.axes["ut"].centers
+    j = int(np.argmin(np.abs(ut_c - ut)))
+    vals = h.values()[i_eta, :, j, 0]  # nominal eigenvariation
+    return np.interp(pt_grid, pt_c, vals)
+
+
 def load_tnp_sf(tnp_dir, step, charge_tag):
     """External T&P scale factor SF = EffData2D / EffMC2D for one (step, charge).
 
@@ -290,6 +332,7 @@ def make_plots(n_eta, blocks, args, blocks_cmp=None):
     pt_grid = np.linspace(plot_range[0], plot_range[1], 120)
     ut_slices = args.utSlices
     ut_cmap = plt.cm.viridis(np.linspace(0.15, 0.85, len(ut_slices)))
+    sf3d = load_sf3d(args.smoothSF3DFile) if args.smoothSF3DFile else None
 
     for step, info in STEP_INFO.items():
         has_ut = info["has_ut"]
@@ -322,6 +365,23 @@ def make_plots(n_eta, blocks, args, blocks_cmp=None):
                         ax.fill_between(
                             pt_grid, sf - sig, sf + sig, color=col, alpha=0.25, lw=0
                         )
+                        # the default analysis' smoothed 3D SF at the SAME uT, dashed in the
+                        # same colour: like-for-like, unlike the uT-integrated T&P points
+                        if sf3d is not None:
+                            ext = eval_sf3d(
+                                sf3d, step, q, i_eta, pt_grid, ut, args.sf3dIsoKey
+                            )
+                            if ext is not None:
+                                ax.plot(
+                                    pt_grid,
+                                    ext,
+                                    color=col,
+                                    ls="--",
+                                    lw=1.4,
+                                    label=(
+                                        "smoothed 3D SF" if ut == ut_slices[0] else None
+                                    ),
+                                )
                         if theta_cmp is not None:
                             sf2, _ = sf_band(
                                 theta_cmp,
@@ -438,6 +498,20 @@ def main():
         default=None,
         help="theta_central pkl of the iteration that produced this fit "
         "(None -> zeros, iteration 0)",
+    )
+    p.add_argument(
+        "--smoothSF3DFile",
+        default=None,
+        help="smoothSF3D_*.pkl.lz4 holding the default analysis' 3D "
+        "(eta, pt, uT) scale factors -- what muon_efficiencies_smooth actually "
+        "applies. Drawn dashed at the same uT slices as our bands, which is the "
+        "like-for-like comparison; --tagAndProbeDir gives uT-integrated points.",
+    )
+    p.add_argument(
+        "--sf3dIsoKey",
+        default="smoothSF3D_iso",
+        help="iso key to compare against: smoothSF3D_iso (triggering muon) or "
+        "smoothSF3D_isonotrig (no trigger requirement)",
     )
     p.add_argument(
         "--tagAndProbeDir",
