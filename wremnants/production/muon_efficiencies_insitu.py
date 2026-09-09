@@ -502,6 +502,7 @@ def build_insitu_bound_aux(
     effMC_max=insitu_effMC_max,
     delta=insitu_delta,
     include_edges=True,
+    theta_central=None,
 ):
     """Arrays for rabbit's ``InSituEfficiencyBound`` penalty, one row per live
     effMC cell.
@@ -527,7 +528,7 @@ def build_insitu_bound_aux(
         n_eta = effMC["idip"].axes[0].size
     labels = insitu_parameter_labels(n_eta, n_coeff_pt, n_coeff_ut)
     width = n_coeff_pt * n_coeff_ut
-    effmc, basis_rows, index_rows = [], [], []
+    effmc, basis_rows, index_rows, offsets = [], [], [], []
     for step, offset, basis, eff in _insitu_cell_blocks(
         effMC, n_eta, n_coeff_pt, n_coeff_ut, include_edges=include_edges
     ):
@@ -544,11 +545,33 @@ def build_insitu_bound_aux(
         effmc.append(np.minimum(eff[live], effMC_max))
         basis_rows.append(rows)
         index_rows.append(idx)
+        # P(theta_central) at this cell. Zero on iteration 0; afterwards the
+        # histmaker has already reweighted the MC by 1+P(theta_central), so
+        # the total scale factor the fit realises is
+        #     1 + P(theta_central) + delta*P(n),
+        # not 1 + delta*P(n). Without this the bound is imposed at the wrong
+        # point -- by up to 15% where the accumulated correction is largest.
+        if theta_central is None:
+            offsets.append(np.zeros(rows.shape[0]))
+        else:
+            th = np.asarray(theta_central, dtype=np.float64)
+            pol = (rows * th[idx]).sum(-1)
+            # Cap exactly as fpass_capped does in the helper: the
+            # histmaker applied min(1+P, effData_max/eMC), so where
+            # theta_central is unphysical the MC was reweighted by the
+            # CAPPED factor. Storing the uncapped P makes the bound
+            # disagree with the histograms about where theta=0 is, and the
+            # fit then starts in a region the model does not represent.
+            # With the external T&P scale factors that left 130 cells at
+            # u>=1 and the fit stalled with a negative fail probability.
+            e = np.minimum(eff[live], effMC_max)
+            offsets.append(np.minimum(1.0 + pol, effMC_max / e) - 1.0)
 
     out = {
         "effmc": np.concatenate(effmc).astype(np.float64),
         "basis": np.concatenate(basis_rows).astype(np.float64),
         "coeff_index": np.concatenate(index_rows).astype(np.int64),
+        "offset": np.concatenate(offsets).astype(np.float64),
         "coeff_scale": np.array([delta], dtype=np.float64),
         "labels": labels,
     }
@@ -588,6 +611,7 @@ def merge_insitu_bound_aux(bundles):
         "effmc": np.concatenate([b["effmc"] for b in bundles]),
         "basis": np.concatenate([b["basis"] for b in bundles]),
         "coeff_index": np.concatenate([b["coeff_index"] for b in bundles]),
+        "offset": np.concatenate([b["offset"] for b in bundles]),
         "coeff_scale": first["coeff_scale"],
         "labels": first["labels"],
     }

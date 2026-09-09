@@ -151,6 +151,17 @@ def make_subparsers(parser, argv=None):
         "where little data constrains them.",
     )
 
+    parser.add_argument(
+        "--insituSFFile",
+        type=str,
+        default=None,
+        help="Accumulated theta_central pkl that the histmaker was run with "
+        "(--insituSFFile there). The bound must be imposed on the TOTAL scale "
+        "factor, 1 + P(theta_central) + delta*P(n); on iteration 0 this is None "
+        "and the offset is zero, but on later iterations omitting it applies the "
+        "bound at the wrong point.",
+    )
+
     tmpKnownArgs, _ = parser.parse_known_args(argv)
     subparserName = tmpKnownArgs.analysisMode
     if subparserName is None:
@@ -3819,10 +3830,19 @@ if __name__ == "__main__":
         # efficiency eMC*(1+P) from passing 1, where the fail probability turns
         # negative; the penalty needs the same eMC the histmaker used and the
         # basis evaluated on it.
+        # theta_central of the histograms being fitted: the bound has to be
+        # imposed on the TOTAL scale factor, 1 + P(theta_central) + delta*P(n),
+        # and on any iteration after the first that offset is not zero.
+        theta_central = (
+            muon_efficiencies_insitu.load_insitu_central(args.insituSFFile)
+            if getattr(args, "insituSFFile", None)
+            else None
+        )
         aux = muon_efficiencies_insitu.merge_insitu_bound_aux(
             [
                 muon_efficiencies_insitu.build_insitu_bound_aux(
-                    muon_efficiencies_insitu.make_muon_insitu_effMC_helper(f)
+                    muon_efficiencies_insitu.make_muon_insitu_effMC_helper(f),
+                    theta_central=theta_central,
                 )
                 for f in args.insituEffMCFile
             ]
