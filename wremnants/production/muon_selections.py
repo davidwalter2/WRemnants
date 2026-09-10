@@ -173,7 +173,41 @@ def define_two_muons(
     name_second="secondMuons",
     dilepton=False,
     muons="vetoMuons",
+    same_sign_charge=None,
 ):
+    if same_sign_charge is not None:
+        # Same-sign control region: both muons carry charge `same_sign_charge`.
+        # The opposite-sign branches below separate the pair by charge, which
+        # is impossible here -- both collections would resolve to the same
+        # muons and select_z_candidate's "exactly one of each" filter could
+        # never be satisfied. Split by pt instead, leading as first. Nothing
+        # downstream depends on the ordering: the tag/probe assignment keys off
+        # the _tag0 flags and the event parity, not the charge.
+        q = int(same_sign_charge)
+        logger.debug(
+            f"Using same-sign selection, both muon collections have charge {q:+d}"
+        )
+        df = df.DefinePerSample(f"{name_first}_charge0", f"{q}")
+        df = df.DefinePerSample(f"{name_second}_charge0", f"{q}")
+        df = df.Define(
+            f"{name_first}_ssPool", f"{muons} && Muon_correctedCharge == {q}"
+        )
+        df = df.Define(
+            name_first, f"wrem::nth_by_pt({name_first}_ssPool, Muon_correctedPt, 0)"
+        )
+        df = df.Define(
+            name_second, f"wrem::nth_by_pt({name_first}_ssPool, Muon_correctedPt, 1)"
+        )
+        # NB the shared "select by charge" Define below is skipped: the
+        # collections are already built here, and re-Defining them raises.
+        df = muon_calibration.define_corrected_reco_muon_kinematics(
+            df, name_first, ["pt", "eta", "phi"]
+        )
+        df = muon_calibration.define_corrected_reco_muon_kinematics(
+            df, name_second, ["pt", "eta", "phi"]
+        )
+        return df
+
     if dilepton:
         # by convention define first as negative charge, but actually both leptons could be triggering here
         logger.debug(

@@ -55,6 +55,18 @@ parser.add_argument(
     help="Use dilepton trigger selection (default uses the Wlike one, with one triggering muon and odd/even event selection to define its charge, staying agnostic to the other). Always active in the in-situ efficiency mode.",
 )
 parser.add_argument(
+    "--dileptonSameSign",
+    type=str,
+    default=None,
+    choices=["plus", "minus"],
+    help="Build the dilepton pair, and hence the in-situ fail categories, from "
+    "SAME-sign muons of the given charge instead of opposite-sign. A control "
+    "region for the nonprompt background: prompt Z->mumu is opposite-sign, so "
+    "the same-sign yield is almost pure fakes and tests how well they are "
+    "modelled. ++ and -- are separate runs on purpose, since the fake "
+    "composition differs by charge.",
+)
+parser.add_argument(
     "--muonIsolation",
     type=int,
     nargs=2,
@@ -198,6 +210,14 @@ insituMode = args.insituEffMCFile is not None or args.makeInsituEffMC
 if insituMode and not args.useDileptonTriggerSelection:
     logger.info("In-situ efficiency mode: forcing the dilepton trigger selection")
 useDileptonTriggerSelection = args.useDileptonTriggerSelection or insituMode
+
+# None -> opposite sign (the default); +-1 -> same-sign control region
+sameSignCharge = {None: None, "plus": 1, "minus": -1}[args.dileptonSameSign]
+if sameSignCharge is not None:
+    logger.warning(
+        f"SAME-SIGN control region: both muons required to have charge "
+        f"{sameSignCharge:+d}. This is not the signal selection."
+    )
 
 if not insituMode:
     for opt, val in (
@@ -999,7 +1019,10 @@ def build_graph(df, dataset):
             condition=">=",
         )
         df = muon_selections.define_two_muons(
-            df, dilepton=True, muons="insituProbeMuons"
+            df,
+            dilepton=True,
+            muons="insituProbeMuons",
+            same_sign_charge=sameSignCharge,
         )
     else:
         passIsoBoth = args.muonIsolation[0] + args.muonIsolation[1] == 2
@@ -1016,7 +1039,10 @@ def build_graph(df, dataset):
             dxybsCut=args.dxybs,
         )
         df = muon_selections.define_two_muons(
-            df, dilepton=useDileptonTriggerSelection, muons="goodMuons"
+            df,
+            dilepton=useDileptonTriggerSelection,
+            muons="goodMuons",
+            same_sign_charge=sameSignCharge,
         )
         # iso cut applied here, if requested, because it needs the muon collections
         if not passIsoBoth:
