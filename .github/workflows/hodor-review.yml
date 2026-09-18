@@ -17,11 +17,15 @@ name: Hodor AI review
 # contributor's first merged commit, then automatic, as for main.yml).
 # Consequences, baked in below:
 #   - The workflow file is read from the base branch by GitHub; PRs cannot
-#     modify what runs. There is NO checkout of this repository at all
-#     (this is hodor's README flow): hodor clones the repo and checks out
-#     the PR head itself via gh, so its review state always keys on the
-#     real PR commit — base-or-merge-commit workspace confusion is
-#     impossible by construction.
+#     modify what runs. The job checks the PR head out itself, explicitly
+#     at refs/pull/N/head and with the code submodules populated from URLs
+#     pinned in the step below, and hodor's CI detection then adopts that
+#     workspace without performing any git operation of its own. Review
+#     state therefore keys on the real PR commit, never the synthetic merge
+#     commit. This used to be delegated to hodor (clone + gh pr checkout,
+#     its README flow), which left the submodule directories empty and sent
+#     the agent hunting for them with `find /` — that hung two reviews
+#     until the job timeout.
 #   - Trusted configuration comes from the WMass/hodor fork, pinned by
 #     commit SHA: the fork branch carries the custom-endpoint patch
 #     (upstream PR mr-karan/hodor#25) and models.cern.json (base URL,
@@ -102,8 +106,13 @@ jobs:
       # so it works identically for fork PRs and for workflow_dispatch, and it
       # pins the real PR commit rather than the synthetic merge commit -- the
       # property the previous clone-it-yourself flow was written to guarantee.
-      # fetch-depth 0 because hodor diffs the head against the base branch and
-      # needs the merge base.
+      # fetch-depth 0 is load-bearing, not an optimisation: hodor builds its
+      # diff as `git diff origin/<base>...HEAD` (review-diff.ts) and only
+      # fetches the base itself under --full --target-branch, which this job
+      # does not pass. Depth 0 selects actions/checkout's all-history refspec
+      # (+refs/heads/*:refs/remotes/origin/*), which is what creates
+      # origin/<base>; at the default depth 1 an explicit ref fetches only
+      # refs/pull/N/head and the diff would fail.
       - name: Check out the pull request
         uses: actions/checkout@v5
         with:
@@ -127,14 +136,20 @@ jobs:
       # packages with `find /`, which on these runners walks AFS, CVMFS and EOS
       # and never returns. Two reviews hung that way, for 26 min and 2h19.
       - name: Populate code submodules
+        # Best effort on purpose, no `set -e`: a PR may point a submodule at a
+        # commit that is not pushed yet (stacked submodule work) or rename a
+        # path, and failing the job there would mean no review at all for
+        # exactly the PRs that were reviewed fine before. Empty directories
+        # are survivable -- REVIEW_NOTES tells the agent not to chase missing
+        # package directories -- so warn and review anyway.
         run: |
-          set -e
-          git submodule init -- narf rabbit wums
+          git submodule init -- narf rabbit wums || true
           git config submodule.narf.url https://github.com/bendavid/narf.git
           git config submodule.rabbit.url https://github.com/WMass/rabbit.git
           git config submodule.wums.url https://github.com/WMass/wums.git
-          git submodule update -- narf rabbit wums
-          git submodule status -- narf rabbit wums
+          git submodule update -- narf rabbit wums \
+            || echo "::warning::Could not populate all code submodules; reviewing with those directories empty."
+          git submodule status -- narf rabbit wums || true
 
       - name: Preflight configuration
         run: |
