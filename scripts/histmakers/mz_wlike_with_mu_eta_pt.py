@@ -630,6 +630,9 @@ def build_graph(df, dataset):
         df = df.Define(
             "qtOverQ", "ptVgen/massVgen"
         )  # FIXME: should there be a protection against mass=0 and what value to use?
+    if isWorZ:
+        # before the selection, for the generator-level normalisation of the parton shower variations
+        df_prefsr = generator_level_definitions.define_prefsr_vars(df)
 
     df = df.Filter(muon_selections.hlt_string(era))
 
@@ -1540,6 +1543,7 @@ def build_graph(df, dataset):
                 cols,
                 for_wmass=False,
             )
+            df = systematics.add_ps_weight_hists(results, df, df_prefsr, axes, cols)
 
             reco_sel = "vetoMuonsPre"
             require_prompt = "tau" not in dataset.name
@@ -1766,6 +1770,7 @@ def build_graph(df, dataset):
 
 
 resultdict = narf.build_and_run(datasets, build_graph)
+systematics.normalize_ps_weight_hists(resultdict)
 
 if not args.noScaleToData:
     scale_to_data(resultdict)

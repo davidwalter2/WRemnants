@@ -1,10 +1,11 @@
 import hist
+import numpy as np
 import ROOT
 
 import narf
 from wremnants.production import helicity_utils, theory_corrections
 from wremnants.utilities import binning, common, samples, theory_utils
-from wums import logging
+from wums import ioutils, logging
 
 narf.clingutils.Declare('#include "histoScaling.hpp"')
 narf.clingutils.Declare('#include "muonCorr.hpp"')
@@ -22,6 +23,15 @@ axis_muFfact = hist.axis.Variable(
 )
 
 scale_tensor_axes = (axis_muRfact, axis_muFfact)
+
+# parton shower renormalisation scale variations of the ISR and FSR, see makePSWeightTensor
+axis_psVar = hist.axis.StrCategory(
+    ["isrMuR0p5", "fsrMuR0p5"], name="psVar", overflow=False
+)
+axis_psVarGen = hist.axis.StrCategory(
+    ["nominal", *axis_psVar], name="psVar", overflow=False
+)
+ps_weight_truncate = 10.0
 
 
 def add_syst_hist(
@@ -583,6 +593,117 @@ def add_qcdScaleByHelicityUnc_hist(
     add_syst_hist(
         results, df, name, axes, cols, tensorName, helper.tensor_axes, **kwargs
     )
+
+
+def add_ps_weight_hists(
+    results,
+    df,
+    df_gen,
+    axes,
+    cols,
+    base_name="nominal",
+    storage_type=hist.storage.Double(),
+):
+    """
+    Book the parton shower ISR and FSR variations, to be normalised with
+    normalize_ps_weight_hists after the event loop. The boson kinematics are fixed by the
+    resummed theory corrections, so the variations are normalised to the nominal yields in
+    bins of the generator-level ptVgen and only their effect on the angular coefficients and
+    on the hadronic recoil remains.
+
+    Args:
+        df_gen: node before any selection with the preFSR variables defined, used for
+            the generator-level normalisation
+    """
+    if "PSWeight" not in df.GetColumnNames():
+        logger.debug("PSWeight not in list of columns, no parton shower variations")
+        return df
+
+    if "ptVgen" in cols:
+        ps_axes, ps_cols = axes, cols
+    else:
+        axis_ptVgen = hist.axis.Variable(
+            binning.ptV_binning, name="ptVgen", underflow=False
+        )
+        ps_axes, ps_cols = [*axes, axis_ptVgen], [*cols, "ptVgen"]
+
+    df = df.Define(
+        "psWeights_tensor_wnom",
+        f"auto res = wrem::makePSWeightTensor(PSWeight, {ps_weight_truncate}); res = nominal_weight*res; return res;",
+    )
+    add_syst_hist(
+        results,
+        df,
+        common.hist_name(base_name, syst="psWeightUnnorm"),
+        ps_axes,
+        ps_cols,
+        "psWeights_tensor_wnom",
+        axis_psVar,
+        storage_type=storage_type,
+    )
+
+    df_gen = df_gen.Define(
+        "psWeights_gen_tensor",
+        f"""auto ps = wrem::makePSWeightTensor(PSWeight, {ps_weight_truncate});
+        Eigen::TensorFixedSize<double, Eigen::Sizes<3>> res;
+        res(0) = weight;
+        res(1) = weight * ps(0);
+        res(2) = weight * ps(1);
+        return res;""",
+    )
+    results.append(
+        df_gen.HistoBoost(
+            common.hist_name(base_name, syst="psWeightGen"),
+            [ps_axes[ps_cols.index("ptVgen")]],
+            ["ptVgen", "psWeights_gen_tensor"],
+            tensor_axes=[axis_psVarGen],
+            storage=hist.storage.Double(),
+        )
+    )
+
+    return df
+
+
+def normalize_ps_weight_hists(resultdict, base_name="nominal"):
+    """
+    Scale the parton shower variations booked with add_ps_weight_hists such that they keep
+    the generator-level ptVgen distribution of each process, then sum over ptVgen unless it
+    is an axis of the nominal histogram
+    """
+    name_unnorm = common.hist_name(base_name, syst="psWeightUnnorm")
+    name_gen = common.hist_name(base_name, syst="psWeightGen")
+    for proc, result in resultdict.items():
+        output = result.get("output", {})
+        if name_unnorm not in output:
+            continue
+        h = output.pop(name_unnorm).get()
+        vals_gen = output[name_gen].get().values(flow=True)
+
+        # nominal over varied generator-level yields, by ptVgen bin and variation
+        ratio = np.divide(
+            vals_gen[:, :1],
+            vals_gen[:, 1:],
+            out=np.ones_like(vals_gen[:, 1:]),
+            where=vals_gen[:, 1:] != 0,
+        )
+        logger.info(
+            f"Normalise parton shower variations of {proc}, generator-level ratios in [{ratio.min():.4f}, {ratio.max():.4f}]"
+        )
+        shape = [1] * h.ndim
+        shape[h.axes.name.index("ptVgen")] = ratio.shape[0]
+        shape[h.axes.name.index("psVar")] = ratio.shape[1]
+        ratio = ratio.reshape(shape)
+
+        view = h.view(flow=True)
+        if h.storage_type == hist.storage.Weight:
+            view["value"] *= ratio
+            view["variance"] *= ratio**2
+        else:
+            view *= ratio
+
+        if "ptVgen" not in output[base_name].get().axes.name:
+            h = h[{"ptVgen": hist.sum}]
+        output[common.hist_name(base_name, syst="psWeight")] = ioutils.H5PickleProxy(h)
 
 
 def add_pdfUncertByHelicity_hist(

@@ -975,6 +975,8 @@ def build_graph(df, dataset):
         df = df.Define(
             "qtOverQ", "ptVgen/massVgen"
         )  # FIXME: should there be a protection against mass=0 and what value to use?
+        # before the selection, for the generator-level normalisation of the parton shower variations
+        df_prefsr = df
 
     if args.theoryAgnostic and isWmunu:  # should be isW to do also Wtaunu
         usePtOverM = False
@@ -2498,6 +2500,9 @@ def build_graph(df, dataset):
                 for_wmass=True,
                 storage_type=storage_type,
             )
+            df = systematics.add_ps_weight_hists(
+                results, df, df_prefsr, axes, cols, storage_type=storage_type
+            )
 
             # Don't think it makes sense to apply the mass weights to scale leptons from tau decays
             if (
@@ -2706,6 +2711,7 @@ else:
 
 for loop_datasets in dataset_sets:
     resultdict = narf.build_and_run(loop_datasets, build_graph)
+    systematics.normalize_ps_weight_hists(resultdict)
     if not args.onlyMainHistograms and args.muonScaleVariation == "smearingWeightsGaus":
         logger.debug("Apply smearingWeights")
         muon_calibration.transport_smearing_weights_to_reco(

@@ -196,6 +196,23 @@ scale_tensor_t makeScaleTensor(const Vec_f &scale_weights, double thres) {
   return res;
 }
 
+using ps_tensor_t = Eigen::TensorFixedSize<double, Eigen::Sizes<2>>;
+
+ps_tensor_t makePSWeightTensor(const Vec_f &ps_weights, double thres) {
+  // nanoaod doc lines: [0] is ISR=2 FSR=1; [1] is ISR=1 FSR=2; [2] is ISR=0.5
+  // FSR=1; [3] is ISR=1 FSR=0.5, with the factor applied to the renormalisation
+  // scale of the shower. In the custom NanoAOD [0] and [1] are copies of [2]
+  // and [3], so only the muR x 0.5 (more radiation) variations are available.
+  // Weights are 1 for samples without the four PS weights; clip large weights
+  ps_tensor_t res;
+  res.setConstant(1.);
+  if (ps_weights.size() == 4) {
+    res(0) = std::clamp<double>(ps_weights[2], -thres, thres); // ISR muR x 0.5
+    res(1) = std::clamp<double>(ps_weights[3], -thres, thres); // FSR muR x 0.5
+  }
+  return res;
+}
+
 using helicity_scale_tensor_t =
     Eigen::TensorFixedSize<double, Eigen::Sizes<NHELICITY, 3, 3>>;
 using helicity_tensor_t =

@@ -13,6 +13,7 @@ import ROOT
 
 import narf
 from wremnants.production import (
+    generator_level_definitions,
     muon_calibration,
     muon_efficiencies_binned,
     muon_efficiencies_cvh,
@@ -697,6 +698,10 @@ def build_graph(df, dataset):
                 base_name=f"gen_{obs}",
                 for_wmass=False,
             )
+
+    if isWorZ:
+        # before the selection, for the generator-level normalisation of the parton shower variations
+        df_prefsr = generator_level_definitions.define_prefsr_vars(df)
 
     df = df.Filter(muon_selections.hlt_string(era))
 
@@ -1497,6 +1502,7 @@ def build_graph(df, dataset):
                 cols,
                 for_wmass=False,
             )
+            df = systematics.add_ps_weight_hists(results, df, df_prefsr, axes, cols)
 
             reco_sel = "vetoMuonsPre"
             require_prompt = "tau" not in dataset.name
@@ -1757,6 +1763,7 @@ def build_graph(df, dataset):
 
 logger.debug(f"Datasets are {[d.name for d in datasets]}")
 resultdict = narf.build_and_run(datasets[::-1], build_graph)
+systematics.normalize_ps_weight_hists(resultdict)
 
 if not args.noScaleToData:
     scale_to_data(resultdict)
