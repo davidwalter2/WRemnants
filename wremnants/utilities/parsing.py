@@ -233,6 +233,12 @@ def common_parser(analysis_label=""):
         help="In the Z analyses, apply the recoil calibration along the gen boson proxy (gen non-triggering lepton + reco triggering lepton), as done for the W, instead of the reconstructed dilepton. Enabled by default in the W-like analysis, where the non-triggering lepton plays the role of the neutrino",
     )
     parser.add_argument(
+        "--recoilModel",
+        type=str,
+        default=None,
+        help="TFLite model of the recoil calibration, instead of the one in wremnants-data for the chosen MET",
+    )
+    parser.add_argument(
         "--highptscales",
         action="store_true",
         help="Apply highptscales option in MiNNLO for better description of data at high pT",
