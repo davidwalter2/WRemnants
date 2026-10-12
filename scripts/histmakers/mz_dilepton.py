@@ -592,6 +592,13 @@ if args.quarkMassCorr:
         corr_helpers.setdefault(proc, {})
         corr_helpers[proc].update(helper_map)
 
+# recoil calibration inputs and validation histograms (--recoilHists), as in the W-like
+recoilHelper = None
+if args.recoilHists and not args.noRecoil:
+    from wremnants.production import recoil_tools
+
+    recoilHelper = recoil_tools.Recoil("highPU", args, flavor="mumu")
+
 
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
@@ -1111,6 +1118,9 @@ def build_graph(df, dataset):
                     tensor_axes=[axis_helicity],
                 )
             )
+
+    if recoilHelper is not None:
+        df = recoilHelper.recoil_Z_muons(df, results, dataset)
 
     # histograms for corrections/uncertainties for pixel hit multiplicity
 
