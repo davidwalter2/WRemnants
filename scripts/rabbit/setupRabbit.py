@@ -1718,14 +1718,18 @@ def setup(
 
     signal_samples_forMass = ["signal_samples_inctau"]
 
-    def groupsWithHist(histname):
+    def groupsWithHist(histname, anyMember=False):
         # groups for which every member has the histogram, so that histmaker outputs
-        # produced before a process (or an option) was added keep working
+        # produced before a process (or an option) was added keep working.
+        # With anyMember, groups for which at least one member has it, e.g. the W-like
+        # Zmumu group where only Zmumu and not Zmumu10to50 is calibrated; the other
+        # members fall back to the nominal histogram, i.e. no variation
+        check = any if anyMember else all
         return [
             g
             for g in datagroups.procGroups["MCnoQCD"]
             if len(datagroups.groups[g].members)
-            and all(
+            and check(
                 histname in datagroups.results.get(m.name, {}).get("output", {})
                 for m in datagroups.groups[g].members
             )
@@ -3011,7 +3015,7 @@ def setup(
     if (wmass or wlike) and datagroups.args_from_metadata("recoilUnc"):
         # apply the uncertainty to every process the recoil calibration was applied to
         # (samples.wprocs_recoil / zprocs_recoil), i.e. those with the variations stored
-        recoilSamples = groupsWithHist("nominal_recoil_stat")
+        recoilSamples = groupsWithHist("nominal_recoil_stat", anyMember=True)
         logger.info(f"Apply the recoil uncertainty to {recoilSamples}")
         rabbit_helpers.add_recoil_uncertainty(
             datagroups,
@@ -3023,7 +3027,7 @@ def setup(
 
     # calibration evaluated without the cap on the boson pt (histmaker --recoilQtMax),
     # covering the extrapolation of the calibration beyond the range it was derived in
-    recoilQtExtrapSamples = groupsWithHist("nominal_recoilQtExtrap")
+    recoilQtExtrapSamples = groupsWithHist("nominal_recoilQtExtrap", anyMember=True)
     if len(recoilQtExtrapSamples):
         logger.info(
             f"Apply the recoil qt extrapolation uncertainty to {recoilQtExtrapSamples}"
