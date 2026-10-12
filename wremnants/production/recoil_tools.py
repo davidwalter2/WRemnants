@@ -6,7 +6,7 @@ import numpy as np
 import ROOT
 
 from wremnants.production import generator_level_definitions
-from wremnants.utilities import binning, common
+from wremnants.utilities import binning, common, samples
 from wremnants.utilities.io_tools import input_tools
 
 # prefer newer package if available
@@ -305,6 +305,36 @@ class Recoil:
             self.auxHists()
 
         return self.df
+
+    def recoil_Z_muons(
+        self,
+        df,
+        results,
+        dataset,
+        muons="goodMuons",
+        first="trigMuons",
+        second="nonTrigMuons",
+    ):
+        """
+        Recoil of Z->mumu events from the two selected muons, calibrated for the datasets of
+        samples.zprocs_recoil. The MET is corrected with the uncorrected kinematics of the muon
+        collection, the corrected kinematics of the collections first and second (in the W-like
+        the triggering and the non-triggering muon) define the W-like variables. Defines the
+        calibrated MET as MET_corr_rec_pt/phi.
+        """
+        leps_uncorr = [
+            f"Muon_{var}[{muons}][{i}]"
+            for i in (0, 1)
+            for var in ("pt", "eta", "phi", "charge")
+        ]
+        leps_corr = [
+            f"{coll}_{var}0"
+            for coll in (first, second)
+            for var in ("pt", "eta", "phi", "charge")
+        ]
+        return self.recoil_Z(
+            df, results, dataset, samples.zprocs_recoil, leps_uncorr, leps_corr
+        )
 
     def recoil_W(
         self,
