@@ -311,9 +311,19 @@ muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = 
     muon_prefiring.make_muon_prefiring_helpers(era=era)
 )
 
-helicity_smoothing_helpers_procs = theory_corrections.make_helicity_smoothing_helpers(
-    args.pdfs, args.theoryCorr, corrs=["qcdScale", "alphaS", "pdf"]
-)
+if args.skipByHelicityCorrection:
+    helicity_smoothing_helpers_procs = {}
+else:
+    procs = [
+        p
+        for p, grp in (("W", samples.wprocs), ("Z", samples.zprocs))
+        if any(d.name in grp for d in datasets)
+    ]
+    helicity_smoothing_helpers_procs = (
+        theory_corrections.make_helicity_smoothing_helpers(
+            args.pdfs, args.theoryCorr, procs=procs
+        )
+    )
 
 # extra axes which can be used to label tensor_axes
 if args.noScaleFactors:
@@ -492,7 +502,7 @@ def build_graph(df, dataset):
     isWorZ = isW or isZ
 
     helicity_smoothing_helpers = None
-    if isWorZ:
+    if isWorZ and dataset.name[0] in helicity_smoothing_helpers_procs.keys():
         helicity_smoothing_helpers = helicity_smoothing_helpers_procs[dataset.name[0]]
 
     if dataset.is_data:
