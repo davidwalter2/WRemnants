@@ -513,7 +513,13 @@ def add_recoil_uncertainty(
                 "expNoCalib",
                 "expNoLumi",
             ],
+            splitGroup={
+                "recoil_bkg": ".*_bkg",
+                "recoil_qtParam": ".*_qtParam",
+            },
             systAxes=["recoil_unc"],
+            # integer axis in older histmaker outputs, otherwise the category labels
+            # are the nuisance names, with the Up/Down variations paired
             labelsByAxis=["recoil_calibration_bkg"],
             passToFakes=passSystToFakes,
         )

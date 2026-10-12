@@ -56,16 +56,31 @@ def RecoilCalibrationHelper(fIn, args):
     return helper, nstat
 
 
-def RecoilCalibrationUncertaintyHelper(fIn, name, args):
+def RecoilCalibrationSystematicHelpers(fIn):
+    """
+    The systematic variations of the calibration in the model, {name: (helper, inputs)}. The model functions
+    syst_<name> take the boson pt and the recoil component before (u) and after (u') the calibration. In older
+    models they take (pt, u) and are ratios of the data pdfs, which have to be evaluated at u'.
+    """
     if not os.path.exists(fIn):
-        return None
+        return {}
+    with open(fIn, "rb") as f:
+        interpreter = Interpreter(model_content=f.read())
 
-    try:
-        helper = ROOT.wrem.RecoilCalibrationUncertaintyHelper(fIn, name)
-    except:
-        logger.warning(f"Cannot find recoil systematic {name}, skip")
-        helper = None
-    return helper
+    helpers = {}
+    for name, signature in sorted(interpreter.get_signature_list().items()):
+        if not name.startswith("syst_"):
+            continue
+        comp = "para" if "_para" in name else "perp"
+        if len(signature["inputs"]) == 3:
+            helper = ROOT.wrem.RecoilCalibrationSystematicHelper(fIn, name)
+            inputs = ["pt", f"ut_{comp}", f"ut_{comp}_corr"]
+        else:
+            helper = ROOT.wrem.RecoilCalibrationUncertaintyHelper(fIn, name)
+            inputs = ["pt", f"ut_{comp}_corr"]
+        helpers[name.removeprefix("syst_")] = (helper, inputs)
+    logger.info(f"Recoil calibration systematics: {list(helpers.keys())}")
+    return helpers
 
 
 def VPTReweightHelper(fIn):
@@ -132,14 +147,15 @@ class Recoil:
             recoil_tflite = (
                 f"{common.data_dir}/recoil/{pu_type}_{self.met}/model_mc_data_ee.tflite"
             )
+        if getattr(args, "recoilModel", None):
+            recoil_tflite = args.recoilModel
+        logger.info(f"Recoil calibration model: {recoil_tflite}")
 
         self.recoilHelper, self.nstat = RecoilCalibrationHelper(recoil_tflite, args)
-        self.recoil_syst_bkg_para = RecoilCalibrationUncertaintyHelper(
-            recoil_tflite, "syst_bkg_para", args
-        )
-        self.recoil_syst_bkg_perp = RecoilCalibrationUncertaintyHelper(
-            recoil_tflite, "syst_bkg_perp", args
-        )
+        self.recoil_systs = RecoilCalibrationSystematicHelpers(recoil_tflite)
+        # columns of the boson pt and the recoil components before and after the
+        # calibration, set where it is applied
+        self.recoil_calib_cols = {}
 
         # self.recoil_pdf_data_para = RecoilCalibrationUncertaintyHelper(recoil_tflite, "pdf_data_para", args)
         # self.recoil_pdf_data_perp = RecoilCalibrationUncertaintyHelper(recoil_tflite, "pdf_data_perp", args)
@@ -1255,6 +1271,13 @@ class Recoil:
 
             if doGEN:
                 if self.recoilHelper != None:
+                    self.recoil_calib_cols = {
+                        "pt": "v_gen_pt",
+                        "ut_para": "recoil_corr_xy_para_qt_gen",
+                        "ut_perp": "recoil_corr_xy_perp_gen",
+                        "ut_para_corr": "recoil_corr_rec_para_qt",
+                        "ut_perp_corr": "recoil_corr_rec_perp",
+                    }
                     self.df = self.df.Define(
                         "recoil_corr",
                         self.recoilHelper,
@@ -1305,6 +1328,13 @@ class Recoil:
 
             else:
                 if self.recoilHelper != None:
+                    self.recoil_calib_cols = {
+                        "pt": "v_pt",
+                        "ut_para": "recoil_corr_xy_para_qt",
+                        "ut_perp": "recoil_corr_xy_perp",
+                        "ut_para_corr": "recoil_corr_rec_para_qt",
+                        "ut_perp_corr": "recoil_corr_rec_perp",
+                    }
                     self.df = self.df.Define(
                         "recoil_corr",
                         self.recoilHelper,
@@ -1394,6 +1424,13 @@ class Recoil:
                     )
                 else:
                     self.df = self.df.Alias("v_gen_pt_recoil", "v_gen_pt")
+                self.recoil_calib_cols = {
+                    "pt": "v_gen_pt_recoil",
+                    "ut_para": "recoil_corr_xy_para_qt_gen",
+                    "ut_perp": "recoil_corr_xy_perp_gen",
+                    "ut_para_corr": "recoil_corr_rec_para_qt_gen",
+                    "ut_perp_corr": "recoil_corr_rec_perp_gen",
+                }
                 self.df = self.df.Define(
                     "recoil_corr",
                     self.recoilHelper,
@@ -1596,6 +1633,32 @@ class Recoil:
             )
         return df
 
+    def setup_recoil_syst(self):
+        """
+        Weights of the systematic variations of the calibration, evaluated at the boson pt and the
+        recoil components the calibration is applied to. They are stored along a category axis with
+        the names of the nuisance parameters, variations ending in Up and Down are paired.
+        """
+        recoil_systs = []
+        for name, (helper, inputs) in self.recoil_systs.items():
+            col = f"recoil_syst_{name}"
+            self.df = self.df.Define(
+                col, helper, [self.recoil_calib_cols[i] for i in inputs]
+            )
+            recoil_systs.append(col)
+        self.nsyst = len(recoil_systs)
+
+        if self.nsyst > 0:
+            self.recoil_unc_syst_weights_with_nom = "recoil_unc_syst_weights_with_nom"
+            self.df = self.df.Define(
+                self.recoil_unc_syst_weights_with_nom,
+                f"wrem::concatWeights<{self.nsyst}>(nominal_weight, {', '.join(recoil_systs)})",
+            )
+            self.recoil_var_ax_syst = hist.axis.StrCategory(
+                [f"recoil_calibration_{name}" for name in self.recoil_systs.keys()],
+                name="recoil_unc",
+            )
+
     def setup_recoil_Z_unc(self):
         if not self.dataset.name in self.datasets_to_apply:
             return
@@ -1632,21 +1695,7 @@ class Recoil:
         )
 
         # systematic uncertainties
-        recoil_systs = []
-        if self.recoil_syst_bkg_para != None:
-            self.df = self.df.Define(
-                "recoil_syst_bkg_para_z",
-                self.recoil_syst_bkg_para,
-                ["v_pt", "recoil_corr_xy_para_qt"],
-            )
-            recoil_systs.append("recoil_syst_bkg_para_z")
-        if self.recoil_syst_bkg_perp != None:
-            self.df = self.df.Define(
-                "recoil_syst_bkg_perp_z",
-                self.recoil_syst_bkg_perp,
-                ["v_pt", "recoil_corr_xy_perp"],
-            )
-            recoil_systs.append("recoil_syst_bkg_perp_z")
+        self.setup_recoil_syst()
 
         # reco-gen differences
         """
@@ -1670,17 +1719,7 @@ class Recoil:
         recoil_systs.append("recoil_pdf_tot")
         """
 
-        self.nsyst = len(recoil_systs)
-
         if self.nsyst > 0:
-            self.recoil_unc_syst_weights_with_nom = "recoil_unc_syst_weights_with_nom"
-            self.df = self.df.Define(
-                self.recoil_unc_syst_weights_with_nom,
-                f"wrem::concatWeights<{len(recoil_systs)}>(nominal_weight, {', '.join(recoil_systs)})",
-            )
-            self.recoil_var_ax_syst = hist.axis.Integer(
-                0, self.nsyst, name="recoil_unc", underflow=False, overflow=False
-            )
             for hName, col, ax in zip(hNames, cols, axes):
                 self.df = self.add_recoil_unc_Z(
                     self.df, self.results, self.dataset, col, ax, hName
@@ -1708,33 +1747,7 @@ class Recoil:
         )
 
         # systematic uncertainties
-        recoil_systs = []
-        if self.recoil_syst_bkg_para != None:
-            self.df = self.df.Define(
-                "recoil_syst_bkg_para_w",
-                self.recoil_syst_bkg_para,
-                ["v_gen_pt", "recoil_corr_xy_para_qt_gen"],
-            )
-            recoil_systs.append("recoil_syst_bkg_para_w")
-        if self.recoil_syst_bkg_perp != None:
-            self.df = self.df.Define(
-                "recoil_syst_bkg_perp_w",
-                self.recoil_syst_bkg_perp,
-                ["v_gen_pt", "recoil_corr_xy_perp_gen"],
-            )
-            recoil_systs.append("recoil_syst_bkg_perp_w")
-
-        self.nsyst = len(recoil_systs)
-
-        if self.nsyst > 0:
-            self.recoil_unc_syst_weights_with_nom = "recoil_unc_syst_weights_with_nom"
-            self.df = self.df.Define(
-                self.recoil_unc_syst_weights_with_nom,
-                f"wrem::concatWeights<{len(recoil_systs)}>(nominal_weight, {', '.join(recoil_systs)})",
-            )
-            self.recoil_var_ax_syst = hist.axis.Integer(
-                0, self.nsyst, name="recoil_unc", underflow=False, overflow=False
-            )
+        self.setup_recoil_syst()
 
         for hName, col, ax in zip(hNames, cols, axes):
             self.df = self.add_recoil_unc_W(

@@ -222,4 +222,35 @@ private:
   std::shared_ptr<narf::tflite_helper> helper_;
 };
 
+// weight of a systematic variation of the calibration, evaluated from the
+// boson pt and the recoil component before (ut) and after (ut_corr) it
+class RecoilCalibrationSystematicHelper {
+
+public:
+  RecoilCalibrationSystematicHelper(const std::string &filename,
+                                    const std::string &func_name)
+      : helper_(std::make_shared<narf::tflite_helper>(
+            filename, func_name, ROOT::GetThreadPoolSize())) {}
+
+  double operator()(const double &pt, const double &ut, const double &ut_corr) {
+
+    Eigen::TensorFixedSize<double, Eigen::Sizes<>> pt_tensor;
+    Eigen::TensorFixedSize<double, Eigen::Sizes<>> ut_tensor;
+    Eigen::TensorFixedSize<double, Eigen::Sizes<>> ut_corr_tensor;
+    pt_tensor(0) = pt;
+    ut_tensor(0) = ut;
+    ut_corr_tensor(0) = ut_corr;
+
+    Eigen::TensorFixedSize<double, Eigen::Sizes<>> ret;
+    auto const inputs = std::tie(pt_tensor, ut_tensor, ut_corr_tensor);
+    auto outputs = std::tie(ret);
+    (*helper_)(inputs, outputs);
+    ret = wrem::clip_tensor(ret, 10.);
+    return ret(0);
+  }
+
+private:
+  std::shared_ptr<narf::tflite_helper> helper_;
+};
+
 } // namespace wrem
