@@ -228,8 +228,9 @@ def common_parser(analysis_label=""):
     )
     parser.add_argument(
         "--recoilGenProxy",
-        action="store_true",
-        help="In the Z analyses, apply the recoil calibration along the gen boson proxy (gen non-triggering lepton + reco triggering lepton), as done for the W, instead of the reconstructed dilepton. For closure tests of the W application",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="In the Z analyses, apply the recoil calibration along the gen boson proxy (gen non-triggering lepton + reco triggering lepton), as done for the W, instead of the reconstructed dilepton. Enabled by default in the W-like analysis, where the non-triggering lepton plays the role of the neutrino",
     )
     parser.add_argument(
         "--highptscales",
