@@ -78,10 +78,7 @@ class TheoryHelper(object):
 
         self.datagroups = datagroups
         corr_hists = self.datagroups.args_from_metadata("theoryCorr")
-        if len(corr_hists) > 1 and corr_hists[1].startswith(corr_hists[0] + "_"):
-            self._corr_sep = "_"
-        else:
-            self._corr_sep = ""
+        self._corr_sep = self.corr_hist_separator(corr_hists)
         self.corr_hist_name = (
             (corr_hists[0] + self._corr_sep + "Corr") if corr_hists else None
         )
@@ -154,6 +151,28 @@ class TheoryHelper(object):
         convert_none = lambda x: x if x.lower() != "none" else None
         self.theory_symmetrize = convert_none(theory_symmetrize)
         self.pdf_symmetrize = convert_none(pdf_symmetrize)
+
+    def corr_hist_separator(self, corr_hists):
+        """Separator between the theory correction and 'Corr' in the histogram names.
+
+        The histmaker writes <nominal>_<corr>_Corr, older outputs <nominal>_<corr>Corr.
+        Taken from the histograms of the signal samples, which also works when only the
+        central correction was applied, otherwise guessed from the further corrections.
+        """
+        if not corr_hists:
+            return ""
+        names = set()
+        for group in self.datagroups.procGroups["signal_samples"]:
+            for member in self.datagroups.groups[group].members:
+                names.update(
+                    self.datagroups.results.get(member.name, {}).get("output", {})
+                )
+        for sep in ("_", ""):
+            if f"{self.datagroups.nominalName}_{corr_hists[0]}{sep}Corr" in names:
+                return sep
+        if len(corr_hists) > 1 and corr_hists[1].startswith(corr_hists[0] + "_"):
+            return "_"
+        return ""
 
     def set_from_hels(self, from_hels):
         """Select which uncertainties are taken from the helicity-smoothed (ByHelicity) hists.
