@@ -58,8 +58,11 @@ class TheoryHelper(object):
         "binned_Omega",
         "LatticeEigvars",
         "LatticeNoConstraints",
+        "FrankNoConstraints",
         "none",
     ]
+    # NP models with variations named after the lattice-type parameters (lambda2, lambda4, ...)
+    lattice_np_models = ["LatticeEigvars", "LatticeNoConstraints", "FrankNoConstraints"]
 
     # uncertainties that can be taken from the helicity-smoothed (ByHelicity) hists,
     # see 'set_from_hels'
@@ -747,9 +750,10 @@ class TheoryHelper(object):
         var_name = var_name.replace("binned_", "")
         var_name = var_name.replace("_Correlated", "")
 
-        if not any(
-            var_name in x for x in self.np_hist.axes[self.syst_ax]
-        ) and model not in ["LatticeEigvars", "LatticeNoConstraints"]:
+        if (
+            not any(var_name in x for x in self.np_hist.axes[self.syst_ax])
+            and model not in TheoryHelper.lattice_np_models
+        ):
             raise ValueError(
                 f"NP model choice was '{model}' but did not find corresponding variations in the histogram"
             )
@@ -806,6 +810,16 @@ class TheoryHelper(object):
                 for name in gamma_nuisance_names
                 for direction in ["Up", "Down"]
             ]
+            var_vals = lattice_vals
+        elif self.np_model == "FrankNoConstraints":
+            # lattice NP model with the central values and variations suggested by Frank Tackmann
+            # (corrections *_LatticeNPLambda4Bugfix_FranksValsVars_*)
+            lattice_vals = ["lambda2_nu0.05", "lambda2_nu0.25"]
+            if not all([x in self.corr_hist.axes[self.syst_ax] for x in lattice_vals]):
+                raise ValueError(
+                    f"Using the NP model with Frank's values, but could not find the lambda2 variations for gamma in hist {self.corr_hist_name}"
+                )
+            var_names = ["scetlibNPgammaLambda2Down", "scetlibNPgammaLambda2Up"]
             var_vals = lattice_vals
         else:
             # Since "c_nu = 0.1 is the central value, it doesn't show up in the name"
@@ -928,6 +942,12 @@ class TheoryHelper(object):
                 "delta_lambda2": ["-0.02", "0.02"],
                 "lambda4": ["0.01", "0.12"],
             }
+        elif self.np_model == "FrankNoConstraints":
+            np_map = {
+                "lambda2": ["0.0", "1.0"],
+                "delta_lambda2": ["-0.02", "0.02"],
+                "lambda4": ["0.0", "1.0"],
+            }
         elif "Lambda" in self.np_model:
             np_map = {
                 "Lambda2": [
@@ -946,10 +966,10 @@ class TheoryHelper(object):
                 "Delta_Omega": ["-0.02", "0.02"],
             }
 
-        if "Delta" not in self.np_model and self.np_model not in [
-            "LatticeEigvars",
-            "LatticeNoConstraints",
-        ]:
+        if (
+            "Delta" not in self.np_model
+            and self.np_model not in TheoryHelper.lattice_np_models
+        ):
             to_remove = list(filter(lambda x: "Delta" in x, np_map.keys())) + list(
                 filter(lambda x: "delta" in x, np_map.keys())
             )
@@ -984,6 +1004,12 @@ class TheoryHelper(object):
                 "delta_lambda2": ["-0.02", "0.02"],
                 "lambda4": ["0.01", "0.12"],
             }
+        elif self.np_model == "FrankNoConstraints":
+            np_map = {
+                "lambda2": ["0.0", "1.0"],
+                "delta_lambda2": ["-0.02", "0.02"],
+                "lambda4": ["0.0", "1.0"],
+            }
         elif "Lambda" in self.np_model:
             np_map = {
                 "Lambda2": [
@@ -1002,10 +1028,10 @@ class TheoryHelper(object):
                 "Delta_Omega": ["-0.02", "0.02"],
             }
 
-        if "Delta" not in self.np_model and self.np_model not in [
-            "LatticeEigvars",
-            "LatticeNoConstraints",
-        ]:
+        if (
+            "Delta" not in self.np_model
+            and self.np_model not in TheoryHelper.lattice_np_models
+        ):
             to_remove = list(filter(lambda x: "Delta" in x, np_map.keys())) + list(
                 filter(lambda x: "delta" in x, np_map.keys())
             )
