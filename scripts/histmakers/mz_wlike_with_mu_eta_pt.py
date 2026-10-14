@@ -239,7 +239,7 @@ if args.addAxisSignUt:
 
 # for isoMt region validation and related tests
 axis_mtCat = hist.axis.Variable(
-    [0, int(args.mtCut / 2.0), args.mtCut, np.inf],
+    [0, args.mtCut / 2.0, args.mtCut, np.inf],
     name="mt",
     underflow=False,
     overflow=False,
@@ -1008,29 +1008,8 @@ def build_graph(df, dataset):
         df = theoryAgnostic_tools.define_helicity_weights(df, is_z=True)
 
     if not args.noRecoil:
-        leps_uncorr = [
-            "Muon_pt[goodMuons][0]",
-            "Muon_eta[goodMuons][0]",
-            "Muon_phi[goodMuons][0]",
-            "Muon_charge[goodMuons][0]",
-            "Muon_pt[goodMuons][1]",
-            "Muon_eta[goodMuons][1]",
-            "Muon_phi[goodMuons][1]",
-            "Muon_charge[goodMuons][1]",
-        ]
-        leps_corr = [
-            "trigMuons_pt0",
-            "trigMuons_eta0",
-            "trigMuons_phi0",
-            "trigMuons_charge0",
-            "nonTrigMuons_pt0",
-            "nonTrigMuons_eta0",
-            "nonTrigMuons_phi0",
-            "nonTrigMuons_charge0",
-        ]
-        df = recoilHelper.recoil_Z(
-            df, results, dataset, samples.zprocs_recoil, leps_uncorr, leps_corr
-        )  # produces corrected MET as MET_corr_rec_pt/phi
+        # produces the calibrated MET as MET_corr_rec_pt/phi
+        df = recoilHelper.recoil_Z_muons(df, results, dataset)
     else:
         df = df.Alias("MET_corr_rec_pt", "MET_pt")
         df = df.Alias("MET_corr_rec_phi", "MET_phi")

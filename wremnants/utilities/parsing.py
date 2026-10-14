@@ -227,9 +227,15 @@ def common_parser(analysis_label=""):
         help="Run the recoil calibration with uncertainties (slower)",
     )
     parser.add_argument(
-        "--recoilGenProxy",
+        "--recoilRecoProxy",
         action="store_true",
-        help="In the Z analyses, apply the recoil calibration along the gen boson proxy (gen non-triggering lepton + reco triggering lepton), as done for the W, instead of the reconstructed dilepton. For closure tests of the W application",
+        help="In the Z analyses, apply the recoil calibration along the reconstructed dilepton instead of the gen boson proxy (gen non-triggering lepton + reco triggering lepton), which is used by default as for the W",
+    )
+    parser.add_argument(
+        "--recoilModel",
+        type=str,
+        default=None,
+        help="TFLite model of the recoil calibration, instead of the one in wremnants-data for the chosen MET",
     )
     parser.add_argument(
         "--highptscales",
