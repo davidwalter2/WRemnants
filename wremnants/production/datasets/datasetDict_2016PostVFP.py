@@ -54,12 +54,31 @@ dataDict = {
         "xsec": common.xsec_DYJetsToLLMass10to50,
         "group": "Zmumu",
     },
+    # private production (2026) with the custom NanoAOD; the generator cut Born pT(ll) > 10 GeV
+    # makes it overlap-free with Zmumu10to50 only above pT(ll) of about 10 GeV.
+    # The PDF weights are in other LHE weight groups (theory_utils.pdfMap_private2026)
+    "Zmumu2to10_2016PostVFP": {
+        "filepaths": [
+            "/ceph/submit/data/user/d/david_w/MC_Production/261011_DYMM_M2to10/results/nano",
+        ],
+        "xsec": common.xsec_DYJetsToMuMuMass2to10BornPt10,
+        "group": "Zmumu",
+    },
     "Ztautau_2016PostVFP": {
         "filepaths": [
             "{BASE_PATH}/DYJetsToTauTau_M-50_AtLeastOneEorMuDecay_H2ErratumFix_PDF_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/NanoV9MCPostVFP_{NANO_PROD_TAG}",
         ],
         # At least one tau->e or mu decay, so everything that's not all other decays
         "xsec": common.xsec_DYJetsToLL * common.Z_TAU_TO_LEP_RATIO,
+        "group": "Ztautau",
+    },
+    # private production (2026) with the custom NanoAOD, at least one tau->e or mu decay.
+    # The PDF weights are in other LHE weight groups (theory_utils.pdfMap_private2026)
+    "Ztautau10to50_2016PostVFP": {
+        "filepaths": [
+            "/ceph/submit/data/user/d/david_w/MC_Production/261011_DYTT_M10to50/results/nano",
+        ],
+        "xsec": common.xsec_DYJetsToTauTauMass10to50 * common.Z_TAU_TO_LEP_RATIO,
         "group": "Ztautau",
     },
     "Wplusmunu_2016PostVFP": {

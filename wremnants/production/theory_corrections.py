@@ -357,10 +357,11 @@ def define_pdf_columns(df, dataset_name, pdfs, noAltUnc):
         return df
 
     for i, pdf in enumerate(pdfs):
+        # a set missing in this sample skips only that set
         try:
             pdfInfo = theory_utils.pdf_info_map(dataset_name, pdf)
         except ValueError:
-            return df
+            continue
 
         logger.info(f"Defining PDF weights for PDF set {pdf}")
 
@@ -372,7 +373,10 @@ def define_pdf_columns(df, dataset_name, pdfs, noAltUnc):
         start = 0 if "first_entry" not in pdfInfo else pdfInfo["first_entry"]
 
         if pdfBranch not in df.GetColumnNames():
-            return df
+            logger.warning(
+                f"PDF branch {pdfBranch} of {pdf} not found for sample {dataset_name}"
+            )
+            continue
 
         if "renorm" in pdfInfo and pdfInfo["renorm"]:
             df = df.Define(

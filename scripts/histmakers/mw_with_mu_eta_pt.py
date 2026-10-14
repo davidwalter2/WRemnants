@@ -57,6 +57,12 @@ parser.add_argument(
     help="Save yields vs eta-pt-ut-passMT-passIso-passTrigger to derive 3D efficiencies for MC isolation and trigger (can run also with --onlyMainHistograms)",
 )
 parser.add_argument(
+    "--stitchingHists",
+    action="store_true",
+    help="For Z samples, store the boson mass (preFSR and LHE) of the selected events vs. the "
+    "LHE boson pT, the mT and the isolation, to check the stitching of samples split in mass",
+)
+parser.add_argument(
     "--onlyTheorySyst",
     action="store_true",
     help="Keep only theory systematic variations, mainly for tests",
@@ -2273,6 +2279,37 @@ def build_graph(df, dataset):
                 storage=hist.storage.Double(),
             )
         )
+        if args.stitchingHists and isZ:
+            # as w_z_gen_dists.py --stitchingHists, for the selected events (eta and pt
+            # acceptance of the nominal histogram, with its mT and isolation categories)
+            axes_sel = [
+                hist.axis.Regular(
+                    1, template_mineta, template_maxeta, name="eta", flow=False
+                ),
+                hist.axis.Regular(
+                    1, template_minpt, template_maxpt, name="pt", flow=False
+                ),
+                *axes_abcd,
+            ]
+            cols_sel = [
+                "goodMuons_eta0",
+                "goodMuons_pt0",
+                "transverseMass",
+                "goodMuons_relIso0",
+            ]
+            for col in ["massVgen", "massVlhe"]:
+                results.append(
+                    df.HistoBoost(
+                        f"stitching_{col}",
+                        [
+                            hist.axis.Variable(binning.stitching_mass_edges, name=col),
+                            binning.axis_ptVlhe_stitching,
+                            *axes_sel,
+                        ],
+                        [col, "ptVlhe", *cols_sel, "nominal_weight"],
+                        storage=hist.storage.Weight(),
+                    )
+                )
 
         cols_scaleMET_pt = [
             x.replace("transverseMass", "transverseMass_scaleMET_pt").replace(

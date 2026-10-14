@@ -109,6 +109,12 @@ parser.add_argument(
     action="store_true",
     help="Apply PDF reweighting using boson parameterized corrections",
 )
+parser.add_argument(
+    "--stitchingHists",
+    action="store_true",
+    help="Store the boson mass (preFSR and LHE) in fine bins vs. the LHE boson pT, with PDF "
+    "variations, to check the stitching of Z samples split in mass",
+)
 parser = parsing.set_parser_default(parser, "filterProcs", samples.vprocs)
 parser = parsing.set_parser_default(parser, "era", "13TeVGen")
 parser = parsing.set_parser_default(parser, "aggregateGroups", [])
@@ -412,6 +418,33 @@ def build_graph(df, dataset):
 
         nominal_axes += [axis_helicitygen]
         nominal_cols += ["helicity_idxs", "helicity_moments"]
+
+    if args.stitchingHists and isZ:
+        # across the generator mass boundaries of the DY samples (10 and 50 GeV); the LHE boson
+        # pT allows a common phase space with samples that have a generator cut on the Born pT
+        for col in ["massVgen", "massVlhe"]:
+            axes = [
+                hist.axis.Variable(binning.stitching_mass_edges, name=col),
+                binning.axis_ptVlhe_stitching,
+            ]
+            cols = [col, "ptVlhe"]
+            results.append(
+                df.HistoBoost(
+                    f"stitching_{col}",
+                    axes,
+                    [*cols, "nominal_weight"],
+                    storage=hist.storage.Weight(),
+                )
+            )
+            systematics.add_pdf_hists(
+                results,
+                df,
+                dataset.name,
+                axes,
+                cols,
+                args.pdfs,
+                base_name=f"stitching_{col}",
+            )
 
     if args.singleLeptonHists or args.fiducial:
         gen_levels = ["prefsr", "postfsr"]
