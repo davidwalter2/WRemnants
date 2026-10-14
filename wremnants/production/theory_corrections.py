@@ -527,8 +527,13 @@ def define_theory_weights_and_corrs(
         modify_central_weight=False,
     )
 
-    if args.highptscales:
-        df = df.Define("extra_weight", "MEParamWeightAltSet3[0]")
+    if args.largePtScales:
+        if df.HasColumn("MEParamWeightAltSet3"):
+            # MiNNLO largeptscales variation: scales ~ pT_V instead of ~ m_V at large pT_V
+            logger.info(f"Reweight {dataset_name} with the largeptscales weight")
+            df = df.Define("extra_weight", "MEParamWeightAltSet3[0]")
+        else:
+            logger.info(f"No largeptscales weight for {dataset_name}, not reweighted")
     df = define_nominal_weight(df)
     df = define_pdf_columns(df, dataset_name, args.pdfs, args.altPdfOnlyCentral)
     df = define_breit_wigner_weights(df, dataset_name)
