@@ -118,8 +118,6 @@ parser = parsing.set_parser_default(
     parser, "aggregateGroups", ["Diboson", "Top", "Wtaunu", "Wmunu"]
 )
 parser = parsing.set_parser_default(parser, "excludeProcs", ["QCD"])
-# the non-triggering muon plays the role of the neutrino, calibrate the recoil as in the W
-parser = parsing.set_parser_default(parser, "recoilGenProxy", True)
 if args.addIsoMtAxes:
     parser = parsing.set_parser_default(parser, "muonIsolation", [0, 1])
 

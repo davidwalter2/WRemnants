@@ -227,10 +227,9 @@ def common_parser(analysis_label=""):
         help="Run the recoil calibration with uncertainties (slower)",
     )
     parser.add_argument(
-        "--recoilGenProxy",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="In the Z analyses, apply the recoil calibration along the gen boson proxy (gen non-triggering lepton + reco triggering lepton), as done for the W, instead of the reconstructed dilepton. Enabled by default in the W-like analysis, where the non-triggering lepton plays the role of the neutrino",
+        "--recoilRecoProxy",
+        action="store_true",
+        help="In the Z analyses, apply the recoil calibration along the reconstructed dilepton instead of the gen boson proxy (gen non-triggering lepton + reco triggering lepton), which is used by default as for the W",
     )
     parser.add_argument(
         "--recoilModel",
