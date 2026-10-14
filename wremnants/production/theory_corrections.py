@@ -204,6 +204,16 @@ def load_corr_helpers(
             else:
                 label = proc[0]
 
+            if (
+                proc in theory_utils.datasets_without_qcd_corr
+                and generator not in theory_utils.valid_ew_theory_corrections()
+            ):
+                logger.warning(
+                    f"Correction {generator} does not cover the mass range of process {proc}, "
+                    "no correction will be applied for this process!"
+                )
+                continue
+
             candidate_fnames = [
                 f"{base_dir}/{generator}_Corr{label}.pkl.lz4",
                 f"{base_dir}/{generator}Corr{label}.pkl.lz4",

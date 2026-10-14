@@ -326,6 +326,12 @@ private2026_pdf_datasets = [
     "Ztautau10to50_2016PostVFP",
 ]
 
+# datasets below the mass range of the QCD theory corrections (m > 10 GeV for the Z): the QCD
+# corrections and their variations are not applied to them, the EW corrections are
+datasets_without_qcd_corr = [
+    "Zmumu2to10_2016PostVFP",
+]
+
 
 def pdf_info_map(dataset, pdfset):
     infoMap = pdfMap_private2026 if dataset in private2026_pdf_datasets else pdfMap
