@@ -35,6 +35,28 @@ from wums import boostHistHelpers as hh
 from wums import logging, output_tools
 
 
+def _parse_decorr_rebin(value):
+    """Parse one --decorrRebin token.
+
+    A bare integer merges that many bins (the historical behaviour). A
+    comma-separated list is taken as explicit bin edges in axis units, e.g.
+    ``0,10,44`` puts the decorrelated parameters in ptll [0,10) and [10,44).
+    Both forms are consumed by hh.rebinHistMultiAx, which switches on the type.
+    """
+    if "," in value:
+        edges = [float(v) for v in value.split(",")]
+        if len(edges) < 2:
+            raise argparse.ArgumentTypeError(
+                f"--decorrRebin edge list '{value}' needs at least two edges"
+            )
+        if any(b <= a for a, b in zip(edges[:-1], edges[1:])):
+            raise argparse.ArgumentTypeError(
+                f"--decorrRebin edge list '{value}' must be strictly increasing"
+            )
+        return edges
+    return int(value)
+
+
 def _parse_axis_range_specs(specs):
     parsed_specs = []
     for axis, low, high in specs:
@@ -117,7 +139,15 @@ def apply_preselection(h, specs: tuple = ()):
             raise ValueError(
                 f"--presel requested axis '{axis_name}', but histogram axes are {h.axes.name}"
             )
-        h = h[{axis_name: slice(low, hh.get_hist_slice_upper(h, axis_name, high))}]
+        upper = hh.get_hist_slice_upper(h, axis_name, high)
+        # A bare slice moves the out-of-range content into the axis' flow bins,
+        # where a later sum over the axis re-adds it and undoes the cut. Drop the
+        # flow bins, except the overflow when `high` is the last edge (inclusive
+        # upper bound, see get_hist_slice_upper).
+        h = h[{axis_name: slice(low, upper)}]
+        h = hh.setFlow(
+            h, axis_name, under=False, over=None if upper is hist.overflow else False
+        )
         if ":sum" in axis:
             h = h[{axis_name: hist.sum}]
     return h
@@ -502,10 +532,12 @@ def make_parser(parser=None, argv=None):
     )
     parser.add_argument(
         "--decorrRebin",
-        type=int,
+        type=_parse_decorr_rebin,
         nargs="*",
         default=[],
-        help="Rebin axis by this value (default, 1, does nothing)",
+        help="Binning of the decorrelated parameters, one entry per decorrelated axis. "
+        "An integer merges that many bins (default, 1, does nothing); a comma-separated "
+        "list gives explicit bin edges in axis units, e.g. '0,10,44'.",
     )
     parser.add_argument(
         "--decorrAbsval",
