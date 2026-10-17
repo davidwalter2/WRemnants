@@ -650,6 +650,23 @@ def make_parser(parser=None, argv=None):
         action="store_true",
         help="Add custom recoil systematic uncertainties from smearing met pt/phi and scaling met pt",
     )
+    parser.add_argument(
+        "--storeResponseMatrix",
+        action="store_true",
+        help="Store the response matrix (and its gen total) in the datacard, for a "
+        "parameter model that folds a gen-level prediction",
+    )
+    parser.add_argument(
+        "--responseMatrixGenBinning",
+        type=str,
+        default="unfolding",
+        choices=["unfolding", "response"],
+        help="Which gen binning to take the stored response matrix from: "
+        "'unfolding' (default) is 'nominal_prefsr_yieldsUnfolding', the gen "
+        "binning derived from the reco binning; 'response' is the parallel, "
+        "finer 'nominal_prefsr_yieldsResponse' written by mz_dilepton "
+        "--responseGenBinning, on the theory correction's own grid.",
+    )
 
     parser.add_argument(
         "--ABCDedgesByAxis",
@@ -3795,6 +3812,52 @@ if __name__ == "__main__":
         outfolder = f"{args.outfolder}/Combination_{''.join(unique_names)}{dir_append}/"
         outfile = "Combination"
     logger.info(f"Writing output to {outfile}")
+
+    # Embed the response matrix R and its gen total N_gen in the datacard
+    # (auxiliary group), for a parameter model that folds a gen-level prediction.
+    # Only inputs carrying both histograms are considered.
+    if args.storeResponseMatrix:
+        from wremnants.postprocessing.scetlib_ad import response_matrix
+
+        if args.responseMatrixGenBinning == "response":
+            resp_hist = response_matrix.RESPONSE_HIST
+            resp_gentotal = response_matrix.RESPONSE_GENTOTAL
+        else:
+            resp_hist = response_matrix.DEFAULT_HIST
+            resp_gentotal = response_matrix.DEFAULT_GENTOTAL
+        resp_inputs = [
+            f
+            for f in args.inputFile
+            if response_matrix.has_response(
+                f, hist_name=resp_hist, gen_total_name=resp_gentotal
+            )
+        ]
+        if len(resp_inputs) > 1:
+            raise RuntimeError(
+                f"Multiple inputs carry the response matrix: {resp_inputs}"
+            )
+        if not resp_inputs:
+            raise RuntimeError(
+                f"--storeResponseMatrix: no input carries both {resp_hist!r} and "
+                f"{resp_gentotal!r}"
+            )
+        logger.info(f"Embedding the response matrix {resp_hist} of {resp_inputs[0]}")
+        R_info = response_matrix.load_R(
+            resp_inputs[0], hist_name=resp_hist, gen_total_name=resp_gentotal
+        )
+        writer.add_auxiliary(
+            response_matrix.AUXILIARY_GROUP,
+            {
+                "R": R_info["R"],
+                "N_gen": R_info["N_gen"],
+                "reco_axes": [n for n, _ in R_info["reco_axes"]],
+                "gen_axes": [n for n, _ in R_info["gen_axes"]],
+                **{
+                    f"edges__{n}": e
+                    for n, e in R_info["reco_axes"] + R_info["gen_axes"]
+                },
+            },
+        )
 
     # propagate meta info into result file
     meta = {
