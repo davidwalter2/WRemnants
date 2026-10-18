@@ -111,6 +111,9 @@ def _build_preselection_specs(selection_specs, fitvar):
     return parsed_specs
 
 
+_NEG_EDGE_LIST = re.compile(r"^-[0-9.]+(,-?[0-9.]+)+$")
+
+
 def _normalize_negative_imaginary_bounds(argv):
     normalized_argv = []
     i = 0
@@ -126,6 +129,16 @@ def _normalize_negative_imaginary_bounds(argv):
                 else:
                     normalized_argv.append(value)
             i += 4
+        elif token == "--decorrRebin":
+            # an edge list starting with a negative edge ("-2,0,2") would otherwise
+            # be taken for an option; a leading space keeps it a value
+            i += 1
+            while i < len(argv) and (
+                not argv[i].startswith("-") or _NEG_EDGE_LIST.match(argv[i])
+            ):
+                neg = _NEG_EDGE_LIST.match(argv[i])
+                normalized_argv.append(f" {argv[i]}" if neg else argv[i])
+                i += 1
         else:
             i += 1
 
