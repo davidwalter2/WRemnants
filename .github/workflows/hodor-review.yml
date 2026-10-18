@@ -120,6 +120,12 @@ jobs:
           ref: refs/pull/${{ github.event.pull_request.number || inputs.pr_number }}/head
           fetch-depth: 0
           persist-credentials: false
+          # Checking out PR-head code is the point of this workflow; the
+          # pull_request_target risk model is documented in the header
+          # (https://gh.io/securely-using-pull_request_target). Without this
+          # flag, checkout@v5 refuses fork PRs (pwn-request guard) and every
+          # fork-PR review fails in ~10 s.
+          allow-unsafe-pr-checkout: true
 
       # Only the three code submodules, and only from URLs fixed here rather
       # than from the PR's own .gitmodules. Two deliberate differences from
