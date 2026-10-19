@@ -22,7 +22,10 @@ GEN_AXES = ("ptVGen", "absYVGen")
 
 # pre-FSR, the level at which the boson-level prediction is defined
 DEFAULT_HIST = "nominal_prefsr_yieldsUnfolding"
-DEFAULT_GENTOTAL = "prefsr"
+# The unfolding gen total "prefsr" is acceptance-filtered, while R sums both gen
+# acceptance values; the full phase-space total (60 < m < 120, no acceptance cut)
+# on the same gen axes is the matching denominator.
+DEFAULT_GENTOTAL = "prefsr_full"
 RESPONSE_HIST = "nominal_prefsr_yieldsResponse"
 RESPONSE_GENTOTAL = "prefsr_response"
 DEFAULT_SAMPLE = "Zmumu_2016PostVFP"

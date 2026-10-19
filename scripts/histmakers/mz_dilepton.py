@@ -155,6 +155,9 @@ args = parser.parse_args()
 
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
 
+if args.responseGenBinning != "none" and not args.unfolding:
+    raise ValueError("--responseGenBinning needs --unfolding")
+
 if args.dxybsVeto > 0 and args.dxybsVeto < args.dxybs:
     raise ValueError("When using together '--dxybsVeto X --dxybs Y' it must be X > Y.")
 
