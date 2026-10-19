@@ -1121,10 +1121,17 @@ def make_parser(parser=None, argv=None):
     )
     parser.add_argument(
         "--mcStatFolds",
-        action="store_true",
+        type=int,
+        nargs="?",
+        const=-1,
+        default=0,
         help="Write the MC-stat fold templates of the simulated processes, from the "
-        "nominal histograms with a fold axis (histmaker --mcStatFolds), for the "
+        "nominal histograms with a fold axis (histmaker --mcStatFolds k), for the "
         "two-half / k-fold MC-stat de-biasing in rabbit (--mcStatDebias twoHalf). "
+        "Without a value all k folds are written. With a value m (a divisor of k) "
+        "the folds are merged into m folds of k/m consecutive folds each, so fits "
+        "with fewer folds can be made from the same histograms; for even m the "
+        "halves of the de-biased objective stay those of the k folds. "
         "Data-driven processes (fakes) are written without folds. The systematic "
         "variations are shared across the folds.",
     )
@@ -1851,7 +1858,7 @@ def setup(
             fitresult_data=fitresult_data,
             masked=datagroups.xnorm and fitresult_data is None,
             masked_flow_axes=masked_flow_axes,
-            mc_stat_folds=args.mcStatFolds and not datagroups.xnorm,
+            mc_stat_folds=0 if datagroups.xnorm else args.mcStatFolds,
         )
 
     if stat_only and isUnfolding and not isPoiAsNoi:

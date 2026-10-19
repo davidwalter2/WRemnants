@@ -1277,12 +1277,13 @@ class Datagroups(object):
         fitresult_data=None,
         masked=False,
         masked_flow_axes=[],
-        mc_stat_folds=False,
+        mc_stat_folds=0,
     ):
         """
-        'mc_stat_folds': also write the MC-stat fold templates of the simulated
-            processes (see loadMCStatFoldHistograms), for the two-half / k-fold
-            MC-stat de-biasing in rabbit
+        'mc_stat_folds': if not 0, also write the MC-stat fold templates of the
+            simulated processes (see loadMCStatFoldHistograms), for the two-half /
+            k-fold MC-stat de-biasing in rabbit: -1 for all folds of the
+            histograms, or the number of folds to merge them into
         """
         if self.writer is None:
             raise RuntimeError("Writer must be defined to add nominal histograms")
@@ -1297,7 +1298,9 @@ class Datagroups(object):
         )
 
         fold_hists = (
-            self.loadMCStatFoldHistograms(forceNonzero=forceNonzero)
+            self.loadMCStatFoldHistograms(
+                nfolds=mc_stat_folds, forceNonzero=forceNonzero
+            )
             if mc_stat_folds
             else {}
         )
@@ -1403,9 +1406,10 @@ class Datagroups(object):
             data_obs_hist = data_obs_hist.project(*self.fit_axes)
         self.writer.add_data(data_obs_hist, self.channel)
 
-    def loadMCStatFoldHistograms(self, forceNonzero=False):
+    def loadMCStatFoldHistograms(self, nfolds=-1, forceNonzero=False):
         """Nominal histograms with the MC-stat fold axis (histmaker --mcStatFolds)
-        of the predicted processes, as {process: hist}.
+        of the predicted processes, as {process: hist}, with their folds merged
+        into `nfolds` folds (see mergeMCStatFolds), or all of them for -1.
 
         The data-driven fakes are not folded: their template is not a sum over
         simulated events, and the fake estimate is not linear in its inputs. A
@@ -1449,7 +1453,45 @@ class Datagroups(object):
                 f"Processes {unfolded} are written without MC-stat folds, i.e. "
                 "without MC statistical fluctuations across the folds."
             )
+        if nfolds != -1:
+            logger.info(f"Merging the MC-stat folds into {nfolds} folds")
+            fold_hists = {
+                p: self.mergeMCStatFolds(h, nfolds) for p, h in fold_hists.items()
+            }
         return fold_hists
+
+    @staticmethod
+    def mergeMCStatFolds(h, nfolds):
+        """Merge the k MC-stat folds of `h` into `nfolds` folds, each the sum of
+        k/nfolds consecutive folds. rabbit splits the folds into the halves
+        {0, ..., k/2-1} and {k/2, ..., k-1}, which the merged folds keep for even
+        `nfolds`: the de-biased objective is then the same as with the k folds,
+        only the k-fold averaging (--covMode fisher) and the split meat change."""
+        name = common.mc_stat_fold_axis_name
+        k = h.axes[name].size
+        if nfolds < 2 or k % nfolds:
+            raise ValueError(
+                f"The {k} MC-stat folds of the histograms cannot be merged into "
+                f"{nfolds} folds; use a divisor of {k} that is at least 2."
+            )
+        if nfolds == k:
+            return h
+
+        idx = h.axes.name.index(name)
+        axes = list(h.axes)
+        axes[idx] = hist.axis.Integer(
+            0, nfolds, underflow=False, overflow=False, name=name
+        )
+        hnew = hist.Hist(*axes, storage=h.storage_type())
+
+        def merge(a):
+            shape = (*a.shape[:idx], nfolds, k // nfolds, *a.shape[idx + 1 :])
+            return a.reshape(shape).sum(axis=idx + 1)
+
+        hnew.values(flow=True)[...] = merge(h.values(flow=True))
+        if hnew.storage_type == hist.storage.Weight:
+            hnew.variances(flow=True)[...] = merge(h.variances(flow=True))
+        return hnew
 
     def checkMCStatFoldHistogram(self, proc, fold_hist, norm_hist, rtol=1e-6):
         """The folds must sum to the nominal template; they do not if a member
