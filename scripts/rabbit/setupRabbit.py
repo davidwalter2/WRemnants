@@ -1126,14 +1126,18 @@ def make_parser(parser=None, argv=None):
         const=-1,
         default=0,
         help="Write the MC-stat fold templates of the simulated processes, from the "
-        "nominal histograms with a fold axis (histmaker --mcStatFolds k), for the "
-        "two-half / k-fold MC-stat de-biasing in rabbit (--mcStatDebias twoHalf). "
+        "histograms with a fold axis (histmaker --mcStatFolds k), for the "
+        "two-half / k-fold MC-stat de-biasing in rabbit (--mcStatDebias kfold). "
         "Without a value all k folds are written. With a value m (a divisor of k) "
         "the folds are merged into m folds of k/m consecutive folds each, so fits "
         "with fewer folds can be made from the same histograms; for even m the "
-        "halves of the de-biased objective stay those of the k folds. "
-        "Data-driven processes (fakes) are written without folds. The systematic "
-        "variations are shared across the folds.",
+        "halves of the de-biased objective stay those of the k folds. The "
+        "systematic variations are written per fold too (split logk), so that "
+        "their template noise is de-biased as well. A variation is shared across "
+        "the folds if its histograms have no folds, if its folds do not sum to "
+        "the variation (a non-linear operation on the way), or if rabbit does not "
+        "support its symmetrization with folds. Data-driven processes (fakes) are "
+        "written without folds.",
     )
     parser.add_argument(
         "--angularCoeffs",
@@ -1286,6 +1290,9 @@ def setup(
 
     datagroups.fit_axes = fitvar
     datagroups.channel = channel
+    # MC-stat fold templates (two-half / k-fold de-biasing in rabbit), not for the
+    # masked gen-level channels
+    datagroups.mcStatFolds = 0 if datagroups.xnorm else args.mcStatFolds
 
     # older histmakers stored the open ended ABCD regions in the overflow bins, which
     # can not be used in the fit, turn them into explicit bins with an infinite outer edge
@@ -1858,7 +1865,6 @@ def setup(
             fitresult_data=fitresult_data,
             masked=datagroups.xnorm and fitresult_data is None,
             masked_flow_axes=masked_flow_axes,
-            mc_stat_folds=0 if datagroups.xnorm else args.mcStatFolds,
         )
 
     if stat_only and isUnfolding and not isPoiAsNoi:
@@ -3679,6 +3685,7 @@ if __name__ == "__main__":
             fitresult_data=fitresult_data,
             unfolding_scalemap=unfolding_scalemap,
         )
+        datagroups.logMCStatFoldSummary()
 
         if args.addBSMMixing is not None:
             # add masked channel for SM inclusive cross section with BSM variation

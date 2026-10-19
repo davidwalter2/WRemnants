@@ -17,25 +17,26 @@ def make_mc_stat_fold_axis(nfolds):
     )
 
 
-def add_mc_stat_fold_hist(results, df, axes, cols, nfolds, seed=0):
-    """Book the nominal histogram with an extra MC-stat fold axis.
+def add_mc_stat_fold_axis(df, axes, cols, nfolds, seed=0):
+    """Add the MC-stat fold axis to the axes and columns of the MC histograms.
 
     Each generated event is assigned to one of `nfolds` folds by a hash of
-    (run, luminosityBlock, event), see wrem::mc_stat_fold. setupRabbit.py
-    --mcStatFolds passes these histograms to the rabbit TensorWriter as fold
-    templates for the two-half / k-fold de-biasing (rabbit --mcStatDebias).
+    (run, luminosityBlock, event), see wrem::mc_stat_fold. Every histogram booked
+    from the returned axes and columns, the nominal and its systematic
+    variations, then splits its events into the folds. setupRabbit.py
+    --mcStatFolds passes them to the rabbit TensorWriter as fold templates for
+    the two-half / k-fold de-biasing (rabbit --mcStatDebias), with per-fold
+    systematic variations (split logk).
 
-    `cols` are the columns of `axes` followed by the weight column, as for the
-    nominal histogram.
+    `cols` are the columns of `axes`, without the weight. Returns the dataframe
+    with the fold column and new lists of axes and columns.
     """
     df = df.Define(
         common.mc_stat_fold_axis_name,
         f"wrem::mc_stat_fold(run, luminosityBlock, event, {nfolds}, {seed})",
     )
-    results.append(
-        df.HistoBoost(
-            common.hist_name("nominal", syst=common.mc_stat_fold_syst_name),
-            [*axes, make_mc_stat_fold_axis(nfolds)],
-            [*cols[:-1], common.mc_stat_fold_axis_name, cols[-1]],
-        )
+    return (
+        df,
+        [*axes, make_mc_stat_fold_axis(nfolds)],
+        [*cols, common.mc_stat_fold_axis_name],
     )

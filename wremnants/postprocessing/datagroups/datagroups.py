@@ -94,6 +94,14 @@ class Datagroups(object):
         # older histmakers, which stored the open ended ABCD regions in the overflow
         # bin instead of an explicit last bin, since flow bins can not be used in the fit
         self.flowToExplicitBinsAxes = []
+        # MC-stat folds of the simulated histograms (histmaker --mcStatFolds k):
+        # 0 sums the fold axis when reading, -1 keeps all folds, m merges them into
+        # m folds. Kept folds are processed alongside the summed histograms, in
+        # Datagroup.hists_folds, and only used to write the fold templates.
+        self.mcStatFolds = 0
+        # nominal fold templates written per process, and why variations were not
+        self.mcStatFoldNominals = {}
+        self.mcStatFoldSummary = {}
 
         self.setGenAxes()
 
@@ -322,7 +330,9 @@ class Datagroups(object):
                 raise RuntimeError(f"No member found for group {g}")
             base_member = members[0].name
             h = hh.flowToExplicitBins(
-                self.results[base_member]["output"][histToRead].get(),
+                common.sum_mc_stat_folds(
+                    self.results[base_member]["output"][histToRead].get()
+                ),
                 self.flowToExplicitBinsAxes,
             )
             if forceGlobalScaleFakes is not None:
@@ -377,7 +387,9 @@ class Datagroups(object):
                 raise RuntimeError(f"No member found for group {g}")
             base_member = members[0].name
             h = hh.flowToExplicitBins(
-                self.results[base_member]["output"][histToRead].get(),
+                common.sum_mc_stat_folds(
+                    self.results[base_member]["output"][histToRead].get()
+                ),
                 self.flowToExplicitBinsAxes,
             )
             if g in fake_processes and mode.lower() != "mc":
@@ -571,6 +583,13 @@ class Datagroups(object):
             group = self.groups[procName]
 
             group.hists[label] = None
+            group.hists_folds[label] = None
+            # MC-stat fold templates only for the simulated processes: the
+            # data-driven fakes are a non-linear function of the histograms
+            keep_folds = self.mcStatFolds != 0 and procName not in [
+                self.fakeName,
+                self.dataName,
+            ]
 
             for i, member in enumerate(group.members):
                 if (
@@ -588,84 +607,31 @@ class Datagroups(object):
                         f"Forcing group member {member.name} to read the nominal hist for syst {syst}"
                     )
                 try:
-                    h = self.readHist(baseName, member, read_syst)
+                    h = self.readHist(baseName, member, read_syst, keepMCStatFolds=True)
                     foundExact = True
                 except ValueError as e:
                     if nominalIfMissing:
                         logger.info(
                             f"{str(e)}. Using nominal hist {self.nominalName} instead"
                         )
-                        h = self.readHist(self.nominalName, member, "")
+                        h = self.readHist(
+                            self.nominalName, member, "", keepMCStatFolds=True
+                        )
                     else:
                         logger.warning(str(e))
                         continue
 
-                h_id = id(h)
-                logger.debug(f"Hist axes are {h.axes.name}")
+                h, h_folds = self.splitMCStatFolds(
+                    h, keep=keep_folds and not member.is_data
+                )
+                if h_folds is None:
+                    # a member without folds would be broadcast into every fold
+                    keep_folds = False
 
-                if group.memberOp:
-                    if group.memberOp[i] is not None:
-                        logger.debug(
-                            f"Apply operation to member {i}: {member.name}/{procName}"
-                        )
-                        h = group.memberOp[i](h)
-                    else:
-                        logger.debug(
-                            f"No operation for member {i}: {member.name}/{procName}"
-                        )
-
-                if preOpMap and member.name in preOpMap:
-                    logger.debug(
-                        f"Applying preOp to {member.name}/{procName} after loading"
-                    )
-                    h = preOpMap[member.name](h, **preOpArgs)
-
-                if self.globalAction:
-                    logger.debug("Applying global action")
-                    h = self.globalAction(h)
-
-                sum_gen_axes = [x for x in self.sum_gen_axes if x in h.axes.name]
-                if len(sum_gen_axes) > 0:
-                    # sum over remaining axes (avoid integrating over fit axes & fakerate axes)
-                    logger.debug(f"Sum over axes {sum_gen_axes}")
-                    h = h.project(*[x for x in h.axes.name if x not in sum_gen_axes])
-                    logger.debug(f"Hist axes are now {h.axes.name}")
-
-                if h_id == id(h):
-                    logger.debug(f"Make explicit copy")
-                    h = h.copy()
-
-                if forceNonzero:
-                    logger.debug("force non zero")
-                    h = hh.clipNegativeVals(h, createNew=False)
-
-                scale = self.processScaleFactor(member)
-                if group.scale:
-                    scale *= group.scale(member)
-
-                # When scaling yields by a luminosity factor, select whether to scale the variance linearly (e.g. for extrapolation studies) or quadratically (default).
-                if not np.isclose(self.lumiScale, 1, rtol=0, atol=1e-6) and (
-                    (
-                        procName == self.dataName
-                        and "data" in self.lumiScaleVarianceLinearly
-                    )
-                    or (
-                        procName != self.dataName
-                        and "mc" in self.lumiScaleVarianceLinearly
-                    )
-                ):
-                    logger.debug(
-                        f"Scale {procName} hist by {self.lumiScale} as a multiplicative luminosity factor, with variance scaled linearly"
-                    )
-                    h = hh.scaleHist(
-                        h, self.lumiScale, createNew=False, scaleVarianceLinearly=True
-                    )
-                else:
-                    scale *= self.lumiScale
-
-                if not np.isclose(scale, 1, rtol=0, atol=1e-10):
-                    logger.debug(f"Scale hist with {scale}")
-                    h = hh.scaleHist(h, scale, createNew=False)
+                memberArgs = (group, i, member, procName, preOpMap, preOpArgs)
+                h = self.processMemberHist(h, *memberArgs, forceNonzero)
+                if keep_folds:
+                    h_folds = self.processMemberHist(h_folds, *memberArgs, forceNonzero)
 
                 hasPartialSumForFake = False
                 if hasFake and procName != self.fakeName:
@@ -705,6 +671,17 @@ class Datagroups(object):
                         if group.hists[label]
                         else h
                     )
+                    if keep_folds:
+                        group.hists_folds[label] = (
+                            hh.addHists(
+                                group.hists_folds[label], h_folds, createNew=False
+                            )
+                            if group.hists_folds[label] is not None
+                            else h_folds
+                        )
+
+            if not keep_folds:
+                group.hists_folds[label] = None
 
             if not nominalIfMissing and group.hists[label] is None:
                 continue
@@ -720,9 +697,13 @@ class Datagroups(object):
                         else histForFake
                     )
 
+            # the same operations on the fold templates
+            hists_folds = group.hists_folds
             if self.rebinOp and self.rebinBeforeSelection:
                 logger.debug(f"Apply rebin operation for process {procName}")
                 group.hists[label] = self.rebinOp(group.hists[label])
+                if hists_folds[label] is not None:
+                    hists_folds[label] = self.rebinOp(hists_folds[label])
             if group.histselector is not None:
                 if not applySelection:
                     logger.warning(
@@ -732,16 +713,101 @@ class Datagroups(object):
                     group.hists[label] = group.histselector.get_hist(
                         group.hists[label], is_nominal=(label == self.nominalName)
                     )
+                    if hists_folds[label] is not None:
+                        hists_folds[label] = group.histselector.get_hist(
+                            hists_folds[label], is_nominal=(label == self.nominalName)
+                        )
                 else:
                     raise RuntimeError("Failed to apply selection")
 
             if self.rebinOp and not self.rebinBeforeSelection:
                 logger.debug(f"Apply rebin operation for process {procName}")
                 group.hists[label] = self.rebinOp(group.hists[label])
+                if hists_folds[label] is not None:
+                    hists_folds[label] = self.rebinOp(hists_folds[label])
 
         # Avoid situation where the nominal is read for all processes for this syst
         if nominalIfMissing and not foundExact:
             raise ValueError(f"Did not find systematic {syst} for any processes!")
+
+    def processMemberHist(
+        self, h, group, i, member, procName, preOpMap, preOpArgs, forceNonzero
+    ):
+        """Operations on the histogram of a group member after reading, before the
+        members are summed: member operation, preOp, global action, sum over the
+        gen axes, clipping and scaling."""
+        h_id = id(h)
+        logger.debug(f"Hist axes are {h.axes.name}")
+
+        if group.memberOp:
+            if group.memberOp[i] is not None:
+                logger.debug(f"Apply operation to member {i}: {member.name}/{procName}")
+                h = group.memberOp[i](h)
+            else:
+                logger.debug(f"No operation for member {i}: {member.name}/{procName}")
+
+        if preOpMap and member.name in preOpMap:
+            logger.debug(f"Applying preOp to {member.name}/{procName} after loading")
+            h = preOpMap[member.name](h, **preOpArgs)
+
+        if self.globalAction:
+            logger.debug("Applying global action")
+            h = self.globalAction(h)
+
+        sum_gen_axes = [x for x in self.sum_gen_axes if x in h.axes.name]
+        if len(sum_gen_axes) > 0:
+            # sum over remaining axes (avoid integrating over fit axes & fakerate axes)
+            logger.debug(f"Sum over axes {sum_gen_axes}")
+            h = h.project(*[x for x in h.axes.name if x not in sum_gen_axes])
+            logger.debug(f"Hist axes are now {h.axes.name}")
+
+        if h_id == id(h):
+            logger.debug(f"Make explicit copy")
+            h = h.copy()
+
+        if forceNonzero:
+            logger.debug("force non zero")
+            h = hh.clipNegativeVals(h, createNew=False)
+
+        scale = self.processScaleFactor(member)
+        if group.scale:
+            scale *= group.scale(member)
+
+        # When scaling yields by a luminosity factor, select whether to scale the variance linearly (e.g. for extrapolation studies) or quadratically (default).
+        if not np.isclose(self.lumiScale, 1, rtol=0, atol=1e-6) and (
+            (procName == self.dataName and "data" in self.lumiScaleVarianceLinearly)
+            or (procName != self.dataName and "mc" in self.lumiScaleVarianceLinearly)
+        ):
+            logger.debug(
+                f"Scale {procName} hist by {self.lumiScale} as a multiplicative luminosity factor, with variance scaled linearly"
+            )
+            h = hh.scaleHist(
+                h, self.lumiScale, createNew=False, scaleVarianceLinearly=True
+            )
+        else:
+            scale *= self.lumiScale
+
+        if not np.isclose(scale, 1, rtol=0, atol=1e-10):
+            logger.debug(f"Scale hist with {scale}")
+            h = hh.scaleHist(h, scale, createNew=False)
+
+        return h
+
+    def splitMCStatFolds(self, h, keep=False):
+        """(`h` summed over its MC-stat fold axis, `h` with its folds) for a
+        histogram read from the input. The folds are kept only with `keep`, merged
+        into self.mcStatFolds folds unless that is -1; otherwise, and for a
+        histogram without a fold axis, the second element is None."""
+        if common.mc_stat_fold_axis_name not in h.axes.name:
+            return h, None
+        h_folds = None
+        if keep:
+            h_folds = (
+                h
+                if self.mcStatFolds == -1
+                else self.mergeMCStatFolds(h, self.mcStatFolds)
+            )
+        return common.sum_mc_stat_folds(h), h_folds
 
     def getNames(self, matches=[], exclude=False, match_exact=False):
         # This method returns the names from the defined groups, unless one selects further.
@@ -984,7 +1050,9 @@ class Datagroups(object):
                 f"Results for member {base_member.name} does not include histogram {histToReadAxes}. Found {self.results[base_member.name]['output'].keys()}"
             )
             return None
-        nominal_hist = self.results[base_member.name]["output"][histToReadAxes].get()
+        nominal_hist = common.sum_mc_stat_folds(
+            self.results[base_member.name]["output"][histToReadAxes].get()
+        )
 
         if self.groups[group_name].memberOp is not None:
             base_member_op = self.groups[group_name].memberOp[base_member_idx]
@@ -1156,7 +1224,9 @@ class Datagroups(object):
         ):
             self.setRebinOp(a)
 
-    def readHist(self, baseName, proc, syst):
+    def readHist(self, baseName, proc, syst, keepMCStatFolds=False):
+        """The histogram as stored, summed over its MC-stat fold axis unless
+        `keepMCStatFolds`."""
         output = self.results[proc.name]["output"]
         histname = common.hist_name(baseName, syst)
         logger.debug(
@@ -1169,7 +1239,8 @@ class Datagroups(object):
         if isinstance(h, wums.ioutils.H5PickleProxy):
             h = h.get()
 
-        return hh.flowToExplicitBins(h, self.flowToExplicitBinsAxes)
+        h = hh.flowToExplicitBins(h, self.flowToExplicitBinsAxes)
+        return h if keepMCStatFolds else common.sum_mc_stat_folds(h)
 
     def addProcessGroup(self, name, startsWith=[], excludeMatch=[]):
         procFilter = lambda x: (
@@ -1277,13 +1348,11 @@ class Datagroups(object):
         fitresult_data=None,
         masked=False,
         masked_flow_axes=[],
-        mc_stat_folds=0,
     ):
         """
-        'mc_stat_folds': if not 0, also write the MC-stat fold templates of the
-            simulated processes (see loadMCStatFoldHistograms), for the two-half /
-            k-fold MC-stat de-biasing in rabbit: -1 for all folds of the
-            histograms, or the number of folds to merge them into
+        With self.mcStatFolds the MC-stat fold templates of the simulated
+        processes are written too (see loadMCStatFoldHistograms), for the
+        two-half / k-fold MC-stat de-biasing in rabbit.
         """
         if self.writer is None:
             raise RuntimeError("Writer must be defined to add nominal histograms")
@@ -1298,12 +1367,11 @@ class Datagroups(object):
         )
 
         fold_hists = (
-            self.loadMCStatFoldHistograms(
-                nfolds=mc_stat_folds, forceNonzero=forceNonzero
-            )
-            if mc_stat_folds
+            self.loadMCStatFoldHistograms(forceNonzero=forceNonzero)
+            if self.mcStatFolds
             else {}
         )
+        self.mcStatFoldNominals = fold_hists
 
         for i, proc in enumerate(self.predictedProcesses()):
             logger.info(f"Add process {proc} in channel {self.channel}")
@@ -1406,10 +1474,13 @@ class Datagroups(object):
             data_obs_hist = data_obs_hist.project(*self.fit_axes)
         self.writer.add_data(data_obs_hist, self.channel)
 
-    def loadMCStatFoldHistograms(self, nfolds=-1, forceNonzero=False):
-        """Nominal histograms with the MC-stat fold axis (histmaker --mcStatFolds)
-        of the predicted processes, as {process: hist}, with their folds merged
-        into `nfolds` folds (see mergeMCStatFolds), or all of them for -1.
+    def loadMCStatFoldHistograms(self, forceNonzero=False):
+        """Nominal histograms with their MC-stat folds (histmaker --mcStatFolds)
+        of the predicted processes, as {process: hist}, from the nominal
+        histograms loaded with self.mcStatFolds. Histograms from before the fold
+        axis was added to all MC histograms have it only in a separate
+        'nominal_mcStatFolds' histogram, which is read instead; their
+        systematic variations are then shared across the folds.
 
         The data-driven fakes are not folded: their template is not a sum over
         simulated events, and the fake estimate is not linear in its inputs. A
@@ -1425,39 +1496,38 @@ class Datagroups(object):
                 "(add_process(..., fold_axis=...)); update rabbit."
             )
 
-        label = common.mc_stat_fold_syst_name
         procs = [p for p in self.predictedProcesses() if p != self.fakeName]
-        self.loadHistsForDatagroups(
-            baseName=self.nominalName,
-            syst=label,
-            procsToRead=procs,
-            label=label,
-            nominalIfMissing=False,
-            forceNonzero=forceNonzero,
-            sumFakesPartial=False,
-        )
+        label = self.nominalName
+        if all(self.groups[p].hists_folds.get(label) is None for p in procs):
+            label = common.mc_stat_fold_syst_name
+            self.loadHistsForDatagroups(
+                baseName=self.nominalName,
+                syst=label,
+                procsToRead=procs,
+                label=label,
+                nominalIfMissing=False,
+                forceNonzero=forceNonzero,
+                sumFakesPartial=False,
+            )
 
         fold_hists = {
-            p: self.groups[p].hists[label]
+            p: self.groups[p].hists_folds[label]
             for p in procs
-            if self.groups[p].hists.get(label) is not None
+            if self.groups[p].hists_folds.get(label) is not None
         }
         if not fold_hists:
             raise RuntimeError(
-                f"No histogram '{common.hist_name(self.nominalName, label)}' found "
-                "for any process; produce the histograms with --mcStatFolds k."
+                "No histograms with MC-stat folds found for any process; produce "
+                "the histograms with --mcStatFolds k."
             )
+        if self.mcStatFolds != -1:
+            logger.info(f"MC-stat folds merged into {self.mcStatFolds} folds")
         unfolded = [p for p in self.predictedProcesses() if p not in fold_hists]
         if unfolded:
             logger.warning(
                 f"Processes {unfolded} are written without MC-stat folds, i.e. "
                 "without MC statistical fluctuations across the folds."
             )
-        if nfolds != -1:
-            logger.info(f"Merging the MC-stat folds into {nfolds} folds")
-            fold_hists = {
-                p: self.mergeMCStatFolds(h, nfolds) for p, h in fold_hists.items()
-            }
         return fold_hists
 
     @staticmethod
@@ -1492,6 +1562,59 @@ class Datagroups(object):
         if hnew.storage_type == hist.storage.Weight:
             hnew.variances(flow=True)[...] = merge(h.variances(flow=True))
         return hnew
+
+    def checkMCStatFoldSystematic(
+        self, proc, name, hists, hists_folds, symmetrize, rtol=1e-6
+    ):
+        """Whether a variation can be written with its MC-stat fold templates
+        (split logk). Its folds must sum to the variation computed from the summed
+        histograms, which they do not if an operation on the way is not linear in
+        the histograms (e.g. a ratio or an envelope), and rabbit must support the
+        symmetrization. Otherwise the variation is shared across the folds."""
+        pair = not isinstance(hists, hist.Hist)
+        modes = getattr(
+            self.writer, "fold_symmetrize_modes", ["average", "conservative", None]
+        )
+        if pair and symmetrize not in modes:
+            self.recordMCStatFoldReason(f"symmetrize={symmetrize}", proc, name)
+            return False
+        for h, h_folds in zip(
+            *((hists, hists_folds) if pair else ([hists], [hists_folds]))
+        ):
+            a = h_folds.project(*h.axes.name).values(flow=True)
+            b = h.values(flow=True)
+            if not np.allclose(a, b, rtol=rtol, atol=rtol * np.max(np.abs(b))):
+                self.recordMCStatFoldReason("non-linear processing", proc, name)
+                return False
+        self.recordMCStatFoldReason("split", proc, name)
+        return True
+
+    def recordMCStatFoldReason(self, reason, proc, name):
+        self.mcStatFoldSummary.setdefault(reason, set()).add(name)
+
+    def logMCStatFoldSummary(self):
+        """How the systematic variations were written with the MC-stat folds."""
+        if not self.mcStatFoldNominals:
+            return
+        split = self.mcStatFoldSummary.get("split", set())
+        logger.info(
+            f"MC-stat folds: {len(split)} variations written with per-fold templates "
+            "(split logk)"
+        )
+        for reason, names in self.mcStatFoldSummary.items():
+            if reason == "split":
+                continue
+            names = sorted(names)
+            more = " ..." if len(names) > 10 else ""
+            logger.warning(
+                f"MC-stat folds: {len(names)} variations shared across the folds "
+                f"({reason}): {names[:10]}{more}"
+            )
+
+    def fitAxesWithMCStatFolds(self, h):
+        """The fit axes, and the MC-stat fold axis if `h` has one."""
+        name = common.mc_stat_fold_axis_name
+        return [*self.fit_axes, name] if name in h.axes.name else self.fit_axes
 
     def checkMCStatFoldHistogram(self, proc, fold_hist, norm_hist, rtol=1e-6):
         """The folds must sum to the nominal template; they do not if a member
@@ -1637,16 +1760,37 @@ class Datagroups(object):
             logger.debug(f"Actions: {action}, args: {actionArgs}")
             logger.debug(f"hvar shape: {hvar.values().shape}")
 
+            # the same variation with its MC-stat folds, for the split logk
+            hvar_folds = None
+            if proc in self.mcStatFoldNominals:
+                hvar_folds = self.groups[proc].hists_folds.get("syst")
+                if hvar_folds is None:
+                    self.recordMCStatFoldReason("variation without folds", proc, name)
+                elif self.isAbsorbedNuisance(name) or lastAction is not None:
+                    self.recordMCStatFoldReason("not supported", proc, name)
+                    hvar_folds = None
+
             if action is not None:
                 if actionRequiresNomi:
                     hnom = self.groups[proc].hists[self.nominalName]
                     hvar = action(hvar, hnom, **actionArgs)
+                    if hvar_folds is not None:
+                        hnom_folds = self.mcStatFoldNominals[proc]
+                        hvar_folds = action(hvar_folds, hnom_folds, **actionArgs)
                 else:
                     hvar = action(hvar, **actionArgs)
+                    if hvar_folds is not None:
+                        hvar_folds = action(hvar_folds, **actionArgs)
 
             var_map = self.systHists(name, hvar, **kwargs)
+            var_map_folds = (
+                self.systHists(name, hvar_folds, **kwargs)
+                if hvar_folds is not None
+                else {}
+            )
 
             for var_name, hists in var_map.items():
+                hists_folds = var_map_folds.get(var_name)
                 matched_groups = groups[:]
                 if splitGroup is not None:
                     matched_groups.extend(
@@ -1663,6 +1807,15 @@ class Datagroups(object):
                     else:
                         hists = [
                             hh.disableFlow(h, self.axes_disable_flow) for h in hists
+                        ]
+                    if isinstance(hists_folds, hist.Hist):
+                        hists_folds = hh.disableFlow(
+                            hists_folds, self.axes_disable_flow
+                        )
+                    elif hists_folds is not None:
+                        hists_folds = [
+                            hh.disableFlow(h, self.axes_disable_flow)
+                            for h in hists_folds
                         ]
 
                 logger.debug(f"Add systematic {var_name}")
@@ -1729,6 +1882,15 @@ class Datagroups(object):
                     else:
                         hists = tuple(apply_last_action(h) for h in hists)
 
+                # the fold templates split the logk per fold, so that the template
+                # noise of the variation is de-biased too
+                fold_kwargs = {}
+                if hists_folds is not None and self.checkMCStatFoldSystematic(
+                    proc, var_name, hists, hists_folds, effective_symmetrize
+                ):
+                    hists = hists_folds
+                    fold_kwargs = {"fold_axis": common.mc_stat_fold_axis_name}
+
                 self.writer.add_systematic(
                     hists,
                     var_name,
@@ -1741,6 +1903,7 @@ class Datagroups(object):
                     noi=noi,
                     constrained=not effective_noConstraint,
                     add_to_data_covariance=self.isAbsorbedNuisance(name),
+                    **fold_kwargs,
                 )
 
     def systHists(
@@ -1757,9 +1920,10 @@ class Datagroups(object):
         outNames=[],
         isPoiHistDecorr=False,
     ):
+        fit_axes = self.fitAxesWithMCStatFolds(hvar)
         if name == self.nominalName or len(systAxes) == 0:
-            if hvar.axes.name != self.fit_axes:
-                hvar = hvar.project(*self.fit_axes)
+            if hvar.axes.name != fit_axes:
+                hvar = hvar.project(*fit_axes)
             return {name: hvar}
         axNames = systAxes[:]
         axLabels = labelsByAxis[:] if labelsByAxis is not None else systAxes[:]
@@ -1970,7 +2134,7 @@ class Datagroups(object):
             )
 
         var_map = {
-            n: var.project(*self.fit_axes) if var.axes.name != self.fit_axes else var
+            n: var.project(*fit_axes) if var.axes.name != fit_axes else var
             for n, var in zip(outNames, variations)
             if n
         }

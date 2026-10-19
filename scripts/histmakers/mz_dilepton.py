@@ -1079,17 +1079,13 @@ def build_graph(df, dataset):
         if args.jackknifeN > 1:
             axes = [*axes, axis_jackknife]
             cols = [*cols, "jackknife_sample"]
+        if args.mcStatFolds > 1:
+            # the nominal and all its variations booked from axes and cols below
+            df, axes, cols = mcstat_folds.add_mc_stat_fold_axis(
+                df, axes, cols, args.mcStatFolds, args.mcStatFoldSeed
+            )
 
         results.append(df.HistoBoost("nominal", axes, [*cols, "nominal_weight"]))
-        if args.mcStatFolds > 1:
-            mcstat_folds.add_mc_stat_fold_hist(
-                results,
-                df,
-                axes,
-                [*cols, "nominal_weight"],
-                args.mcStatFolds,
-                args.mcStatFoldSeed,
-            )
 
         if dataset.group == "Top":
             # the size of the top pt reweighting itself is taken as its uncertainty
@@ -1453,8 +1449,12 @@ def build_graph(df, dataset):
         )
         axis_res_parms = hist.axis.StrCategory(["a", "c", "b"], name="res_parms")
 
-        parmgrad_axes = [*axes[:-1], axis_corr_eta, axis_corr_phi]
-        parmgrad_cols = [*cols[:-1], "etav", "phiv", "parmgrads_k7"]
+        # without the MC-stat fold axis, which would otherwise be the one dropped
+        fold = common.mc_stat_fold_axis_name
+        axes_nofold = [a for a in axes if a.name != fold]
+        cols_nofold = [c for c in cols if c != fold]
+        parmgrad_axes = [*axes_nofold[:-1], axis_corr_eta, axis_corr_phi]
+        parmgrad_cols = [*cols_nofold[:-1], "etav", "phiv", "parmgrads_k7"]
 
         hparmgrads = df.HistoBoost(
             "hparmgrads", parmgrad_axes, parmgrad_cols, tensor_axes=[axis_corr_parms]
@@ -1462,7 +1462,7 @@ def build_graph(df, dataset):
         results.append(hparmgrads)
 
         parmgradres_axes = parmgrad_axes
-        parmgradres_cols = [*cols[:-1], "etav", "phiv", "parmgradsres_k3"]
+        parmgradres_cols = [*cols_nofold[:-1], "etav", "phiv", "parmgradsres_k3"]
 
         hparmgradsres = df.HistoBoost(
             "hparmgradsres",

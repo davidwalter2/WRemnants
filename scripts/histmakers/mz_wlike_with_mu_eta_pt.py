@@ -1311,17 +1311,13 @@ def build_graph(df, dataset):
             )
         )
 
+    if args.mcStatFolds > 1 and not dataset.is_data:
+        # the nominal and all its variations booked from axes and cols below
+        df, axes, cols = mcstat_folds.add_mc_stat_fold_axis(
+            df, axes, cols, args.mcStatFolds, args.mcStatFoldSeed
+        )
     nominal = df.HistoBoost("nominal", axes, [*cols, "nominal_weight"])
     results.append(nominal)
-    if args.mcStatFolds > 1 and not dataset.is_data:
-        mcstat_folds.add_mc_stat_fold_hist(
-            results,
-            df,
-            axes,
-            [*cols, "nominal_weight"],
-            args.mcStatFolds,
-            args.mcStatFoldSeed,
-        )
 
     if dataset.group == "Top":
         # the size of the top pt reweighting itself is taken as its uncertainty
