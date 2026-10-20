@@ -90,6 +90,16 @@ parser.add_argument(
     help="Apply quark-mass correction generators as additional theory variations.",
 )
 parser.add_argument(
+    "--responseGenBinning",
+    type=str,
+    default="none",
+    choices=["none", "theoryCorr"],
+    help="With 'theoryCorr', also write a response matrix on the gen grid of the "
+    "first --theoryCorr file ('nominal_<level>_yieldsResponse', reco x gen, and the "
+    "gen total '<level>_response'), next to the unchanged --unfoldingAxes binning. "
+    "Requires --unfolding --poiAsNoi.",
+)
+parser.add_argument(
     "--splitSampleInN",
     type=int,
     default=-1,
@@ -144,6 +154,9 @@ parser = parsing.set_parser_default(
 args = parser.parse_args()
 
 logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
+
+if args.responseGenBinning != "none" and not args.unfolding:
+    raise ValueError("--responseGenBinning needs --unfolding")
 
 if args.dxybsVeto > 0 and args.dxybsVeto < args.dxybs:
     raise ValueError("When using together '--dxybsVeto X --dxybs Y' it must be X > Y.")
@@ -394,6 +407,32 @@ if args.unfolding:
             "mass_max": mass_max,
         }
 
+    response_gen_edges = None
+    response_corr_edges = None
+    if args.responseGenBinning == "theoryCorr":
+        if not args.theoryCorr or not args.poiAsNoi:
+            raise ValueError(
+                "--responseGenBinning theoryCorr needs --theoryCorr and --poiAsNoi "
+                "(the reco x gen histogram only exists in the poi-as-noi path)"
+            )
+        # The correction is applied as a bin lookup on its own grid, so a response
+        # on that grid folds a prediction of the same correction exactly. qT keeps
+        # the correction's full range; |Y| stops at the gen acceptance edge.
+        response_corr_edges = theory_corrections.get_corr_grid_edges(
+            args.theoryCorr[0], "Z"
+        )
+        y_max = max(all_axes["yll"].edges)
+        abs_y_edges = [e for e in response_corr_edges["absY"] if e <= y_max + 1e-9]
+        if abs(abs_y_edges[-1] - y_max) > 1e-9:
+            raise ValueError(
+                f"The |Y| acceptance edge {y_max} is not an edge of the absY grid of "
+                f"{args.theoryCorr[0]}"
+            )
+        response_gen_edges = {
+            "ptVGen": list(response_corr_edges["qT"]),
+            "absYVGen": abs_y_edges,
+        }
+
     unfolder_z = unfolding_tools.UnfolderZ(
         reco_axes_edges={a: all_axes[a].edges for a in args.axes},
         unfolding_axes_names=args.unfoldingAxes,
@@ -401,6 +440,8 @@ if args.unfolding:
         poi_as_noi=args.poiAsNoi,
         fitresult=args.fitresult,
         cutsmap=cutsmap,
+        response_gen_edges=response_gen_edges,
+        response_corr_edges=response_corr_edges,
     )
 
     if not args.poiAsNoi:
