@@ -24,6 +24,7 @@
 //   σ_raw  = (σ_r_κ, σ_δλ, σ_δφ)   the per-variation physical width
 
 #include <ROOT/RVec.hxx>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <eigen3/Eigen/Dense>
@@ -61,6 +62,10 @@ namespace shift_smear_reweight {
 
 constexpr std::size_t F = 3;
 constexpr std::size_t NCond = 6;
+
+// Bound on |log W| of a per-muon variation weight, log(10): weights in
+// [0.1, 10], see ReweightEvaluator::evaluate.
+constexpr double max_log_weight = 2.302585092994046;
 
 // Pre-helper map: ``Muon_genPartFlav`` per-row to the integer code
 // the model expects. The training schema uses 1 for prompt W/Z and
@@ -160,13 +165,13 @@ private:
 // Per-muon ONNX reweight evaluator: encapsulates the kinematics ->
 // (y_raw, c_raw) packing, the u_buf / sigma_buf fill from caller-
 // supplied ``delta_r_kappa[NVar]`` and ``sigma_r_kappa[NVar]``
-// arrays, the ONNX call, and the ``exp(log_r)`` + ``clip_tensor``
-// step.  All ONNX-backed scale / resolution / closure helpers
-// (J/psi-stats, smearing-uncertainty, Z non-closure parametrized /
-// binned including correlated variants, plus the SimpleReweight
-// helpers used by the muon-response test) compose one of these and
-// supply their own per-muon shift and/or smear magnitudes; the
-// per-muon kinematics handling is shared in one place.
+// arrays, the ONNX call, and the ``exp(log_r)`` step, with log_r
+// clamped to +-max_log_weight.  All ONNX-backed scale / resolution /
+// closure helpers (J/psi-stats, smearing-uncertainty, Z non-closure
+// parametrized / binned including correlated variants, plus the
+// SimpleReweight helpers used by the muon-response test) compose one
+// of these and supply their own per-muon shift and/or smear
+// magnitudes; the per-muon kinematics handling is shared in one place.
 //
 // ``NVar`` is the per-muon variation multiplicity (2 for
 // Z-non-closure down/up; 2 * n_unc for J/psi stats; etc.).
@@ -223,11 +228,18 @@ public:
 
     model_->run(y_t, c_t, u_buf, sigma_buf, log_r);
 
+    // Clamp in log space, so that the weight and its inverse (which
+    // SmearingUncertaintyReweightHelper takes for the variations that reduce
+    // the resolution) both stay within [0.1, 10]: outside the kinematics the
+    // network was trained on (e.g. a gen muon far from the reco one) log_r
+    // saturates at +-30.
     alt_weights_t alt_weights;
     for (std::size_t k = 0; k < NVar; ++k) {
-      alt_weights(k) = std::exp(static_cast<double>(log_r(0, k)));
+      const double lr = std::clamp(static_cast<double>(log_r(0, k)),
+                                   -max_log_weight, max_log_weight);
+      alt_weights(k) = std::exp(lr);
     }
-    return wrem::clip_tensor(alt_weights, 10.);
+    return alt_weights;
   }
 
   // Shift-only convenience overload: ``sigma_r_kappa`` defaults to
