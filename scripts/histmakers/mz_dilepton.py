@@ -19,6 +19,7 @@ from wremnants.production import (
     muon_efficiencies_smooth,
     muon_prefiring,
     muon_selections,
+    nano_compat,
     pileup,
     systematics,
     theory_corrections,
@@ -203,7 +204,7 @@ datasets = getDatasets(
     filt=args.filterProcs,
     excl=args.excludeProcs,
     aux=args.auxiliaryProcs,
-    nanoVersion="v9",
+    nanoVersion=args.nanoVersion,
     base_path=args.dataPath,
     extended="msht20an3lo" not in args.pdfs,
     oneMCfileEveryN=args.oneMCfileEveryN,
@@ -644,6 +645,7 @@ if args.recoilHists and not args.noRecoil:
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
+    df = nano_compat.define_nano_compat(df, args.nanoVersion)
     isW = dataset.name in samples.wprocs
     isZ = dataset.name in samples.zprocs
     isWorZ = isW or isZ

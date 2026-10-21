@@ -229,6 +229,12 @@ if args.makeMCefficiency:
 
 args = parser.parse_args()
 
+if args.nanoVersion != "v9":
+    raise NotImplementedError(
+        f"NanoAOD {args.nanoVersion} is not supported yet in this histmaker "
+        "(the jet selection uses Jet_jetId and Jet_puId, which NanoV15 does not have)"
+    )
+
 thisAnalysis = ROOT.wrem.AnalysisType.Wmass
 isoBranch = muon_selections.getIsoBranch(args.isolationDefinition)
 era = args.era
