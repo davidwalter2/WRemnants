@@ -408,7 +408,9 @@ def common_parser(analysis_label=""):
                 help="""Version of the custom NanoAOD: v9 (TrackFitV722_NanoProdv6) or v15
                 (CMSSW_15_0 production NanoV15_vX.Y). For v15 the muon corrections default to the
                 CVH refit without module-level and J/psi corrections, no smearing and no treatment
-                of the CVH refit holes, since these were derived for v9 (the v15 refit has no holes)""",
+                of the CVH refit holes, since these were derived for v9 (the v15 refit has no holes).
+                The pixel multiplicity correction and its uncertainties are v9 only, the v15 track
+                fit fixes the pixel hit multiplicity""",
             )
         parser.add_argument(
             "--dphiMuonMetCut",
@@ -661,6 +663,13 @@ def common_parser(analysis_label=""):
             parser = set_parser_default(parser, "muonCorrMC", "trackfit_only_idealMC")
             parser = set_parser_default(parser, "noSmearing", True)
             parser = set_parser_default(parser, "cvhBadModules", "none")
+            # The pixel hit multiplicity of the v9 CVH refit is fixed in the v15 track fit,
+            # so its correction and uncertainties do not apply
+            if commonargs.reweightPixelMultiplicity or commonargs.pixelMultiplicityStat:
+                raise ValueError(
+                    "--reweightPixelMultiplicity and --pixelMultiplicityStat are for the v9 CVH "
+                    "refit, the v15 track fit fixes the pixel hit multiplicity"
+                )
         if commonargs.trackerMuons:
             common_logger.warning(
                 "Using tracker muons, but keep in mind that scale factors are obsolete and not recommended."

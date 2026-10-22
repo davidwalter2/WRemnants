@@ -2592,35 +2592,37 @@ def build_graph(df, dataset):
                         df, axes, results, cols, cols_gen_smeared
                     )
 
-                # add pixel multiplicity uncertainties
-                df = df.Define(
-                    "nominal_pixelMultiplicitySyst_tensor",
-                    pixel_multiplicity_uncertainty_helper,
-                    [*pixel_multiplicity_cols, "nominal_weight"],
-                )
-                hist_pixelMultiplicitySyst = df.HistoBoost(
-                    "nominal_pixelMultiplicitySyst",
-                    axes,
-                    [*cols, "nominal_pixelMultiplicitySyst_tensor"],
-                    tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
-                    storage=hist.storage.Double(),
-                )
-                results.append(hist_pixelMultiplicitySyst)
-
-                if args.pixelMultiplicityStat:
+                # pixel multiplicity uncertainties, only for the v9 CVH refit: the v15
+                # track fit fixes the pixel hit multiplicity
+                if args.nanoVersion == "v9":
                     df = df.Define(
-                        "nominal_pixelMultiplicityStat_tensor",
-                        pixel_multiplicity_uncertainty_helper_stat,
+                        "nominal_pixelMultiplicitySyst_tensor",
+                        pixel_multiplicity_uncertainty_helper,
                         [*pixel_multiplicity_cols, "nominal_weight"],
                     )
-                    hist_pixelMultiplicityStat = df.HistoBoost(
-                        "nominal_pixelMultiplicityStat",
+                    hist_pixelMultiplicitySyst = df.HistoBoost(
+                        "nominal_pixelMultiplicitySyst",
                         axes,
-                        [*cols, "nominal_pixelMultiplicityStat_tensor"],
-                        tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
+                        [*cols, "nominal_pixelMultiplicitySyst_tensor"],
+                        tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
                         storage=hist.storage.Double(),
                     )
-                    results.append(hist_pixelMultiplicityStat)
+                    results.append(hist_pixelMultiplicitySyst)
+
+                    if args.pixelMultiplicityStat:
+                        df = df.Define(
+                            "nominal_pixelMultiplicityStat_tensor",
+                            pixel_multiplicity_uncertainty_helper_stat,
+                            [*pixel_multiplicity_cols, "nominal_weight"],
+                        )
+                        hist_pixelMultiplicityStat = df.HistoBoost(
+                            "nominal_pixelMultiplicityStat",
+                            axes,
+                            [*cols, "nominal_pixelMultiplicityStat_tensor"],
+                            tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
+                            storage=hist.storage.Double(),
+                        )
+                        results.append(hist_pixelMultiplicityStat)
 
                 # extra uncertainties from non-closure stats. Use
                 # ``jpsi_style_cols`` so each closure helper sees the
