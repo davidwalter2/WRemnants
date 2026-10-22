@@ -25,6 +25,7 @@ from wremnants.production import (
     muon_prefiring,
     muon_selections,
     muon_validation,
+    nano_compat,
     pileup,
     systematics,
     theory_corrections,
@@ -245,7 +246,7 @@ datasets = getDatasets(
     filt=args.filterProcs,
     excl=args.excludeProcs,
     aux=args.auxiliaryProcs,
-    nanoVersion="v9",
+    nanoVersion=args.nanoVersion,
     base_path=args.dataPath,
     oneMCfileEveryN=args.oneMCfileEveryN,
     extended="msht20an3lo" not in args.pdfs,
@@ -754,6 +755,7 @@ smearing_weights_procs = []
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
+    df = nano_compat.define_nano_compat(df, args.nanoVersion)
     isW = dataset.group in ["Wmunu", "Wtaunu"]
     isBSM = dataset.name.startswith("WtoNMu")
     isWmunu = isBSM or dataset.group in ["Wmunu"]
