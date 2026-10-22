@@ -24,6 +24,7 @@ from wremnants.production import (
     muon_prefiring,
     muon_selections,
     muon_validation,
+    nano_compat,
     pileup,
     systematics,
     theory_corrections,
@@ -229,12 +230,6 @@ if args.makeMCefficiency:
 
 args = parser.parse_args()
 
-if args.nanoVersion != "v9":
-    raise NotImplementedError(
-        f"NanoAOD {args.nanoVersion} is not supported yet in this histmaker "
-        "(the jet selection uses Jet_jetId and Jet_puId, which NanoV15 does not have)"
-    )
-
 thisAnalysis = ROOT.wrem.AnalysisType.Wmass
 isoBranch = muon_selections.getIsoBranch(args.isolationDefinition)
 era = args.era
@@ -244,7 +239,7 @@ datasets = getDatasets(
     filt=args.filterProcs,
     excl=args.excludeProcs,
     aux=args.auxiliaryProcs,
-    nanoVersion="v9",
+    nanoVersion=args.nanoVersion,
     base_path=args.dataPath,
     oneMCfileEveryN=args.oneMCfileEveryN,
     extended="msht20an3lo" not in args.pdfs,
@@ -753,6 +748,7 @@ smearing_weights_procs = []
 def build_graph(df, dataset):
     logger.info(f"build graph for dataset: {dataset.name}")
     results = []
+    df = nano_compat.define_nano_compat(df, args.nanoVersion)
     isW = dataset.group in ["Wmunu", "Wtaunu"]
     isBSM = dataset.name.startswith("WtoNMu")
     isWmunu = isBSM or dataset.group in ["Wmunu"]
