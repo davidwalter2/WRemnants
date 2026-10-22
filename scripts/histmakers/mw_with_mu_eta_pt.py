@@ -57,6 +57,12 @@ parser.add_argument(
     help="Save yields vs eta-pt-ut-passMT-passIso-passTrigger to derive 3D efficiencies for MC isolation and trigger (can run also with --onlyMainHistograms)",
 )
 parser.add_argument(
+    "--stitchingHists",
+    action="store_true",
+    help="For Z samples, store the boson mass (preFSR and LHE) of the selected events vs. the "
+    "LHE boson pT, the mT and the isolation, to check the stitching of samples split in mass",
+)
+parser.add_argument(
     "--onlyTheorySyst",
     action="store_true",
     help="Keep only theory systematic variations, mainly for tests",
@@ -975,6 +981,8 @@ def build_graph(df, dataset):
         df = df.Define(
             "qtOverQ", "ptVgen/massVgen"
         )  # FIXME: should there be a protection against mass=0 and what value to use?
+        # before the selection, for the generator-level normalisation of the parton shower variations
+        df_prefsr = df
 
     if args.theoryAgnostic and isWmunu:  # should be isW to do also Wtaunu
         usePtOverM = False
@@ -2271,6 +2279,37 @@ def build_graph(df, dataset):
                 storage=hist.storage.Double(),
             )
         )
+        if args.stitchingHists and isZ:
+            # as w_z_gen_dists.py --stitchingHists, for the selected events (eta and pt
+            # acceptance of the nominal histogram, with its mT and isolation categories)
+            axes_sel = [
+                hist.axis.Regular(
+                    1, template_mineta, template_maxeta, name="eta", flow=False
+                ),
+                hist.axis.Regular(
+                    1, template_minpt, template_maxpt, name="pt", flow=False
+                ),
+                *axes_abcd,
+            ]
+            cols_sel = [
+                "goodMuons_eta0",
+                "goodMuons_pt0",
+                "transverseMass",
+                "goodMuons_relIso0",
+            ]
+            for col in ["massVgen", "massVlhe"]:
+                results.append(
+                    df.HistoBoost(
+                        f"stitching_{col}",
+                        [
+                            hist.axis.Variable(binning.stitching_mass_edges, name=col),
+                            binning.axis_ptVlhe_stitching,
+                            *axes_sel,
+                        ],
+                        [col, "ptVlhe", *cols_sel, "nominal_weight"],
+                        storage=hist.storage.Weight(),
+                    )
+                )
 
         cols_scaleMET_pt = [
             x.replace("transverseMass", "transverseMass_scaleMET_pt").replace(
@@ -2498,6 +2537,9 @@ def build_graph(df, dataset):
                 for_wmass=True,
                 storage_type=storage_type,
             )
+            df = systematics.add_ps_weight_hists(
+                results, df, df_prefsr, axes, cols, storage_type=storage_type
+            )
 
             # Don't think it makes sense to apply the mass weights to scale leptons from tau decays
             if (
@@ -2706,6 +2748,7 @@ else:
 
 for loop_datasets in dataset_sets:
     resultdict = narf.build_and_run(loop_datasets, build_graph)
+    systematics.normalize_ps_weight_hists(resultdict)
     if not args.onlyMainHistograms and args.muonScaleVariation == "smearingWeightsGaus":
         logger.debug("Apply smearingWeights")
         muon_calibration.transport_smearing_weights_to_reco(

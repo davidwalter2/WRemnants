@@ -552,6 +552,15 @@ axis_relIsoCat = hist.axis.Variable(
     [0, 0.15, 0.3, np.inf], name="relIso", underflow=False, overflow=False
 )
 
+# boson mass across the generator mass boundaries of the DY samples (10 and 50 GeV) and the LHE
+# boson pT, for the stitching of Z samples split in mass (histmakers with --stitchingHists)
+stitching_mass_edges = np.concatenate(
+    [np.arange(0, 20, 0.5), np.arange(20, 120.5, 1.0)]
+)
+axis_ptVlhe_stitching = hist.axis.Variable(
+    [0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100], name="ptVlhe", underflow=False
+)
+
 
 def get_binning_fakes_pt(min_pt, max_pt):
     edges = np.arange(min_pt, 32, 1)

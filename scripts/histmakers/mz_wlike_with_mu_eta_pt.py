@@ -118,6 +118,8 @@ parser = parsing.set_parser_default(
     parser, "aggregateGroups", ["Diboson", "Top", "Wtaunu", "Wmunu"]
 )
 parser = parsing.set_parser_default(parser, "excludeProcs", ["QCD"])
+# the non-triggering muon plays the role of the neutrino, calibrate the recoil as in the W
+parser = parsing.set_parser_default(parser, "recoilGenProxy", True)
 if args.addIsoMtAxes:
     parser = parsing.set_parser_default(parser, "muonIsolation", [0, 1])
 
@@ -309,9 +311,19 @@ muon_prefiring_helper, muon_prefiring_helper_stat, muon_prefiring_helper_syst = 
     muon_prefiring.make_muon_prefiring_helpers(era=era)
 )
 
-helicity_smoothing_helpers_procs = theory_corrections.make_helicity_smoothing_helpers(
-    args.pdfs, args.theoryCorr, corrs=["qcdScale", "alphaS", "pdf"]
-)
+if args.skipByHelicityCorrection:
+    helicity_smoothing_helpers_procs = {}
+else:
+    procs = [
+        p
+        for p, grp in (("W", samples.wprocs), ("Z", samples.zprocs))
+        if any(d.name in grp for d in datasets)
+    ]
+    helicity_smoothing_helpers_procs = (
+        theory_corrections.make_helicity_smoothing_helpers(
+            args.pdfs, args.theoryCorr, procs=procs
+        )
+    )
 
 # extra axes which can be used to label tensor_axes
 if args.noScaleFactors:
@@ -490,7 +502,7 @@ def build_graph(df, dataset):
     isWorZ = isW or isZ
 
     helicity_smoothing_helpers = None
-    if isWorZ:
+    if isWorZ and dataset.name[0] in helicity_smoothing_helpers_procs.keys():
         helicity_smoothing_helpers = helicity_smoothing_helpers_procs[dataset.name[0]]
 
     if dataset.is_data:
@@ -630,6 +642,9 @@ def build_graph(df, dataset):
         df = df.Define(
             "qtOverQ", "ptVgen/massVgen"
         )  # FIXME: should there be a protection against mass=0 and what value to use?
+    if isWorZ:
+        # before the selection, for the generator-level normalisation of the parton shower variations
+        df_prefsr = generator_level_definitions.define_prefsr_vars(df)
 
     df = df.Filter(muon_selections.hlt_string(era))
 
@@ -1519,6 +1534,7 @@ def build_graph(df, dataset):
                 cols,
                 for_wmass=False,
             )
+            df = systematics.add_ps_weight_hists(results, df, df_prefsr, axes, cols)
 
             reco_sel = "vetoMuonsPre"
             require_prompt = "tau" not in dataset.name
@@ -1745,6 +1761,7 @@ def build_graph(df, dataset):
 
 
 resultdict = narf.build_and_run(datasets, build_graph)
+systematics.normalize_ps_weight_hists(resultdict)
 
 if not args.noScaleToData:
     scale_to_data(resultdict)

@@ -17,9 +17,11 @@ supported_eras = eras_run2 + [
 wprocs_mu_minnlo_run2 = [f"Wplusmunu_{e}" for e in eras_run2] + [
     f"Wminusmunu_{e}" for e in eras_run2
 ]
-zprocs_mu_minnlo_run2 = [f"Zmumu_{e}" for e in eras_run2] + [
-    f"Zmumu10to50_{e}" for e in eras_run2
-]
+zprocs_mu_minnlo_run2 = (
+    [f"Zmumu_{e}" for e in eras_run2]
+    + [f"Zmumu10to50_{e}" for e in eras_run2]
+    + ["Zmumu2to10_2016PostVFP"]
+)
 
 # central MiNNLO samples with muon or e decay
 wprocs_emu_minnlo_2017H = [
@@ -161,6 +163,8 @@ wprocs_recoil = [
     "Ztautau_2016PostVFP",
     "Zmumu_2016PostVFP",
     "Zmumu10to50_2016PostVFP",
+    "Zmumu2to10_2016PostVFP",
+    "Ztautau10to50_2016PostVFP",
 ]
 
 zprocs_recoil_lowpu = ["Zmumu", "Zee"]

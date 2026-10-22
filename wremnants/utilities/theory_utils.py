@@ -1,3 +1,4 @@
+import copy
 import glob
 import os
 import re
@@ -217,8 +218,123 @@ only_central_pdf_datasets = [
 ]
 
 
+def _with_branches(pdf, branch, alphas=None, first_entry=None):
+    info = copy.deepcopy(pdfMap[pdf])
+    info["branch"] = branch
+    if alphas is not None:
+        info["alphas"] = alphas
+    if first_entry is None:
+        info.pop("first_entry", None)
+    else:
+        info["first_entry"] = first_entry
+    return info
+
+
+# PDF weights of the private UL16 MiNNLO productions of 2026 (DY->mumu with 2 < m < 10 GeV and
+# DY->tautau with 10 < m < 50 GeV): every LHAPDF set, and every alpha_s variation, is its own LHE
+# weight group, so the LHEPdfWeightAltSet numbering differs from the central samples, where e.g.
+# CT18 and CT18Z share one group. The members within a set are in the same order as there.
+# NNPDF3.0 and ATLASepWZVjet20 are not in these samples.
+pdfMap_private2026 = {
+    "nnpdf31": copy.deepcopy(pdfMap["nnpdf31"]),
+    "nnpdf40": copy.deepcopy(pdfMap["nnpdf40"]),
+    "pdf4lhc21": _with_branches(
+        "pdf4lhc21",
+        "LHEPdfWeightAltSet7",
+        [
+            "LHEPdfWeightAltSet7[0]",
+            "LHEPdfWeightAltSet7[41]",
+            "LHEPdfWeightAltSet7[42]",
+        ],
+    ),
+    # CT18NNLO_as_0116/0117/0119/0120 are AltSet9-12
+    "ct18": _with_branches(
+        "ct18",
+        "LHEPdfWeightAltSet8",
+        [
+            "LHEPdfWeightAltSet8[0]",
+            "LHEPdfWeightAltSet9[0]",
+            "LHEPdfWeightAltSet12[0]",
+        ],
+    ),
+    # CT18ZNNLO_as_0116/0117/0119/0120 are AltSet14-17
+    "ct18z": _with_branches(
+        "ct18z",
+        "LHEPdfWeightAltSet13",
+        [
+            "LHEPdfWeightAltSet13[0]",
+            "LHEPdfWeightAltSet14[0]",
+            "LHEPdfWeightAltSet17[0]",
+        ],
+    ),
+    # MSHT20nnlo_as_smallrange (AltSet19): members 2 and 5 are alpha_s = 0.116 and 0.120
+    "msht20": _with_branches(
+        "msht20",
+        "LHEPdfWeightAltSet18",
+        [
+            "LHEPdfWeightAltSet18[0]",
+            "LHEPdfWeightAltSet19[2]",
+            "LHEPdfWeightAltSet19[5]",
+        ],
+    ),
+    "msht20mcrange": _with_branches(
+        "msht20mcrange", "LHEPdfWeightAltSet20", first_entry=0
+    ),
+    "msht20mbrange": _with_branches(
+        "msht20mbrange", "LHEPdfWeightAltSet21", first_entry=0
+    ),
+    "msht20mcrange_renorm": _with_branches(
+        "msht20mcrange_renorm", "LHEPdfWeightAltSet20", first_entry=0
+    ),
+    "msht20mbrange_renorm": _with_branches(
+        "msht20mbrange_renorm", "LHEPdfWeightAltSet21", first_entry=0
+    ),
+    # MSHT20an3lo_as118 (0-104) and MSHT20an3lo_as_smallrange (105-111) in one group, as in
+    # the central samples (it is labelled MSHT20qed_nnlo_neutron_elastic in the NanoAOD)
+    "msht20an3lo": _with_branches(
+        "msht20an3lo",
+        "LHEPdfWeightAltSet26",
+        [
+            "LHEPdfWeightAltSet26[0]",
+            "LHEPdfWeightAltSet26[108]",
+            "LHEPdfWeightAltSet26[111]",
+        ],
+    ),
+    # HERAPDF20_NNLO_ALPHAS_116/120 are AltSet24/25
+    "herapdf20": _with_branches(
+        "herapdf20",
+        "LHEPdfWeightAltSet22",
+        [
+            "LHEPdfWeightAltSet22[0]",
+            "LHEPdfWeightAltSet24[0]",
+            "LHEPdfWeightAltSet25[0]",
+        ],
+    ),
+    "herapdf20ext": _with_branches(
+        "herapdf20ext",
+        "LHEPdfWeightAltSet23",
+        [
+            "LHEPdfWeightAltSet22[0]",
+            "LHEPdfWeightAltSet24[0]",
+            "LHEPdfWeightAltSet25[0]",
+        ],
+    ),
+}
+
+private2026_pdf_datasets = [
+    "Zmumu2to10_2016PostVFP",
+    "Ztautau10to50_2016PostVFP",
+]
+
+# datasets below the mass range of the QCD theory corrections (m > 10 GeV for the Z): the QCD
+# corrections and their variations are not applied to them, the EW corrections are
+datasets_without_qcd_corr = [
+    "Zmumu2to10_2016PostVFP",
+]
+
+
 def pdf_info_map(dataset, pdfset):
-    infoMap = pdfMap
+    infoMap = pdfMap_private2026 if dataset in private2026_pdf_datasets else pdfMap
 
     # Just ignore PDF variations for non W/Z samples
     if (

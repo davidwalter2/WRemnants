@@ -21,6 +21,9 @@ xsec_DYJetsToLL = 2001.9
 xsec_WplusJetsToLNu = 11765.9
 xsec_WminusJetsToLNu = 8703.87
 xsec_DYJetsToLLMass10to50 = 6997.0
+# private UL16 MiNNLO productions (2026), from the GenXSecAnalyzer of the production jobs
+xsec_DYJetsToMuMuMass2to10BornPt10 = 8107.0  # 2 < m < 10 GeV, Born pT(ll) > 10 GeV
+xsec_DYJetsToTauTauMass10to50 = 7017.0  # before the tau decays
 
 xsec_WW = 118.7
 xsec_WZ = 47.13  # from https://twiki.cern.ch/twiki/bin/view/CMS/SummaryTable1G25ns

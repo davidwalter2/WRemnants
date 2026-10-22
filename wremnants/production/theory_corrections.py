@@ -204,6 +204,16 @@ def load_corr_helpers(
             else:
                 label = proc[0]
 
+            if (
+                proc in theory_utils.datasets_without_qcd_corr
+                and generator not in theory_utils.valid_ew_theory_corrections()
+            ):
+                logger.warning(
+                    f"Correction {generator} does not cover the mass range of process {proc}, "
+                    "no correction will be applied for this process!"
+                )
+                continue
+
             candidate_fnames = [
                 f"{base_dir}/{generator}_Corr{label}.pkl.lz4",
                 f"{base_dir}/{generator}Corr{label}.pkl.lz4",
@@ -357,10 +367,11 @@ def define_pdf_columns(df, dataset_name, pdfs, noAltUnc):
         return df
 
     for i, pdf in enumerate(pdfs):
+        # a set missing in this sample skips only that set
         try:
             pdfInfo = theory_utils.pdf_info_map(dataset_name, pdf)
         except ValueError:
-            return df
+            continue
 
         logger.info(f"Defining PDF weights for PDF set {pdf}")
 
@@ -372,7 +383,10 @@ def define_pdf_columns(df, dataset_name, pdfs, noAltUnc):
         start = 0 if "first_entry" not in pdfInfo else pdfInfo["first_entry"]
 
         if pdfBranch not in df.GetColumnNames():
-            return df
+            logger.warning(
+                f"PDF branch {pdfBranch} of {pdf} not found for sample {dataset_name}"
+            )
+            continue
 
         if "renorm" in pdfInfo and pdfInfo["renorm"]:
             df = df.Define(
@@ -513,8 +527,13 @@ def define_theory_weights_and_corrs(
         modify_central_weight=False,
     )
 
-    if args.highptscales:
-        df = df.Define("extra_weight", "MEParamWeightAltSet3[0]")
+    if args.largePtScales:
+        if df.HasColumn("MEParamWeightAltSet3"):
+            # MiNNLO largeptscales variation: scales ~ pT_V instead of ~ m_V at large pT_V
+            logger.info(f"Reweight {dataset_name} with the largeptscales weight")
+            df = df.Define("extra_weight", "MEParamWeightAltSet3[0]")
+        else:
+            logger.info(f"No largeptscales weight for {dataset_name}, not reweighted")
     df = define_nominal_weight(df)
     df = define_pdf_columns(df, dataset_name, args.pdfs, args.altPdfOnlyCentral)
     df = define_breit_wigner_weights(df, dataset_name)

@@ -58,8 +58,11 @@ class TheoryHelper(object):
         "binned_Omega",
         "LatticeEigvars",
         "LatticeNoConstraints",
+        "FrankNoConstraints",
         "none",
     ]
+    # NP models with variations named after the lattice-type parameters (lambda2, lambda4, ...)
+    lattice_np_models = ["LatticeEigvars", "LatticeNoConstraints", "FrankNoConstraints"]
 
     # uncertainties that can be taken from the helicity-smoothed (ByHelicity) hists,
     # see 'set_from_hels'
@@ -78,10 +81,7 @@ class TheoryHelper(object):
 
         self.datagroups = datagroups
         corr_hists = self.datagroups.args_from_metadata("theoryCorr")
-        if len(corr_hists) > 1 and corr_hists[1].startswith(corr_hists[0] + "_"):
-            self._corr_sep = "_"
-        else:
-            self._corr_sep = ""
+        self._corr_sep = self.corr_hist_separator(corr_hists)
         self.corr_hist_name = (
             (corr_hists[0] + self._corr_sep + "Corr") if corr_hists else None
         )
@@ -154,6 +154,28 @@ class TheoryHelper(object):
         convert_none = lambda x: x if x.lower() != "none" else None
         self.theory_symmetrize = convert_none(theory_symmetrize)
         self.pdf_symmetrize = convert_none(pdf_symmetrize)
+
+    def corr_hist_separator(self, corr_hists):
+        """Separator between the theory correction and 'Corr' in the histogram names.
+
+        The histmaker writes <nominal>_<corr>_Corr, older outputs <nominal>_<corr>Corr.
+        Taken from the histograms of the signal samples, which also works when only the
+        central correction was applied, otherwise guessed from the further corrections.
+        """
+        if not corr_hists:
+            return ""
+        names = set()
+        for group in self.datagroups.procGroups["signal_samples"]:
+            for member in self.datagroups.groups[group].members:
+                names.update(
+                    self.datagroups.results.get(member.name, {}).get("output", {})
+                )
+        for sep in ("_", ""):
+            if f"{self.datagroups.nominalName}_{corr_hists[0]}{sep}Corr" in names:
+                return sep
+        if len(corr_hists) > 1 and corr_hists[1].startswith(corr_hists[0] + "_"):
+            return "_"
+        return ""
 
     def set_from_hels(self, from_hels):
         """Select which uncertainties are taken from the helicity-smoothed (ByHelicity) hists.
@@ -728,9 +750,10 @@ class TheoryHelper(object):
         var_name = var_name.replace("binned_", "")
         var_name = var_name.replace("_Correlated", "")
 
-        if not any(
-            var_name in x for x in self.np_hist.axes[self.syst_ax]
-        ) and model not in ["LatticeEigvars", "LatticeNoConstraints"]:
+        if (
+            not any(var_name in x for x in self.np_hist.axes[self.syst_ax])
+            and model not in TheoryHelper.lattice_np_models
+        ):
             raise ValueError(
                 f"NP model choice was '{model}' but did not find corresponding variations in the histogram"
             )
@@ -787,6 +810,16 @@ class TheoryHelper(object):
                 for name in gamma_nuisance_names
                 for direction in ["Up", "Down"]
             ]
+            var_vals = lattice_vals
+        elif self.np_model == "FrankNoConstraints":
+            # lattice NP model with the central values and variations suggested by Frank Tackmann
+            # (corrections *_LatticeNPLambda4Bugfix_FranksValsVars_*)
+            lattice_vals = ["lambda2_nu0.05", "lambda2_nu0.25"]
+            if not all([x in self.corr_hist.axes[self.syst_ax] for x in lattice_vals]):
+                raise ValueError(
+                    f"Using the NP model with Frank's values, but could not find the lambda2 variations for gamma in hist {self.corr_hist_name}"
+                )
+            var_names = ["scetlibNPgammaLambda2Down", "scetlibNPgammaLambda2Up"]
             var_vals = lattice_vals
         else:
             # Since "c_nu = 0.1 is the central value, it doesn't show up in the name"
@@ -909,6 +942,12 @@ class TheoryHelper(object):
                 "delta_lambda2": ["-0.02", "0.02"],
                 "lambda4": ["0.01", "0.12"],
             }
+        elif self.np_model == "FrankNoConstraints":
+            np_map = {
+                "lambda2": ["0.0", "1.0"],
+                "delta_lambda2": ["-0.02", "0.02"],
+                "lambda4": ["0.0", "1.0"],
+            }
         elif "Lambda" in self.np_model:
             np_map = {
                 "Lambda2": [
@@ -927,10 +966,10 @@ class TheoryHelper(object):
                 "Delta_Omega": ["-0.02", "0.02"],
             }
 
-        if "Delta" not in self.np_model and self.np_model not in [
-            "LatticeEigvars",
-            "LatticeNoConstraints",
-        ]:
+        if (
+            "Delta" not in self.np_model
+            and self.np_model not in TheoryHelper.lattice_np_models
+        ):
             to_remove = list(filter(lambda x: "Delta" in x, np_map.keys())) + list(
                 filter(lambda x: "delta" in x, np_map.keys())
             )
@@ -965,6 +1004,12 @@ class TheoryHelper(object):
                 "delta_lambda2": ["-0.02", "0.02"],
                 "lambda4": ["0.01", "0.12"],
             }
+        elif self.np_model == "FrankNoConstraints":
+            np_map = {
+                "lambda2": ["0.0", "1.0"],
+                "delta_lambda2": ["-0.02", "0.02"],
+                "lambda4": ["0.0", "1.0"],
+            }
         elif "Lambda" in self.np_model:
             np_map = {
                 "Lambda2": [
@@ -983,10 +1028,10 @@ class TheoryHelper(object):
                 "Delta_Omega": ["-0.02", "0.02"],
             }
 
-        if "Delta" not in self.np_model and self.np_model not in [
-            "LatticeEigvars",
-            "LatticeNoConstraints",
-        ]:
+        if (
+            "Delta" not in self.np_model
+            and self.np_model not in TheoryHelper.lattice_np_models
+        ):
             to_remove = list(filter(lambda x: "Delta" in x, np_map.keys())) + list(
                 filter(lambda x: "delta" in x, np_map.keys())
             )
