@@ -74,12 +74,15 @@ process_colors = {
 process_supergroups = {
     "sv": {
         "Prompt": [
+            "W",
             "Wmunu",
             "Wtaunu",
+            "Z",
             "Ztautau",
             "Zmumu",
             "DYlowMass",
             "PhotonInduced",
+            "TopVV",
             "Top",
             "Diboson",
         ],
@@ -89,17 +92,17 @@ process_supergroups = {
     "w_mass": {
         "Wmunu": ["Wmunu"],
         "Wtaunu": ["Wtaunu"],
-        "Z": ["Ztautau", "Zmumu", "DYlowMass"],
+        "Z": ["Z", "Ztautau", "Zmumu", "DYlowMass"],
         "Fake": ["Fake"],
-        "Rare": ["PhotonInduced", "Top", "Diboson"],
+        "Rare": ["PhotonInduced", "TopVV", "Top", "Diboson"],
     },
     "w_mass_ext": {
         "Wmunu": ["Wmunu"],
         "WmunuOOA": ["WmunuOOA"],
         "Wtaunu": ["Wtaunu"],
-        "Z": ["Ztautau", "Zmumu", "DYlowMass"],
+        "Z": ["Z", "Ztautau", "Zmumu", "DYlowMass"],
         "Fake": ["Fake"],
-        "Rare": ["PhotonInduced", "Top", "Diboson"],
+        "Rare": ["PhotonInduced", "TopVV", "Top", "Diboson"],
     },
     "z_dilepton": {
         "Zmumu": ["Zmumu"],
@@ -107,7 +110,7 @@ process_supergroups = {
     },
     "w_lowpu": {
         "Zll": ["Ztautau", "Zmumu", "Zee", "DYlowMass"],
-        "Rare": ["PhotonInduced", "Top", "Diboson"],
+        "Rare": ["PhotonInduced", "TopVV", "Top", "Diboson"],
     },
 }
 process_supergroups["z_wlike"] = process_supergroups["z_dilepton"]

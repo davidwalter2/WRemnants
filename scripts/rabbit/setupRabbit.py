@@ -11,7 +11,6 @@ import rabbit.io_tools
 from rabbit import auxiliary, tensorwriter
 from wremnants.postprocessing import (
     rabbit_helpers,
-    rabbit_process_merging,
     rabbit_theory_helper,
     rabbit_theoryAgnostic_helper,
 )
@@ -1136,24 +1135,6 @@ def make_parser(parser=None, argv=None):
         help="Events from the same process but from tau final states are added to the signal",
     )
     parser.add_argument(
-        "--mergeProcs",
-        type=str,
-        nargs="*",
-        default=None,
-        metavar="NAME=PROC1,PROC2",
-        help="Write groups of processes as one process each, pooling their MC "
-        "statistics into one template per bin (bin-by-bin statistical uncertainties, "
-        "MC-stat de-biasing). Each systematic keeps acting on the processes it is "
-        "defined for, the other components enter the merged variation with their "
-        "nominal, so the normalisation uncertainty of one component becomes a shape "
-        "variation of the merged process. Without arguments: "
-        + " ".join(
-            f"{k}={','.join(v)}"
-            for k, v in rabbit_process_merging.default_merges.items()
-        )
-        + "; merges whose components are not processes of a channel do nothing there.",
-    )
-    parser.add_argument(
         "--helicityFitTheoryUnc",
         action="store_true",
         help="Removes PDF and theory uncertainties on signal processes",
@@ -1335,13 +1316,27 @@ def setup(
     logger.debug(f"Filtering these groups of processes: {args.filterProcGroups}")
     logger.debug(f"Excluding these groups of processes: {args.excludeProcGroups}")
 
+    xnorm = any(
+        inputBaseName.startswith(x) for x in ["gen", "xnorm", "prefsr", "postfsr"]
+    )
+    # the fits where the muon component of W (Z) is the signal and the tau one a
+    # background keep them as separate groups instead of the merged W (Z)
+    splitSignalGroups = bool(
+        xnorm
+        or isUnfolding
+        or isTheoryAgnostic
+        or "xsec" in args.noi
+        or args.helicityFitTheoryUnc
+        or args.addTauToSignal
+        or args.addBSMProcess
+        or args.addBSMMixing is not None
+    )
     datagroups = Datagroups(
         inputFile,
         excludeGroups=excludeGroup,
         filterGroups=filterGroup,
-        xnorm=any(
-            inputBaseName.startswith(x) for x in ["gen", "xnorm", "prefsr", "postfsr"]
-        ),
+        xnorm=xnorm,
+        splitGroups=["W", "Z"] if splitSignalGroups else False,
     )
 
     bsm_signals = []
@@ -1809,10 +1804,10 @@ def setup(
         return [
             g
             for g in datagroups.procGroups["MCnoQCD"]
-            if len(datagroups.groups[g].members)
+            if len(datagroups.processMembers(g))
             and check(
                 histname in datagroups.results.get(m.name, {}).get("output", {})
-                for m in datagroups.groups[g].members
+                for m in datagroups.processMembers(g)
             )
         ]
 
@@ -2374,7 +2369,7 @@ def setup(
                     norm=args.logNormalFake,
                 )
 
-        if "Top" in datagroups.groups:
+        if datagroups.hasProcess("Top"):
             datagroups.addNormSystematic(
                 name="CMS_Top",
                 processes=["Top"],
@@ -2398,7 +2393,7 @@ def setup(
                 systAxes=[],
                 passToFakes=passSystToFakes,
             )
-        if "Diboson" in datagroups.groups:
+        if datagroups.hasProcess("Diboson"):
             datagroups.addNormSystematic(
                 name="CMS_VV",
                 processes=["Diboson"],
@@ -3660,25 +3655,10 @@ if __name__ == "__main__":
     # arguments).
     if args.clipSystVariations:
         writer_kwargs["clip_syst_variations"] = args.clipSystVariations
-    merges = None
-    if args.mergeProcs is not None:
-        if isUnfolding or isTheoryAgnostic:
-            raise ValueError(
-                "--mergeProcs is not supported for unfolding and theory agnostic fits"
-            )
-        merges = rabbit_process_merging.parse_merges(args.mergeProcs)
-        logger.info(f"Merging processes: {merges}")
     if args.zeroSystLowNeff:
         writer_kwargs["zero_syst_low_neff"] = args.zeroSystLowNeff
-        procs = args.zeroSystLowNeffProcs
-        if procs and merges:
-            # the writer sees the merged processes
-            merged_of = {c: k for k, v in merges.items() for c in v}
-            procs = list(dict.fromkeys(merged_of.get(p, p) for p in procs))
-        writer_kwargs["zero_syst_low_neff_procs"] = procs
+        writer_kwargs["zero_syst_low_neff_procs"] = args.zeroSystLowNeffProcs
     writer = tensorwriter.TensorWriter(**writer_kwargs)
-    if merges:
-        writer = rabbit_process_merging.ProcessMergingWriter(writer, merges)
 
     if args.fitresult is not None:
         # set data from external fitresult file
