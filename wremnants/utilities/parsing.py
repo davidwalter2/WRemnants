@@ -238,12 +238,6 @@ def common_parser(analysis_label=""):
         help="TFLite model of the recoil calibration, instead of the one in wremnants-data for the chosen MET",
     )
     parser.add_argument(
-        "--recoilModel",
-        type=str,
-        default=None,
-        help="TFLite model of the recoil calibration, instead of the one in wremnants-data for the chosen MET",
-    )
-    parser.add_argument(
         "--largePtScales",
         action="store_true",
         help="Reweight the MiNNLO samples to their largeptscales variation (renormalisation and factorisation scales ~ pT_V instead of ~ m_V at large pT_V, event weight MEParamWeightAltSet3[0]), on top of the theory corrections. Samples without this weight, e.g. top and diboson, are not reweighted",
