@@ -1331,6 +1331,11 @@ class Datagroups(object):
                 signal=proc in self.unconstrainedProcesses,
             )
 
+        # processes merged by the writer (rabbit_process_merging) are complete now
+        finalize = getattr(self.writer, "finalize_merged_processes", None)
+        if finalize is not None:
+            finalize(self.channel)
+
         # add metadata to channel info
         self.writer.channels[self.channel].update(
             {
@@ -1599,6 +1604,13 @@ class Datagroups(object):
                     constrained=not effective_noConstraint,
                     add_to_data_covariance=self.isAbsorbedNuisance(name),
                 )
+
+        # the variations of processes merged by the writer (rabbit_process_merging)
+        # are complete now: the components without this systematic enter with their
+        # nominal
+        flush = getattr(self.writer, "flush_merged_systematics", None)
+        if flush is not None:
+            flush()
 
     def systHists(
         self,
