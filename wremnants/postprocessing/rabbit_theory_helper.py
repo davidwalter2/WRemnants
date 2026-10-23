@@ -166,7 +166,7 @@ class TheoryHelper(object):
             return ""
         names = set()
         for group in self.datagroups.procGroups["signal_samples"]:
-            for member in self.datagroups.groups[group].members:
+            for member in self.datagroups.processMembers(group):
                 names.update(
                     self.datagroups.results.get(member.name, {}).get("output", {})
                 )
