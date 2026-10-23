@@ -639,6 +639,7 @@ class Datagroups(object):
                     logger.debug(
                         f"Forcing group member {member.name} to read the nominal hist for syst {syst}"
                     )
+                usedNominal = False
                 try:
                     h = self.readHist(baseName, member, read_syst, keepMCStatFolds=True)
                     foundExact = True
@@ -650,6 +651,7 @@ class Datagroups(object):
                         h = self.readHist(
                             self.nominalName, member, "", keepMCStatFolds=True
                         )
+                        usedNominal = True
                     else:
                         logger.warning(str(e))
                         continue
@@ -661,7 +663,16 @@ class Datagroups(object):
                     # a member without folds would be broadcast into every fold
                     keep_folds = False
 
-                memberArgs = (group, i, member, procName, preOpMap, preOpArgs)
+                # the preOp acts on the variation; a member without it enters with
+                # its nominal, i.e. without variation (broadcast in addHists)
+                memberArgs = (
+                    group,
+                    i,
+                    member,
+                    procName,
+                    None if usedNominal else preOpMap,
+                    preOpArgs,
+                )
                 h = self.processMemberHist(h, *memberArgs, forceNonzero)
                 if keep_folds:
                     h_folds = self.processMemberHist(h_folds, *memberArgs, forceNonzero)
