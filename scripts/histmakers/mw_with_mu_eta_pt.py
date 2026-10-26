@@ -2595,34 +2595,19 @@ def build_graph(df, dataset):
                 # pixel multiplicity uncertainties, only for the v9 CVH refit: the v15
                 # track fit fixes the pixel hit multiplicity
                 if args.nanoVersion == "v9":
-                    df = df.Define(
-                        "nominal_pixelMultiplicitySyst_tensor",
-                        pixel_multiplicity_uncertainty_helper,
-                        [*pixel_multiplicity_cols, "nominal_weight"],
-                    )
-                    hist_pixelMultiplicitySyst = df.HistoBoost(
-                        "nominal_pixelMultiplicitySyst",
+                    df = muon_calibration.add_pixel_multiplicity_uncertainty(
+                        df,
                         axes,
-                        [*cols, "nominal_pixelMultiplicitySyst_tensor"],
-                        tensor_axes=pixel_multiplicity_uncertainty_helper.tensor_axes,
-                        storage=hist.storage.Double(),
+                        results,
+                        cols,
+                        pixel_multiplicity_cols,
+                        pixel_multiplicity_uncertainty_helper,
+                        (
+                            pixel_multiplicity_uncertainty_helper_stat
+                            if args.pixelMultiplicityStat
+                            else None
+                        ),
                     )
-                    results.append(hist_pixelMultiplicitySyst)
-
-                    if args.pixelMultiplicityStat:
-                        df = df.Define(
-                            "nominal_pixelMultiplicityStat_tensor",
-                            pixel_multiplicity_uncertainty_helper_stat,
-                            [*pixel_multiplicity_cols, "nominal_weight"],
-                        )
-                        hist_pixelMultiplicityStat = df.HistoBoost(
-                            "nominal_pixelMultiplicityStat",
-                            axes,
-                            [*cols, "nominal_pixelMultiplicityStat_tensor"],
-                            tensor_axes=pixel_multiplicity_uncertainty_helper_stat.tensor_axes,
-                            storage=hist.storage.Double(),
-                        )
-                        results.append(hist_pixelMultiplicityStat)
 
                 # extra uncertainties from non-closure stats. Use
                 # ``jpsi_style_cols`` so each closure helper sees the
