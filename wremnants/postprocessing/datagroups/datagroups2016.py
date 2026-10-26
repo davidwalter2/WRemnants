@@ -20,6 +20,8 @@ merged_groups = {
         "Top": ["Top", "SingleT", "TT"],
         "Diboson": ["Diboson", "WW", "WZ", "ZZ"],
     },
+    # gamma q -> V q' and gamma gamma -> l l, with separate normalization uncertainties
+    "PhotonInduced": {"PhotonInducedQG": ["QG"], "PhotonInducedGG": ["GG"]},
 }
 
 
@@ -64,10 +66,7 @@ def make_datagroups_2016(
         members=dg.get_members_from_results(is_data=True),
     )
     add_merged_group(dg, "Z", split=split("Z"))
-    dg.addGroup(
-        "PhotonInduced",
-        members=dg.get_members_from_results(startswith=["GG", "QG"]),
-    )
+    add_merged_group(dg, "PhotonInduced", split=split("PhotonInduced"))
 
     if pseudodata_pdfset:
         dg.addGroup(
