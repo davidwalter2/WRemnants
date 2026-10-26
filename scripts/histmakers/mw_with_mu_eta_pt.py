@@ -1146,10 +1146,17 @@ def build_graph(df, dataset):
     df = df.Define("goodMuons_relIso0", f"{isoBranch}[goodMuons][0]")
     df = df.Define("goodMuons_iso0", "goodMuons_relIso0*Muon_pt[goodMuons][0]")
 
-    # Jet collection actually has a pt threshold of 15 GeV in MiniAOD
+    # Jet collection actually has a pt threshold of 15 GeV in MiniAOD. The AK4 PUPPI jets
+    # of NanoV15 have no jet and pileup ID flags: there the tightLepVeto criteria for
+    # |eta| <= 2.4 of the NanoAODv15 recipe (JetMET TWiki JetID13TeVUL) are used, without
+    # pileup ID. The jets only enter auxiliary histograms (fake studies)
+    if args.nanoVersion == "v9":
+        jet_id = "Jet_jetId >= 6 && (Jet_pt > 50 || Jet_puId >= 4)"
+    else:
+        jet_id = "Jet_neHEF < 0.9 && Jet_neEmEF < 0.9 && Jet_chMultiplicity + Jet_neMultiplicity > 1 && Jet_chHEF > 0 && Jet_chMultiplicity > 0 && Jet_muEF < 0.8 && Jet_chEmEF < 0.8"
     df = df.Define(
         "goodCleanJetsNoPt",
-        "Jet_jetId >= 6 && (Jet_pt > 50 || Jet_puId >= 4) && abs(Jet_eta) < 2.4 && wrem::cleanJetsFromLeptons(Jet_eta,Jet_phi,Muon_correctedEta[vetoMuons],Muon_correctedPhi[vetoMuons],Electron_eta[vetoElectrons],Electron_phi[vetoElectrons])",
+        f"{jet_id} && abs(Jet_eta) < 2.4 && wrem::cleanJetsFromLeptons(Jet_eta,Jet_phi,Muon_correctedEta[vetoMuons],Muon_correctedPhi[vetoMuons],Electron_eta[vetoElectrons],Electron_phi[vetoElectrons])",
     )
     df = df.Define("passIso", f"goodMuons_relIso0 < {args.isolationThreshold}")
     df = df.Alias(
