@@ -52,7 +52,8 @@ if __name__ == "__main__":
 
         bkgs = ["Ztautau", "Other"]
         if analysis == "highPU":
-            bkgs.append("PhotonInduced")
+            # splitGroups: the components of the photon-induced group
+            bkgs += ["PhotonInducedQG", "PhotonInducedGG"]
         savedict["bkg_para"] = readProc(groups, "recoil_corr_xy_para_qt_v_pt", bkgs)
         savedict["bkg_perp"] = readProc(groups, "recoil_corr_xy_perp_v_pt", bkgs)
 

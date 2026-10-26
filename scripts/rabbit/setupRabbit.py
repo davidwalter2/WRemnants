@@ -1061,6 +1061,23 @@ def make_parser(parser=None, argv=None):
         type=float,
         help="Specify normalization uncertainty for Fake background (for W analysis). If negative, treat as free floating, if 0 nothing is added",
     )
+    parser.add_argument(
+        "--logNormalPhotonInducedQG",
+        default=1.25,
+        type=float,
+        help="Normalization uncertainty of the photon-induced gamma q -> V q' processes, "
+        "one nuisance for W and Z (same photon PDF, leading-order generator and "
+        "phase-space cuts): the photon PDF (LUXqed type) is known to a few percent, "
+        "the uncertainty is that of a leading-order prediction. If 0 nothing is added",
+    )
+    parser.add_argument(
+        "--logNormalPhotonInducedGG",
+        default=1.1,
+        type=float,
+        help="Normalization uncertainty of the photon-induced gamma gamma -> l l "
+        "processes, uncorrelated with the gamma q ones (no QCD at leading order, "
+        "photon-photon luminosity known to a few percent). If 0 nothing is added",
+    )
     # pseudodata
     parser.add_argument(
         "--pseudoData", type=str, nargs="+", help="Histograms to use as pseudodata"
@@ -2277,14 +2294,18 @@ def setup(
         )
 
     # lowPU does not include PhotonInduced as a process. skip it:
-    if not lowPU and "PhotonInduced" in datagroups.groups:
-        datagroups.addNormSystematic(
-            name="CMS_PhotonInduced",
-            processes=["PhotonInduced"],
-            groups=[f"CMS_background", "experiment", "expNoLumi", "expNoCalib"],
-            passToFakes=passSystToFakes,
-            norm=2.0,
-        )
+    for proc, norm in (
+        ("PhotonInducedQG", args.logNormalPhotonInducedQG),
+        ("PhotonInducedGG", args.logNormalPhotonInducedGG),
+    ):
+        if not lowPU and norm != 0 and datagroups.hasProcess(proc):
+            datagroups.addNormSystematic(
+                name=f"CMS_{proc}",
+                processes=[proc],
+                groups=[f"CMS_background", "experiment", "expNoLumi", "expNoCalib"],
+                passToFakes=passSystToFakes,
+                norm=norm,
+            )
     if wmass:
         if args.logNormalWmunu != 0:
             datagroups.addNormSystematic(
