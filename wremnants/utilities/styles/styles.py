@@ -94,6 +94,7 @@ process_supergroups = {
         "QCD": ["QCD"],
     },
     "w_mass": {
+        "W": ["W"],
         "Wmunu": ["Wmunu"],
         "Wtaunu": ["Wtaunu"],
         "Z": ["Z", "Ztautau", "Zmumu", "DYlowMass"],
@@ -108,6 +109,7 @@ process_supergroups = {
         ],
     },
     "w_mass_ext": {
+        "W": ["W"],
         "Wmunu": ["Wmunu"],
         "WmunuOOA": ["WmunuOOA"],
         "Wtaunu": ["Wtaunu"],
@@ -123,6 +125,7 @@ process_supergroups = {
         ],
     },
     "z_dilepton": {
+        "Z": ["Z"],
         "Zmumu": ["Zmumu"],
         "Other": [
             "Other",
@@ -842,12 +845,14 @@ def get_systematics_label(key, idx=0):
 def get_labels_colors_procs_sorted(procs):
     # order of the processes in the plots by this list
     procs_sort = [
+        "W",
         "Wmunu",
         "Fake",
         "QCD",
         "Z",
         "Zmumu",
         "Wtaunu",
+        "TopVV",
         "Top",
         "DYlowMass",
         "Other",
