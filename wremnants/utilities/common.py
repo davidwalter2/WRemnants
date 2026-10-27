@@ -22,7 +22,9 @@ xsec_WplusJetsToLNu = 11765.9
 xsec_WminusJetsToLNu = 8703.87
 xsec_DYJetsToLLMass10to50 = 6997.0
 # private UL16 MiNNLO productions (2026), from the GenXSecAnalyzer of the production jobs
-xsec_DYJetsToMuMuMass2to10BornPt10 = 8107.0  # 2 < m < 10 GeV, Born pT(ll) > 10 GeV
+# 2 < m < 10 GeV, Born pT(ll) > 10 GeV: largeptscales 1 (nominal) and the default scales
+xsec_DYJetsToMuMuMass2to10BornPt10 = 8514.1
+xsec_DYJetsToMuMuMass2to10BornPt10DefaultScales = 8107.0
 xsec_DYJetsToTauTauMass10to50 = 7017.0  # before the tau decays
 
 xsec_WW = 118.7

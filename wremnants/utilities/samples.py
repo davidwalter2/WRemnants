@@ -23,7 +23,7 @@ wprocs_mu_minnlo_run2 = [f"Wplusmunu_{e}" for e in eras_run2] + [
 zprocs_mu_minnlo_run2 = (
     [f"Zmumu_{e}" for e in eras_run2]
     + [f"Zmumu10to50_{e}" for e in eras_run2]
-    + ["Zmumu2to10_2016PostVFP"]
+    + ["Zmumu2to10_2016PostVFP", "Zmumu2to10DefaultScales_2016PostVFP"]
 )
 
 # central MiNNLO samples with muon or e decay
@@ -167,6 +167,7 @@ wprocs_recoil = [
     "Zmumu_2016PostVFP",
     "Zmumu10to50_2016PostVFP",
     "Zmumu2to10_2016PostVFP",
+    "Zmumu2to10DefaultScales_2016PostVFP",
     "Ztautau10to50_2016PostVFP",
 ]
 

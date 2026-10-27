@@ -56,13 +56,24 @@ dataDict = {
     },
     # private production (2026) with the custom NanoAOD; the generator cut Born pT(ll) > 10 GeV
     # makes it overlap-free with Zmumu10to50 only above pT(ll) of about 10 GeV.
-    # The PDF weights are in other LHE weight groups (theory_utils.pdfMap_private2026)
+    # The PDF weights are in other LHE weight groups (theory_utils.pdfMap_private2026).
+    # Generated with largeptscales 1 (scales ~ pT(ll) at large pT(ll)) as nominal, see
+    # theory_utils.datasets_largeptscales_nominal. NanoAOD merged to 250 jobs per file.
     "Zmumu2to10_2016PostVFP": {
         "filepaths": [
-            "/ceph/submit/data/user/d/david_w/MC_Production/261011_DYMM_M2to10/results/nano",
+            "/ceph/submit/data/user/d/david_w/MC_Production/261014_DYMM_M2to10_lps/results/nano_merged",
         ],
         "xsec": common.xsec_DYJetsToMuMuMass2to10BornPt10,
         "group": "Zmumu",
+    },
+    # the first 20M events of the same production, with the default MiNNLO scales: validation
+    "Zmumu2to10DefaultScales_2016PostVFP": {
+        "filepaths": [
+            "/ceph/submit/data/user/d/david_w/MC_Production/261011_DYMM_M2to10/results/nano_merged",
+        ],
+        "xsec": common.xsec_DYJetsToMuMuMass2to10BornPt10DefaultScales,
+        "group": "Zmumu",
+        "auxiliary": True,
     },
     "Ztautau_2016PostVFP": {
         "filepaths": [
@@ -76,7 +87,7 @@ dataDict = {
     # The PDF weights are in other LHE weight groups (theory_utils.pdfMap_private2026)
     "Ztautau10to50_2016PostVFP": {
         "filepaths": [
-            "/ceph/submit/data/user/d/david_w/MC_Production/261011_DYTT_M10to50/results/nano",
+            "/ceph/submit/data/user/d/david_w/MC_Production/261011_DYTT_M10to50/results/nano_merged",
         ],
         "xsec": common.xsec_DYJetsToTauTauMass10to50 * common.Z_TAU_TO_LEP_RATIO,
         "group": "Ztautau",

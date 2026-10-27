@@ -323,12 +323,20 @@ pdfMap_private2026 = {
 
 private2026_pdf_datasets = [
     "Zmumu2to10_2016PostVFP",
+    "Zmumu2to10DefaultScales_2016PostVFP",
     "Ztautau10to50_2016PostVFP",
 ]
 
 # datasets below the mass range of the QCD theory corrections (m > 10 GeV for the Z): the QCD
 # corrections and their variations are not applied to them, the EW corrections are
 datasets_without_qcd_corr = [
+    "Zmumu2to10_2016PostVFP",
+    "Zmumu2to10DefaultScales_2016PostVFP",
+]
+
+# datasets generated with largeptscales 1 as nominal: their MEParamWeightAltSet3 holds the
+# default scales, so --largePtScales leaves them as they are
+datasets_largeptscales_nominal = [
     "Zmumu2to10_2016PostVFP",
 ]
 

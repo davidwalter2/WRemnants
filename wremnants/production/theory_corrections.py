@@ -528,7 +528,9 @@ def define_theory_weights_and_corrs(
     )
 
     if args.largePtScales:
-        if df.HasColumn("MEParamWeightAltSet3"):
+        if dataset_name in theory_utils.datasets_largeptscales_nominal:
+            logger.info(f"{dataset_name} has largeptscales as nominal, not reweighted")
+        elif df.HasColumn("MEParamWeightAltSet3"):
             # MiNNLO largeptscales variation: scales ~ pT_V instead of ~ m_V at large pT_V
             logger.info(f"Reweight {dataset_name} with the largeptscales weight")
             df = df.Define("extra_weight", "MEParamWeightAltSet3[0]")
