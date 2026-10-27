@@ -61,7 +61,7 @@ dataDict = {
     # theory_utils.datasets_largeptscales_nominal. NanoAOD merged to 250 jobs per file.
     "Zmumu2to10_2016PostVFP": {
         "filepaths": [
-            "/ceph/submit/data/user/d/david_w/MC_Production/261014_DYMM_M2to10_lps/results/nano_merged",
+            "{BASE_PATH}/DYJetsToMuMu_M-2to10_BornPt-10_largePtScales_H2ErratumFix_TuneCP5_13TeV-powhegMiNNLO-pythia8-photos/Nano{NANO_VERSION}MCPostVFP_{NANO_PROD_TAG}",
         ],
         "xsec": common.xsec_DYJetsToMuMuMass2to10BornPt10,
         "group": "Zmumu",
