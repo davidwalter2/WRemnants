@@ -12,7 +12,9 @@ only where needed, first along the first merge axis (default pT), then along bot
 axes (|Y|, charge) are never merged. At each step the worst failing group (sigma_UL <= 0 first, then the smallest
 N_eff) is merged with the neighbour that gives a passing group of the smallest N_eff, or else with the neighbour of
 the smallest N_eff. Empty bins (no events) are not merged for their own sake; a failing group crosses them
-only when it has no populated neighbour.
+only when it has no populated neighbour. Bins outside the generated mass range of the samples (--massRange) are not
+merged at all: MiNNLO is empty there because of the generation cut, and a group extending there would add predicted
+cross section without MiNNLO events to its ratio.
 
 Output: an npz file with the group index of every bin (array over the non-helicity axes) and the axis edges.
 """
@@ -54,29 +56,33 @@ def group_stats(s, var):
     return ul, neff, float((BASE + (s[1:] / ul) @ BASIS).min())
 
 
-def merge_plane(vals, ulvar, nmin, bmin):
-    """Group the cells of a 2D plane (first merge axis, second merge axis); returns the group label of every cell,
-    the stats of every group and the number of failing groups."""
+def passes(x, nmin, bmin):
+    return x[0] > 0 and x[1] >= nmin and x[2] >= bmin
+
+
+def is_empty(s, var):
+    # no events: not failing, crossed only to reach populated bins
+    return s[0] == 0 and var == 0
+
+
+def merge_plane(vals, ulvar, active, nmin, bmin):
+    """Group the cells of a 2D plane (first merge axis, second merge axis); returns the group label of every cell.
+    Inactive cells are left as they are."""
     n0, n1 = vals.shape[:2]
     ncell = n0 * n1
     parent = np.arange(ncell)
-    ssum = vals.reshape(ncell, -1).astype(float).copy()
-    svar = ulvar.reshape(-1).astype(float).copy()
+    # cells are numbered with the first merge axis running fastest, c = i0 + n0 * i1
+    ssum = vals.reshape(ncell, -1, order="F").astype(float)
+    svar = ulvar.reshape(-1, order="F").astype(float)
+    active = active.reshape(-1, order="F")
     members = {c: [c] for c in range(ncell)}
     st = {c: group_stats(ssum[c], svar[c]) for c in range(ncell)}
-
-    def is_empty(r):
-        # no events in the group: not failing, crossed only to reach populated bins
-        return ssum[r, 0] == 0 and svar[r] == 0
 
     def find(c):
         while parent[c] != c:
             parent[c] = parent[parent[c]]
             c = parent[c]
         return c
-
-    def passes(x):
-        return x[0] > 0 and x[1] >= nmin and x[2] >= bmin
 
     def neighbours(root, both_axes):
         out = set()
@@ -87,7 +93,7 @@ def merge_plane(vals, ulvar, nmin, bmin):
             i1, i0 = divmod(c, n0)
             for d0, d1 in steps:
                 j0, j1 = i0 + d0, i1 + d1
-                if 0 <= j0 < n0 and 0 <= j1 < n1:
+                if 0 <= j0 < n0 and 0 <= j1 < n1 and active[j1 * n0 + j0]:
                     rr = find(j1 * n0 + j0)
                     if rr != root:
                         out.add(rr)
@@ -99,7 +105,10 @@ def merge_plane(vals, ulvar, nmin, bmin):
             failing = [
                 r
                 for r in st
-                if not passes(st[r]) and r not in stuck and not is_empty(r)
+                if active[r]
+                and not passes(st[r], nmin, bmin)
+                and r not in stuck
+                and not is_empty(ssum[r], svar[r])
             ]
             if not failing:
                 break
@@ -111,14 +120,18 @@ def merge_plane(vals, ulvar, nmin, bmin):
                 continue
             trials = [
                 (
-                    passes(x := group_stats(ssum[r] + ssum[n], svar[r] + svar[n])),
+                    passes(
+                        x := group_stats(ssum[r] + ssum[n], svar[r] + svar[n]),
+                        nmin,
+                        bmin,
+                    ),
                     x[1],
                     n,
                 )
                 for n in nb
             ]
             ok = [t for t in trials if t[0]]
-            populated = [m for m in nb if not is_empty(m)]
+            populated = [m for m in nb if not is_empty(ssum[m], svar[m])]
             if ok:
                 n = min(ok, key=lambda t: t[1])[2]
             elif populated:
@@ -133,36 +146,57 @@ def merge_plane(vals, ulvar, nmin, bmin):
             st.pop(b)
             st[a] = group_stats(ssum[a], svar[a])
             stuck.discard(a)
-    # cells are numbered with the first merge axis running fastest
-    labels = np.array([find(c) for c in range(ncell)]).reshape(n1, n0).T
-    nfail = sum(not passes(x) and not is_empty(r) for r, x in st.items())
-    return labels, st, nfail
+    return np.array([find(c) for c in range(ncell)]).reshape(n1, n0).T
 
 
-def merge_groups(h, merge_axes, nmin, bmin, helicity_axis="helicity"):
-    """Group labels over the non-helicity axes of h, merging only along the two merge_axes."""
+def failing_groups(vals, ulvar, labels, active, nmin, bmin):
+    """Number of active, populated groups failing the criteria, recomputed from the bins of every group"""
+    ng = labels.max() + 1
+    ssum = np.zeros((ng, vals.shape[-1]))
+    np.add.at(ssum, labels.ravel(), vals.reshape(-1, vals.shape[-1]))
+    svar = np.bincount(labels.ravel(), weights=ulvar.ravel(), minlength=ng)
+    gactive = np.bincount(labels.ravel(), weights=active.ravel(), minlength=ng) > 0
+    return sum(
+        gactive[g]
+        and not is_empty(ssum[g], svar[g])
+        and not passes(group_stats(ssum[g], svar[g]), nmin, bmin)
+        for g in range(ng)
+    )
+
+
+def merge_groups(h, merge_axes, nmin, bmin, ranges=None, helicity_axis="helicity"):
+    """Group labels over the non-helicity axes of h, merging only along the two merge_axes and only bins within
+    ranges ({axis name: (low, high)}); returns the labels, the axis names, the number of groups that still fail the
+    criteria and the mask of the bins within ranges."""
     names = [n for n in h.axes.name if n != helicity_axis]
     hel = h.axes.name.index(helicity_axis)
-    vals = np.moveaxis(h.values(), hel, -1)
-    ulvar = np.moveaxis(h.variances(), hel, -1)[..., 0]
+    vals0 = np.moveaxis(h.values(), hel, -1)
+    ulvar0 = np.moveaxis(h.variances(), hel, -1)[..., 0]
+    active0 = np.ones(ulvar0.shape, dtype=bool)
+    for name, (low, high) in (ranges or {}).items():
+        edges = h.axes[name].edges
+        shape = [1] * len(names)
+        shape[names.index(name)] = -1
+        active0 &= ((edges[:-1] >= low) & (edges[1:] <= high)).reshape(shape)
     i0, i1 = names.index(merge_axes[0]), names.index(merge_axes[1])
     others = [i for i in range(len(names)) if i not in (i0, i1)]
     order = [i0, i1, *others]
-    vals = np.transpose(vals, (*order, len(names)))
-    ulvar = np.transpose(ulvar, order)
+    vals = np.transpose(vals0, (*order, len(names)))
+    ulvar = np.transpose(ulvar0, order)
+    active = np.transpose(active0, order)
     labels = np.zeros(ulvar.shape, dtype=np.int64)
-    offset, nfail = 0, 0
+    offset = 0
     for idx in itertools.product(
         *[range(ulvar.shape[k]) for k in range(2, ulvar.ndim)]
     ):
         sl = (slice(None), slice(None), *idx)
-        lab, st, nf = merge_plane(vals[sl], ulvar[sl], nmin, bmin)
+        lab = merge_plane(vals[sl], ulvar[sl], active[sl], nmin, bmin)
         _, inv = np.unique(lab, return_inverse=True)
         labels[sl] = inv.reshape(lab.shape) + offset
         offset += inv.max() + 1
-        nfail += nf
     labels = np.transpose(labels, np.argsort(order))
-    return labels, names, nfail
+    nfail = failing_groups(vals0, ulvar0, labels, active0, nmin, bmin)
+    return labels, names, nfail, active0
 
 
 def main():
@@ -204,6 +238,14 @@ def main():
         help="Minimum of the angular bracket per group",
     )
     parser.add_argument(
+        "--massRange",
+        nargs=2,
+        type=float,
+        default=None,
+        help="Generated mass range of the samples (massVgen); bins outside are not merged, "
+        "e.g. 50 13000 for a reference of the m > 50 GeV samples only",
+    )
+    parser.add_argument(
         "-o", "--outfile", required=True, help="Output npz file with the group labels"
     )
     parser.add_argument("-v", "--verbose", type=int, default=3, choices=[0, 1, 2, 3, 4])
@@ -226,13 +268,16 @@ def main():
             combine_with_tau=not args.noCombineTau,
         )
 
-    labels, names, nfail = merge_groups(h, args.mergeAxes, args.nmin, args.bmin)
+    ranges = {"massVgen": args.massRange} if args.massRange else None
+    labels, names, nfail, active = merge_groups(
+        h, args.mergeAxes, args.nmin, args.bmin, ranges
+    )
     sizes = np.bincount(labels.ravel())
     merged = sizes[labels] > 1
     logger.info(
-        f"{labels.size} bins -> {len(sizes)} groups (nmin {args.nmin:g}, bmin {args.bmin:g}), "
-        f"{int(merged.sum())} bins ({100 * merged.mean():.1f}%) in merged groups, largest group {sizes.max()} bins, "
-        f"{nfail} groups failing after merging"
+        f"{labels.size} bins ({int((~active).sum())} outside the mass range) -> {len(sizes)} groups "
+        f"(nmin {args.nmin:g}, bmin {args.bmin:g}), {int(merged.sum())} bins ({100 * merged.mean():.1f}%) in merged "
+        f"groups, largest group {sizes.max()} bins, {nfail} groups failing after merging"
     )
     np.savez(
         args.outfile,
@@ -241,6 +286,7 @@ def main():
         **{f"edges_{n}": h.axes[n].edges for n in names},
         nmin=args.nmin,
         bmin=args.bmin,
+        **({"massRange": args.massRange} if args.massRange else {}),
     )
     logger.info(f"Wrote {args.outfile}")
 
