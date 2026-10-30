@@ -314,13 +314,15 @@ def main():
     if args.minnloProcs:
         eventgen_procs = args.minnloProcs
 
+    combine_with_tau = args.proc != "bsm" and not args.noCombineTau
+    input_tools.check_minnlo_procs(eventgen_procs, combine_with_tau)
     minnlohists = [
         input_tools.read_mu_hist_combine_tau(
             args.minnloFile,
             proc,
             args.minnloh,
             eras=args.eras,
-            combine_with_tau=args.proc != "bsm" and not args.noCombineTau,
+            combine_with_tau=combine_with_tau,
         )
         for proc in eventgen_procs
     ]
