@@ -5,6 +5,8 @@ narf.clingutils.Declare('#include "theoryTools.hpp"')
 
 logger = logging.child_logger(__name__)
 
+tau_mass = 1.77686  # GeV, PDG
+
 
 def define_dressed_vars(df, mode, flavor="mu"):
     if "dressedGenV_mom4" in df.GetColumnNames():
@@ -210,14 +212,16 @@ def define_prefsr_vars(df):
         "prefsrLeps",
         "wrem::prefsrLeptons(GenPart_status, GenPart_statusFlags, GenPart_pdgId, GenPart_genPartIdxMother)",
     )
-    df = df.Define(
-        "genl",
-        "ROOT::Math::PtEtaPhiMVector(GenPart_pt[prefsrLeps[0]], GenPart_eta[prefsrLeps[0]], GenPart_phi[prefsrLeps[0]], GenPart_mass[prefsrLeps[0]])",
-    )
-    df = df.Define(
-        "genlanti",
-        "ROOT::Math::PtEtaPhiMVector(GenPart_pt[prefsrLeps[1]], GenPart_eta[prefsrLeps[1]], GenPart_phi[prefsrLeps[1]], GenPart_mass[prefsrLeps[1]])",
-    )
+    # NanoAOD and NanoGen store GenPart_mass = 0 for leptons. For taus this biases the pre-FSR boson mass by
+    # about -120 MeV (Z, median) and smears its rapidity, so the tau mass is restored; for electrons and muons the
+    # effect on the boson is below 1 MeV and the stored mass is kept.
+    for name, idx in [("genl", 0), ("genlanti", 1)]:
+        df = df.Define(
+            name,
+            f"ROOT::Math::PtEtaPhiMVector(GenPart_pt[prefsrLeps[{idx}]], GenPart_eta[prefsrLeps[{idx}]], "
+            f"GenPart_phi[prefsrLeps[{idx}]], std::abs(GenPart_pdgId[prefsrLeps[{idx}]]) == 15 ? "
+            f"{tau_mass}f : GenPart_mass[prefsrLeps[{idx}]])",
+        )
     df = df.Define(
         "genV", "ROOT::Math::PxPyPzEVector(genl)+ROOT::Math::PxPyPzEVector(genlanti)"
     )
