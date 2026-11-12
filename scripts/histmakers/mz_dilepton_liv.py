@@ -11,11 +11,7 @@ from narf.lumitools import (
     make_lumihelper,
 )
 from wremnants.production import generator_level_definitions as theory_tools
-from wremnants.production import (
-    muon_efficiencies_liv,
-    muon_prefiring,
-    muon_selections,
-)
+from wremnants.production import muon_efficiencies_liv, muon_prefiring, muon_selections
 from wremnants.production import systematics as syst_tools
 from wremnants.production.datasets.dataset_tools import getDatasets
 from wremnants.production.histmaker_tools import (
@@ -33,11 +29,14 @@ analysis_label = common.analysis_label(os.path.basename(__file__))
 parser, initargs = parsing.common_parser(analysis_label)
 
 parser.add_argument(
-    "--randTime", type=bool, default=False, help="assign times by event number"
+    "--randTime",
+    type=lambda s: s.lower() in ("true", "1", "yes"),
+    default=False,
+    help="assign times by event number",
 )
 parser.add_argument(
     "--sameSignMuon",
-    type=bool,
+    type=lambda s: s.lower() in ("true", "1", "yes"),
     default=False,
     help="whether to select muons with the same sign in events",
 )
@@ -68,18 +67,18 @@ def make_timehelper(filename):
             - 730531.5
             + (timestamp.hour + timestamp.minute / 60 + timestamp.second / 3600) / 24
         )
-        # calculate greenwich mst
+        # calculate greenwich mst, IAU 1982 with T in julian centuries since J2000
+        T = jd / 36525
         gmst = (
             67310.54841
-            + (876600 * 3600 + 8640184.812866) * jd
-            + 0.093104 * jd**2
-            - 6.2e-6 * jd**3
+            + (876600 * 3600 + 8640184.812866) * T
+            + 0.093104 * T**2
+            - 6.2e-6 * T**3
         ) % 86400
         gmst /= 3600
 
-        lst = (
-            gmst + 46.309879 / 15
-        ) % 24  ## include longitudinal correction, based on pt 5 at cern, could try to get a more accurate (and precise) number
+        # local sidereal time at CMS: add the east longitude of CMS (6.08 deg = 0.1061 rad)
+        lst = (gmst + np.degrees(0.1061) / 15) % 24
         return lst
 
     return make_brilcalc_helper(filename, idx=2, action=to_time)
