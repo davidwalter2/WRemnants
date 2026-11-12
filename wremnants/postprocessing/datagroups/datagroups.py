@@ -31,6 +31,16 @@ logger = logging.child_logger(__name__)
 
 
 class Datagroups(object):
+    # mode_map = {
+    #     "w_z_gen_dists.py": "vgen",
+    #     "mz_dilepton.py": "z_dilepton",
+    #     "mz_dilepton_liv.py": "z_dilepton_liv",
+    #     "mz_wlike_with_mu_eta_pt.py": "z_wlike",
+    #     "mw_with_mu_eta_pt.py": "w_mass",
+    #     "mw_lowPU.py": "w_lowpu",
+    #     "mz_lowPU.py": "z_lowpu",
+    # }
+
     lumi_uncertainties = {
         "2016RreVFP": 1.012,
         "2016PostVFP": 1.012,

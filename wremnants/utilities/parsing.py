@@ -766,6 +766,7 @@ def common_parser(analysis_label=""):
             "w_lowpu": ["ptVGen", "qVGen"],
             "w_mass": ["absEtaGen", "ptGen", "qGen"],
             "z_dilepton": ["ptVGen", "absYVGen"],
+            "z_dilepton_liv": ["ptVGen", "absYVGen"],  #### no idea if that is right
             "z_lowpu": ["ptVGen"],
         }
         axmap["z_wlike"] = axmap["w_mass"]

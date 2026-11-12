@@ -1,0 +1,1 @@
+APPTAINER_BIND=/tmp,/home/submit,/work/submit,/scratch/submit,/cvmfs,/etc/grid-security,/run singularity run /cvmfs/unpacked.cern.ch/gitlab-registry.cern.ch/bendavid/cmswmassdocker/wmassdevrolling\:latest

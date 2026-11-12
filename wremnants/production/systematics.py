@@ -1125,13 +1125,14 @@ def add_Muon_L1Prefire_unc_hists(
     base_name="nominal",
     helper_stat=None,
     helper_syst=None,
+    weight="weight",
     **kwargs,
 ):
 
     if helper_stat is None:
         df = df.Define(
             "muonL1Prefire_stat_tensor",
-            "wrem::twoPointScaling(nominal_weight/L1PreFiringWeight_Muon_Nom, L1PreFiringWeight_Muon_StatDn, L1PreFiringWeight_Muon_StatUp)",
+            f"wrem::twoPointScaling({weight}/L1PreFiringWeight_Muon_Nom, L1PreFiringWeight_Muon_StatDn, L1PreFiringWeight_Muon_StatUp)",
         )
         name = common.hist_name(base_name, syst="muonL1PrefireStat")
         add_syst_hist(
@@ -1149,12 +1150,12 @@ def add_Muon_L1Prefire_unc_hists(
             "muonL1PrefireStat_tensor",
             helper_stat,
             [
-                "Muon_correctedEta",
-                "Muon_correctedPt",
-                "Muon_correctedPhi",
-                "Muon_correctedCharge",
-                "Muon_looseId",
-                "nominal_weight",
+                "Muon_eta",
+                "Muon_pt",
+                "Muon_phi",
+                "Muon_charge",
+                "Muon_tightId",
+                weight,
             ],
         )
         name = common.hist_name(base_name, syst="muonL1PrefireStat")
@@ -1190,12 +1191,12 @@ def add_Muon_L1Prefire_unc_hists(
             "muonL1PrefireSyst_tensor",
             helper_syst,
             [
-                "Muon_correctedEta",
-                "Muon_correctedPt",
-                "Muon_correctedPhi",
-                "Muon_correctedCharge",
-                "Muon_looseId",
-                "nominal_weight",
+                "Muon_eta",
+                "Muon_pt",
+                "Muon_phi",
+                "Muon_charge",
+                "Muon_tightId",
+                weight,
             ],
         )
         name = common.hist_name(base_name, syst="muonL1PrefireSyst")
@@ -1244,13 +1245,14 @@ def add_L1Prefire_unc_hists(
     base_name="nominal",
     helper_stat=None,
     helper_syst=None,
+    weight="nominal",
     **kwargs,
 ):
 
     df = add_Muon_L1Prefire_unc_hists(
-        results, df, axes, cols, base_name, helper_stat, helper_syst, **kwargs
+        results, df, axes, cols, base_name, helper_stat, helper_syst, weight, **kwargs
     )
-    df = add_ECAL_L1Prefire_unc_hists(results, df, axes, cols, base_name, **kwargs)
+    # df = add_ECAL_L1Prefire_unc_hists(results, df, axes, cols, base_name, **kwargs)
     return df
 
 
