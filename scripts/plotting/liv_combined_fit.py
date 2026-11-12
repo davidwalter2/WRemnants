@@ -4,7 +4,7 @@ import time
 import h5py
 import hist
 import numpy as np
-from liv_variation_helpers_new import (
+from liv_variation_helpers import (
     background_syst,
     eta_phi_systematic,
     get_corrected_mc,
@@ -28,12 +28,15 @@ from wums.boostHistHelpers import (
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--randTime", type=bool, default=False, help="use assign times by event number"
+    "--randTime",
+    type=lambda s: s.lower() in ("true", "1", "yes"),
+    default=False,
+    help="use assign times by event number",
 )
 
 parser.add_argument(
     "--sameSignMuon",
-    type=bool,
+    type=lambda s: s.lower() in ("true", "1", "yes"),
     default=False,
     help="whether to select muons with the same sign in events",
 )
