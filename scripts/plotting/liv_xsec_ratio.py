@@ -50,11 +50,9 @@ import numpy as np
 from rabbit.param_models.liv_rapidity import functions as liv_functions
 from rabbit.param_models.liv_rapidity.basis import (
     LIV_QUARKS,
-    PREV_LIV_QUARKS,
-    SM_QUARKS,
+    PDF_NAME,
     bin_response,
-    quark_response,
-    sm_xsec,
+    bin_tag,
 )
 from rabbit.param_models.liv_rapidity.functions import (
     S,
@@ -83,56 +81,29 @@ COEFFS = {
 SME_MODEL_CONV = {"xx": 0.5, "xy": -1.0, "xz": -1.0, "yz": -1.0}
 Q_ID = {"d": 1, "u": 2, "s": 3, "c": 4, "b": 5}
 MODE = {"c": 0, "d": 1}
-EPS = 1e-6
-PDF_NAME = "NNPDF31_nnlo_as_0118"
 
 # default binning of scripts/histmakers/mz_dilepton_liv_rapidity.py
 MLL_EDGES = [15, 30, 40, 45, 50, 55, 60, 65, 70, 76, 106, 110, 115, 120]
 Y_EDGES = [-2.4, -1.4, -0.7, 0, 0.7, 1.4, 2.4]
 
 
-def bin_cache_file(cache_dir, key, liv_quarks, with_sm_quarks=True):
-    """per bin cache of the response basis of liv_quarks, with the SM cross section summed
-    over SM_QUARKS (with_sm_quarks) or over liv_quarks only (oldest caches)"""
-    tag_key = (key, list(liv_quarks), EPS, PDF_NAME) + (
-        (SM_QUARKS,) if with_sm_quarks else ()
-    )
-    tag = hashlib.md5(repr(tag_key).encode()).hexdigest()[:12]
-    return os.path.join(cache_dir, f"liv_bin_{tag}.npz")
+def bin_cache_file(cache_dir, key):
+    """per bin cache of the response basis, e.g. liv_bin_mll66to76_yllm2p4tom1p4_<PDF>.npz"""
+    return os.path.join(cache_dir, f"liv_bin_{bin_tag(key)}_{PDF_NAME}.npz")
 
 
 def cached_bin_basis(args):
     """SM cross section summed over SM_QUARKS and response basis [mode, direction, quark]
     of one (mll, rapidity) bin, as in LIV_rapidity (basis.bin_response)"""
     key, cache_dir = args
-    cache_file = bin_cache_file(cache_dir, key, LIV_QUARKS)
+    cache_file = bin_cache_file(cache_dir, key)
     if os.path.exists(cache_file):
         cached = np.load(cache_file)
-        return float(cached["sm_total"]), cached["resp"]
-    # reuse the responses of PREV_LIV_QUARKS (cached before charm was added)
-    for with_sm_quarks in (True, False):
-        old_file = bin_cache_file(cache_dir, key, PREV_LIV_QUARKS, with_sm_quarks)
-        if not os.path.exists(old_file):
-            continue
-        cached = np.load(old_file)
-        sm_total = float(cached["sm_total"])
-        if not with_sm_quarks:
-            sm_total += sm_xsec(key, [q for q in SM_QUARKS if q not in PREV_LIV_QUARKS])
-        new_quarks = [q for q in LIV_QUARKS if q not in PREV_LIV_QUARKS]
-        print(
-            f"Integrating quarks {new_quarks} of bin mll=[{key[0]}, {key[1]}], y=[{key[2]}, {key[3]}]"
-        )
-        _, new_resp = quark_response(key, new_quarks)
-        resp = np.zeros((2, 3, len(LIV_QUARKS)))
-        for iq, q in enumerate(PREV_LIV_QUARKS):
-            resp[:, :, LIV_QUARKS.index(q)] = cached["resp"][:, :, iq]
-        for iq, q in enumerate(new_quarks):
-            resp[:, :, LIV_QUARKS.index(q)] = new_resp[:, :, iq]
-        break
-    else:
-        print(f"Integrating bin mll=[{key[0]}, {key[1]}], y=[{key[2]}, {key[3]}]")
-        sm_total, resp = bin_response(key)
-    np.savez(cache_file, sm_total=sm_total, resp=resp, key=np.array(key))
+        if np.array_equal(cached["key"], np.array(key, dtype=float)):
+            return float(cached["sm_total"]), cached["resp"]
+    print(f"Integrating bin mll=[{key[0]}, {key[1]}], y=[{key[2]}, {key[3]}]")
+    sm_total, resp = bin_response(key)
+    np.savez(cache_file, sm_total=sm_total, resp=resp, key=np.array(key, dtype=float))
     return sm_total, resp
 
 
